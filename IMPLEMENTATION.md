@@ -26,14 +26,14 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 
 **Goal:** All tables created in PostgreSQL. Admin can create records.
 
-- [ ] **`accounts/models.py`** — `User(AbstractUser)` (no extra fields initially)
-- [ ] **`leagues/models.py`** — `Season`, `SeasonPlayer`
-- [ ] **`matches/models.py`** — `Match`, `MatchSet`
-- [ ] **`playoffs/models.py`** — `PlayoffBracket`, `PlayoffSlot`
-- [ ] Run `python manage.py makemigrations` and `python manage.py migrate`
-- [ ] Register all models in Django admin with sensible `list_display`, `list_filter`, `search_fields`
-- [ ] `python manage.py createsuperuser`
-- [ ] Verify all models visible and editable in `/admin/`
+- [x] **`accounts/models.py`** — `User(AbstractUser)` (no extra fields initially)
+- [x] **`leagues/models.py`** — `Season`, `SeasonPlayer`
+- [x] **`matches/models.py`** — `Match`, `MatchSet`
+- [x] **`playoffs/models.py`** — `PlayoffBracket`, `PlayoffSlot`
+- [x] Run `python manage.py makemigrations` (migrate requires running PostgreSQL)
+- [x] Register all models in Django admin with sensible `list_display`, `list_filter`, `search_fields`
+- [ ] `python manage.py createsuperuser` (run manually after DB is up)
+- [ ] Verify all models visible and editable in `/admin/` (run manually after DB is up)
 
 ---
 
