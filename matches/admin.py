@@ -10,7 +10,7 @@ class MatchSetInline(admin.TabularInline):
 
 @admin.register(Match)
 class MatchAdmin(admin.ModelAdmin):
-    list_display = ('__str__', 'season', 'round', 'status', 'scheduled_date', 'played_date', 'winner')
+    list_display = ('match_players', 'season', 'round', 'status', 'scheduled_date', 'played_date', 'winner')
     list_filter = ('season', 'status', 'round')
     search_fields = (
         'player1__username', 'player1__first_name', 'player1__last_name',
@@ -24,6 +24,10 @@ class MatchAdmin(admin.ModelAdmin):
         ('Result', {'fields': ('winner', 'entered_by', 'confirmed_by')}),
         ('Notes', {'fields': ('walkover_reason', 'notes')}),
     )
+
+    @admin.display(description='Match')
+    def match_players(self, obj):
+        return f'{obj.player1} vs {obj.player2}'
 
 
 @admin.register(MatchSet)

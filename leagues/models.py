@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import F
 from django.conf import settings
 
 
@@ -47,7 +48,7 @@ class Season(models.Model):
         ordering = ['-year', 'name']
 
     def __str__(self):
-        return self.name
+        return f'{self.name} ({self.year})'
 
 
 class SeasonPlayer(models.Model):
@@ -59,7 +60,7 @@ class SeasonPlayer(models.Model):
 
     class Meta:
         unique_together = [('season', 'player')]
-        ordering = ['seed', 'player__last_name', 'player__first_name']
+        ordering = [F('seed').asc(nulls_last=True), 'player__last_name', 'player__first_name']
 
     def __str__(self):
         return f'{self.player} — {self.season}'
