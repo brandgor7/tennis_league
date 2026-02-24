@@ -8,17 +8,17 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 
 **Goal:** Runnable Django project connected to PostgreSQL, nothing more.
 
-- [ ] `pip install django psycopg2-binary django-environ`
-- [ ] `django-admin startproject config .`
-- [ ] Create `.env.example` and `.env` with `SECRET_KEY` and `DATABASE_URL`
-- [ ] Update `config/settings.py`:
+- [x] `pip install django psycopg2-binary django-environ`
+- [x] `django-admin startproject config .`
+- [x] Create `.env.example` and `.env` with `SECRET_KEY` and `DATABASE_URL`
+- [x] Update `config/settings.py`:
   - Use `django-environ` to read `.env`
   - Set `DATABASES` from `DATABASE_URL`
   - Set `AUTH_USER_MODEL = 'accounts.User'`
   - Set `LOGIN_URL` and `LOGIN_REDIRECT_URL`
-- [ ] Create all five apps: `accounts`, `leagues`, `matches`, `standings`, `playoffs`
-- [ ] Add all apps to `INSTALLED_APPS`
-- [ ] Verify `python manage.py check` passes
+- [x] Create all five apps: `accounts`, `leagues`, `matches`, `standings`, `playoffs`
+- [x] Add all apps to `INSTALLED_APPS`
+- [x] Verify `python manage.py check` passes
 
 ---
 
