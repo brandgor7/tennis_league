@@ -1,0 +1,460 @@
+/* ─────────────────────────────────────────────────────────────
+   Tennis League — App Styles
+   Aesthetic: Clay Court Editorial
+   Fonts: Playfair Display (headings/numbers) + DM Sans (body)
+   ───────────────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+
+/* ─── Design tokens ──────────────────────────────────────── */
+:root {
+  --clay:         #C4522A;
+  --clay-dark:    #A0421E;
+  --clay-light:   #EDCFBF;
+  --forest:       #1B3D2B;
+  --forest-mid:   #2D5C42;
+  --cream:        #F7F3EB;
+  --sand:         #EDE5D3;
+  --charcoal:     #1A1A18;
+  --muted:        #6B6558;
+  --border:       #D9CEBE;
+  --white:        #FEFCF8;
+
+  /* Bootstrap 5 overrides via CSS custom properties */
+  --bs-primary:             var(--clay);
+  --bs-primary-rgb:         196, 82, 42;
+  --bs-body-font-family:    'DM Sans', system-ui, sans-serif;
+  --bs-body-color:          var(--charcoal);
+  --bs-body-bg:             var(--cream);
+  --bs-link-color:          var(--clay);
+  --bs-link-hover-color:    var(--clay-dark);
+  --bs-border-color:        var(--border);
+  --bs-card-bg:             var(--white);
+  --bs-card-border-color:   var(--border);
+}
+
+/* ─── Base ───────────────────────────────────────────────── */
+body {
+  letter-spacing: -0.01em;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+}
+
+h1, h2, h3, .font-serif {
+  font-family: 'Playfair Display', Georgia, serif;
+  letter-spacing: -0.02em;
+}
+
+/* ─── Navbar ─────────────────────────────────────────────── */
+.navbar {
+  background-color: var(--forest) !important;
+  border-bottom: 3px solid var(--clay);
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+}
+
+.navbar-brand {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 800;
+  font-size: 1.35rem;
+  color: var(--cream) !important;
+  letter-spacing: -0.03em;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.navbar-brand:hover {
+  color: white !important;
+}
+
+.brand-ball {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+}
+
+.navbar .nav-link {
+  color: rgba(247, 243, 235, 0.7) !important;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.5rem 0.9rem !important;
+  transition: color 0.15s ease;
+  position: relative;
+}
+
+.navbar .nav-link:hover {
+  color: var(--cream) !important;
+}
+
+.navbar .nav-link.nav-active {
+  color: var(--cream) !important;
+}
+
+.navbar .nav-link.nav-active::after {
+  content: '';
+  position: absolute;
+  bottom: -3px; /* sits on the border-bottom of navbar */
+  left: 0.9rem;
+  right: 0.9rem;
+  height: 3px;
+  background: var(--clay);
+}
+
+.navbar-toggler {
+  border-color: rgba(247, 243, 235, 0.25);
+  padding: 0.35rem 0.55rem;
+}
+
+.navbar-toggler-icon {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(247,243,235,0.8)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+/* Season + nav dropdowns */
+.navbar .dropdown-menu {
+  background: var(--forest-mid);
+  border: 1px solid rgba(247, 243, 235, 0.12);
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  min-width: 190px;
+  padding: 0.35rem 0;
+}
+
+.navbar .dropdown-item {
+  color: rgba(247, 243, 235, 0.75);
+  font-size: 0.875rem;
+  padding: 0.55rem 1rem;
+}
+
+.navbar .dropdown-item:hover,
+.navbar .dropdown-item:focus {
+  background: rgba(247, 243, 235, 0.1);
+  color: var(--cream);
+}
+
+.navbar .dropdown-item.season-active {
+  color: var(--cream);
+  font-weight: 600;
+}
+
+.navbar .dropdown-divider {
+  border-color: rgba(247, 243, 235, 0.12);
+  margin: 0.3rem 0;
+}
+
+/* User avatar + badge */
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.user-avatar {
+  width: 26px;
+  height: 26px;
+  background: var(--clay);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 0;
+  flex-shrink: 0;
+}
+
+/* ─── Mobile nav ─────────────────────────────────────────── */
+@media (max-width: 767.98px) {
+  .navbar-collapse {
+    border-top: 1px solid rgba(247, 243, 235, 0.1);
+    margin-top: 0.5rem;
+    padding-top: 0.35rem;
+  }
+
+  .navbar .nav-link {
+    min-height: 44px;
+    padding: 0.75rem 1rem !important;
+    display: flex;
+    align-items: center;
+  }
+
+  .navbar .nav-link.nav-active::after {
+    display: none;
+  }
+
+  .navbar .dropdown-menu {
+    background: rgba(0, 0, 0, 0.15);
+    border: none;
+    box-shadow: none;
+    padding-left: 0.75rem;
+  }
+
+  .navbar .dropdown-item {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+}
+
+/* ─── Flash messages ─────────────────────────────────────── */
+.messages-band .alert {
+  border-radius: 0;
+  border: none;
+  border-left: 4px solid;
+  margin-bottom: 0;
+  padding: 0.8rem 0;
+  font-size: 0.9rem;
+}
+
+.messages-band .alert-success {
+  background: #EBF5F0;
+  border-left-color: #2A7A50;
+  color: #164D30;
+}
+
+.messages-band .alert-danger,
+.messages-band .alert-error {
+  background: #FBF0EC;
+  border-left-color: var(--clay);
+  color: #6B2210;
+}
+
+.messages-band .alert-warning {
+  background: #FBF6E8;
+  border-left-color: #B88A1A;
+  color: #5C420A;
+}
+
+.messages-band .alert-info {
+  background: #EBF2FB;
+  border-left-color: #2A5CB8;
+  color: #163070;
+}
+
+/* ─── Page header ────────────────────────────────────────── */
+.page-header {
+  padding: 2rem 0 1.25rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2rem;
+}
+
+.page-header h1 {
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.page-header .page-meta {
+  color: var(--muted);
+  font-size: 0.875rem;
+  margin: 0.3rem 0 0;
+}
+
+/* ─── Cards ──────────────────────────────────────────────── */
+.card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.card-header {
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  padding: 0.75rem 1.25rem;
+}
+
+/* ─── Tables ─────────────────────────────────────────────── */
+.table {
+  --bs-table-bg: transparent;
+  --bs-table-hover-bg: rgba(196, 82, 42, 0.04);
+  --bs-table-striped-bg: rgba(0, 0, 0, 0.015);
+}
+
+.table thead th {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  border-bottom: 2px solid var(--border);
+  padding: 0.7rem 1rem;
+  white-space: nowrap;
+}
+
+.table tbody td {
+  padding: 0.85rem 1rem;
+  border-color: var(--border);
+  vertical-align: middle;
+}
+
+/* ─── Standings-specific ─────────────────────────────────── */
+.rank-number {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--muted);
+  width: 2.25rem;
+  text-align: right;
+  display: inline-block;
+}
+
+.rank-number.rank-top-3 {
+  color: var(--clay);
+}
+
+.stat-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+/* ─── Score display ──────────────────────────────────────── */
+.score-set {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+}
+
+/* ─── Status badges ──────────────────────────────────────── */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.25em 0.65em;
+  border-radius: 3px;
+}
+
+.status-scheduled         { background: #E4EDF9; color: #1A4A9A; }
+.status-pending           { background: #FDF6E4; color: #7A5210; }
+.status-completed         { background: #E4F4EC; color: #1A5C34; }
+.status-walkover          { background: #FDF0E4; color: #7A3A10; }
+.status-postponed         { background: #F0EDE8; color: #5C4A2A; }
+.status-cancelled         { background: #F4EDED; color: #5C2A2A; }
+.status-upcoming          { background: #EDE8F5; color: #3A1A7A; }
+
+/* ─── Buttons ────────────────────────────────────────────── */
+.btn {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.btn-primary {
+  --bs-btn-bg:           var(--clay);
+  --bs-btn-border-color: var(--clay);
+  --bs-btn-hover-bg:     var(--clay-dark);
+  --bs-btn-hover-border-color: var(--clay-dark);
+  --bs-btn-active-bg:    var(--clay-dark);
+  --bs-btn-color:        white;
+}
+
+.btn-outline-primary {
+  --bs-btn-color:              var(--clay);
+  --bs-btn-border-color:       var(--clay);
+  --bs-btn-hover-bg:           var(--clay);
+  --bs-btn-hover-border-color: var(--clay);
+}
+
+.btn-success {
+  --bs-btn-bg:           #2A7A50;
+  --bs-btn-border-color: #2A7A50;
+  --bs-btn-hover-bg:     #1E5C3C;
+  --bs-btn-hover-border-color: #1E5C3C;
+}
+
+/* ─── Forms ──────────────────────────────────────────────── */
+.form-control,
+.form-select {
+  border-color: var(--border);
+  background-color: var(--white);
+  min-height: 44px;
+  font-size: 0.95rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--clay);
+  box-shadow: 0 0 0 3px rgba(196, 82, 42, 0.14);
+  background-color: var(--white);
+}
+
+.form-label {
+  font-weight: 500;
+  font-size: 0.875rem;
+  margin-bottom: 0.4rem;
+}
+
+.form-text {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* Score entry inputs — numeric, compact */
+.score-input {
+  width: 64px;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 0.4rem 0.5rem;
+}
+
+/* ─── Footer ─────────────────────────────────────────────── */
+.site-footer {
+  background: var(--forest);
+  border-top: 3px solid var(--clay);
+  color: rgba(247, 243, 235, 0.45);
+  font-size: 0.8rem;
+  padding: 1.25rem 0;
+}
+
+.site-footer a {
+  color: rgba(247, 243, 235, 0.5);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--cream);
+}
+
+/* ─── Utility ────────────────────────────────────────────── */
+.text-muted {
+  color: var(--muted) !important;
+}
+
+.text-clay {
+  color: var(--clay);
+}
+
+.bg-sand {
+  background-color: var(--sand);
+}
+
+.border-color {
+  border-color: var(--border) !important;
+}
+
+/* Stretched-link cards need position:relative on the wrapper */
+.match-card {
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.match-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}

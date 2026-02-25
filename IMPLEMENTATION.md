@@ -32,8 +32,8 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 - [x] **`playoffs/models.py`** — `PlayoffBracket`, `PlayoffSlot`
 - [x] Run `python manage.py makemigrations` (migrate requires running PostgreSQL)
 - [x] Register all models in Django admin with sensible `list_display`, `list_filter`, `search_fields`
-- [ ] `python manage.py createsuperuser` (run manually after DB is up)
-- [ ] Verify all models visible and editable in `/admin/` (run manually after DB is up)
+- [x] `python manage.py createsuperuser` (run manually after DB is up)
+- [x] Verify all models visible and editable in `/admin/` (run manually after DB is up)
 
 ---
 
