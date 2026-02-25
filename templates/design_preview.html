@@ -1,0 +1,448 @@
+{% extends 'base.html' %}
+
+{% block title %}Design Preview — TennisLeague{% endblock %}
+
+{% block content %}
+
+<!-- ══════════════════════════════════════════════════════════
+     Design Preview — Clay Court Editorial
+     Shows all components with mock data. Dev only.
+     ══════════════════════════════════════════════════════════ -->
+
+<!-- Simulated flash messages (rendered via JS on load) -->
+<div id="preview-messages"></div>
+
+<!-- ─── Page header ───────────────────────────────────────── -->
+<div class="page-header d-flex justify-content-between align-items-end flex-wrap gap-3">
+  <div>
+    <h1>Spring 2025 Standings</h1>
+    <p class="page-meta">12 players &middot; 38 matches played</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <span class="status-badge status-active" style="background:#E4F4EC;color:#1A5C34;">● Active Season</span>
+  </div>
+</div>
+
+<!-- ─── Status badges ─────────────────────────────────────── -->
+<section class="mb-5">
+  <h6 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:0.72rem;letter-spacing:0.09em;">Status Badges</h6>
+  <div class="d-flex flex-wrap gap-2">
+    <span class="status-badge status-scheduled">Scheduled</span>
+    <span class="status-badge status-pending">Pending Confirmation</span>
+    <span class="status-badge status-completed">Completed</span>
+    <span class="status-badge status-walkover">Walkover</span>
+    <span class="status-badge status-postponed">Postponed</span>
+    <span class="status-badge status-cancelled">Cancelled</span>
+  </div>
+</section>
+
+<!-- ─── Standings ─────────────────────────────────────────── -->
+<section class="mb-5">
+  <h6 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:0.72rem;letter-spacing:0.09em;">Standings Table — Desktop</h6>
+
+  <div class="card d-none d-md-block">
+    <div class="card-header">Spring 2025 &mdash; Regular Season</div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:3rem;">#</th>
+            <th>Player</th>
+            <th class="text-center" style="width:3.5rem;">P</th>
+            <th class="text-center" style="width:3.5rem;">W</th>
+            <th class="text-center" style="width:3.5rem;">L</th>
+            <th class="text-center" style="width:4rem;">Pts</th>
+            <th class="text-center" style="width:5rem;">Sets</th>
+            <th class="text-center" style="width:5rem;">Games</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for player in preview_players %}
+          {% empty %}
+          <!-- Mock rows — hardcoded for preview -->
+          <tr>
+            <td><span class="rank-number rank-top-3">1</span></td>
+            <td><strong>Rafael Nadal</strong></td>
+            <td class="text-center stat-value">10</td>
+            <td class="text-center stat-value">9</td>
+            <td class="text-center stat-value">1</td>
+            <td class="text-center"><strong class="text-clay stat-value">27</strong></td>
+            <td class="text-center stat-value text-muted">0.88</td>
+            <td class="text-center stat-value text-muted">0.71</td>
+          </tr>
+          <tr>
+            <td><span class="rank-number rank-top-3">2</span></td>
+            <td><strong>Roger Federer</strong></td>
+            <td class="text-center stat-value">10</td>
+            <td class="text-center stat-value">8</td>
+            <td class="text-center stat-value">2</td>
+            <td class="text-center"><strong class="text-clay stat-value">24</strong></td>
+            <td class="text-center stat-value text-muted">0.82</td>
+            <td class="text-center stat-value text-muted">0.68</td>
+          </tr>
+          <tr>
+            <td><span class="rank-number rank-top-3">3</span></td>
+            <td><strong>Novak Djokovic</strong></td>
+            <td class="text-center stat-value">10</td>
+            <td class="text-center stat-value">8</td>
+            <td class="text-center stat-value">2</td>
+            <td class="text-center"><strong class="text-clay stat-value">24</strong></td>
+            <td class="text-center stat-value text-muted">0.79</td>
+            <td class="text-center stat-value text-muted">0.65</td>
+          </tr>
+          <tr>
+            <td><span class="rank-number">4</span></td>
+            <td>Andy Murray</td>
+            <td class="text-center stat-value">9</td>
+            <td class="text-center stat-value">6</td>
+            <td class="text-center stat-value">3</td>
+            <td class="text-center"><span class="stat-value">18</span></td>
+            <td class="text-center stat-value text-muted">0.67</td>
+            <td class="text-center stat-value text-muted">0.60</td>
+          </tr>
+          <tr>
+            <td><span class="rank-number">5</span></td>
+            <td>Carlos Alcaraz</td>
+            <td class="text-center stat-value">8</td>
+            <td class="text-center stat-value">5</td>
+            <td class="text-center stat-value">3</td>
+            <td class="text-center"><span class="stat-value">15</span></td>
+            <td class="text-center stat-value text-muted">0.64</td>
+            <td class="text-center stat-value text-muted">0.57</td>
+          </tr>
+          <tr>
+            <td><span class="rank-number">6</span></td>
+            <td>Jannik Sinner</td>
+            <td class="text-center stat-value">8</td>
+            <td class="text-center stat-value">4</td>
+            <td class="text-center stat-value">4</td>
+            <td class="text-center"><span class="stat-value">12</span></td>
+            <td class="text-center stat-value text-muted">0.55</td>
+            <td class="text-center stat-value text-muted">0.51</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Mobile standings cards -->
+  <div class="d-md-none">
+    <h6 class="text-muted text-uppercase fw-semibold mb-2" style="font-size:0.72rem;letter-spacing:0.09em;">Standings — Mobile Cards</h6>
+    <div class="d-flex flex-column gap-2">
+      <div class="card px-3 py-2 d-flex flex-row align-items-center gap-3">
+        <span class="rank-number rank-top-3" style="flex-shrink:0;">1</span>
+        <div class="flex-grow-1">
+          <div class="fw-semibold">Rafael Nadal</div>
+          <div class="text-muted" style="font-size:0.8rem;">9W &ndash; 1L</div>
+        </div>
+        <div class="text-end">
+          <div class="fw-bold text-clay" style="font-size:1.1rem;font-family:'Playfair Display',serif;">27</div>
+          <div class="text-muted" style="font-size:0.72rem;">pts</div>
+        </div>
+      </div>
+      <div class="card px-3 py-2 d-flex flex-row align-items-center gap-3">
+        <span class="rank-number rank-top-3" style="flex-shrink:0;">2</span>
+        <div class="flex-grow-1">
+          <div class="fw-semibold">Roger Federer</div>
+          <div class="text-muted" style="font-size:0.8rem;">8W &ndash; 2L</div>
+        </div>
+        <div class="text-end">
+          <div class="fw-bold text-clay" style="font-size:1.1rem;font-family:'Playfair Display',serif;">24</div>
+          <div class="text-muted" style="font-size:0.72rem;">pts</div>
+        </div>
+      </div>
+      <div class="card px-3 py-2 d-flex flex-row align-items-center gap-3">
+        <span class="rank-number" style="flex-shrink:0;">4</span>
+        <div class="flex-grow-1">
+          <div class="fw-semibold">Andy Murray</div>
+          <div class="text-muted" style="font-size:0.8rem;">6W &ndash; 3L</div>
+        </div>
+        <div class="text-end">
+          <div class="fw-bold" style="font-size:1.1rem;font-family:'Playfair Display',serif;">18</div>
+          <div class="text-muted" style="font-size:0.72rem;">pts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Match cards ───────────────────────────────────────── -->
+<section class="mb-5">
+  <h6 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:0.72rem;letter-spacing:0.09em;">Match Cards — Results</h6>
+
+  <!-- Mobile: cards -->
+  <div class="d-flex flex-column gap-3 d-md-none">
+
+    <div class="card match-card position-relative">
+      <div class="card-body py-3">
+        <div class="d-flex justify-content-between align-items-start mb-1">
+          <div>
+            <div class="fw-semibold">R. Nadal <span class="text-clay">vs</span> R. Federer</div>
+            <div class="text-muted mt-1" style="font-size:0.8rem;">Feb 18, 2025</div>
+          </div>
+          <span class="status-badge status-completed ms-2">Completed</span>
+        </div>
+        <div class="mt-2 d-flex gap-2 align-items-center">
+          <span class="score-set">6–3</span>
+          <span class="text-muted">/</span>
+          <span class="score-set">6–4</span>
+          <span class="text-muted ms-2 small">Nadal wins</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card match-card position-relative">
+      <div class="card-body py-3">
+        <div class="d-flex justify-content-between align-items-start mb-1">
+          <div>
+            <div class="fw-semibold">N. Djokovic <span class="text-clay">vs</span> A. Murray</div>
+            <div class="text-muted mt-1" style="font-size:0.8rem;">Feb 20, 2025</div>
+          </div>
+          <span class="status-badge status-pending ms-2">Pending</span>
+        </div>
+        <div class="mt-2 text-muted" style="font-size:0.85rem;">Awaiting confirmation from Murray</div>
+      </div>
+    </div>
+
+    <div class="card match-card position-relative">
+      <div class="card-body py-3">
+        <div class="d-flex justify-content-between align-items-start mb-1">
+          <div>
+            <div class="fw-semibold">C. Alcaraz <span class="text-clay">vs</span> J. Sinner</div>
+            <div class="text-muted mt-1" style="font-size:0.8rem;">Feb 25, 2025</div>
+          </div>
+          <span class="status-badge status-scheduled ms-2">Scheduled</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Desktop: table -->
+  <div class="card d-none d-md-block">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Player 1</th>
+            <th>Player 2</th>
+            <th>Date</th>
+            <th>Score</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Rafael Nadal</td>
+            <td>Roger Federer</td>
+            <td class="text-muted">Feb 18, 2025</td>
+            <td>
+              <span class="score-set">6–3</span>
+              <span class="text-muted mx-1">/</span>
+              <span class="score-set">6–4</span>
+            </td>
+            <td><span class="status-badge status-completed">Completed</span></td>
+          </tr>
+          <tr>
+            <td>Novak Djokovic</td>
+            <td>Andy Murray</td>
+            <td class="text-muted">Feb 20, 2025</td>
+            <td class="text-muted small">Score entered</td>
+            <td><span class="status-badge status-pending">Pending</span></td>
+          </tr>
+          <tr>
+            <td>Carlos Alcaraz</td>
+            <td>Jannik Sinner</td>
+            <td class="text-muted">Feb 25, 2025</td>
+            <td class="text-muted">—</td>
+            <td><span class="status-badge status-scheduled">Scheduled</span></td>
+          </tr>
+          <tr>
+            <td>Andy Murray</td>
+            <td>Carlos Alcaraz</td>
+            <td class="text-muted">Feb 12, 2025</td>
+            <td class="text-muted small">No-show</td>
+            <td><span class="status-badge status-walkover">Walkover</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Score entry form ──────────────────────────────────── -->
+<section class="mb-5">
+  <h6 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:0.72rem;letter-spacing:0.09em;">Result Entry Form</h6>
+  <div class="row">
+    <div class="col-md-7">
+      <div class="card">
+        <div class="card-header">Nadal vs Federer &mdash; Enter Result</div>
+        <div class="card-body">
+          <table class="table mb-3" style="font-size:0.9rem;">
+            <thead>
+              <tr>
+                <th style="width:3rem;">Set</th>
+                <th class="text-center">Nadal</th>
+                <th class="text-center">Federer</th>
+                <th class="text-center">TB Nadal</th>
+                <th class="text-center">TB Federer</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="text-muted fw-semibold align-middle">1</td>
+                <td class="text-center"><input type="number" class="form-control score-input" value="6" inputmode="numeric" min="0" max="7" aria-label="Set 1 Nadal games"></td>
+                <td class="text-center"><input type="number" class="form-control score-input" value="3" inputmode="numeric" min="0" max="7" aria-label="Set 1 Federer games"></td>
+                <td class="text-center"><input type="number" class="form-control score-input" disabled placeholder="—" aria-label="Set 1 Nadal tiebreak"></td>
+                <td class="text-center"><input type="number" class="form-control score-input" disabled placeholder="—" aria-label="Set 1 Federer tiebreak"></td>
+              </tr>
+              <tr>
+                <td class="text-muted fw-semibold align-middle">2</td>
+                <td class="text-center"><input type="number" class="form-control score-input" value="7" inputmode="numeric" min="0" max="7" aria-label="Set 2 Nadal games"></td>
+                <td class="text-center"><input type="number" class="form-control score-input" value="6" inputmode="numeric" min="0" max="7" aria-label="Set 2 Federer games"></td>
+                <td class="text-center"><input type="number" class="form-control score-input" value="4" inputmode="numeric" aria-label="Set 2 Nadal tiebreak"></td>
+                <td class="text-center"><input type="number" class="form-control score-input" value="7" inputmode="numeric" aria-label="Set 2 Federer tiebreak"></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="d-flex justify-content-end gap-2">
+            <button class="btn btn-outline-secondary">Cancel</button>
+            <button class="btn btn-primary">Submit Result</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm result card -->
+    <div class="col-md-5 mt-3 mt-md-0">
+      <div class="card h-100">
+        <div class="card-header">Confirm Result</div>
+        <div class="card-body d-flex flex-column">
+          <p class="text-muted mb-3" style="font-size:0.9rem;">
+            <strong>Nadal</strong> entered this score. Do you confirm?
+          </p>
+          <div class="mb-4 d-flex gap-3 align-items-center">
+            <span class="score-set text-clay">6–3</span>
+            <span class="text-muted">/</span>
+            <span class="score-set text-clay">7–6</span>
+            <span class="text-muted small">(4)</span>
+          </div>
+          <div class="mt-auto d-flex flex-column gap-2">
+            <button class="btn btn-success w-100">
+              <i class="bi bi-check-lg me-1" aria-hidden="true"></i>Confirm Score
+            </button>
+            <button class="btn btn-outline-danger w-100">
+              <i class="bi bi-x-lg me-1" aria-hidden="true"></i>Dispute Score
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Login form ────────────────────────────────────────── -->
+<section class="mb-5">
+  <h6 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:0.72rem;letter-spacing:0.09em;">Login Form</h6>
+  <div class="row">
+    <div class="col-sm-8 col-md-5 col-lg-4">
+      <div class="card shadow-sm">
+        <div class="card-body p-4">
+          <h5 class="mb-1 font-serif">Welcome back</h5>
+          <p class="text-muted mb-4" style="font-size:0.875rem;">Sign in to your league account</p>
+          <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input type="text" class="form-control" placeholder="Your username" autocomplete="off">
+          </div>
+          <div class="mb-4">
+            <label class="form-label">Password</label>
+            <input type="password" class="form-control" placeholder="Your password">
+          </div>
+          <button class="btn btn-primary w-100 py-2">Sign In</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Typography specimen ───────────────────────────────── -->
+<section class="mb-5">
+  <h6 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:0.72rem;letter-spacing:0.09em;">Typography</h6>
+  <div class="card p-4">
+    <h1 class="mb-1">Spring 2025 Season</h1>
+    <h2 class="mb-1">Standings &amp; Results</h2>
+    <h3 class="mb-3">Match Detail</h3>
+    <p class="mb-1" style="font-size:0.875rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.09em;font-weight:600;">Section Label</p>
+    <p class="mb-1">Body text — DM Sans 400. Used for all prose and UI text throughout the application.</p>
+    <p class="mb-3 text-muted" style="font-size:0.875rem;">Secondary text — used for dates, metadata, and helper copy.</p>
+    <div class="d-flex gap-4 align-items-baseline">
+      <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:2rem;color:var(--clay);">27</span>
+      <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:1.5rem;">6–3 / 7–5</span>
+      <span style="font-family:'Playfair Display',serif;font-style:italic;font-size:1.1rem;color:var(--muted);">Season standings</span>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Colour palette ────────────────────────────────────── -->
+<section class="mb-5">
+  <h6 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:0.72rem;letter-spacing:0.09em;">Colour Palette</h6>
+  <div class="d-flex flex-wrap gap-3">
+    {% for swatch in swatches %}{% empty %}
+    <div class="text-center" style="font-size:0.72rem;">
+      <div style="width:72px;height:72px;background:#C4522A;border-radius:6px;margin-bottom:0.4rem;box-shadow:0 2px 8px rgba(0,0,0,0.12);"></div>
+      <div class="fw-semibold">Clay</div>
+      <div class="text-muted">#C4522A</div>
+    </div>
+    <div class="text-center" style="font-size:0.72rem;">
+      <div style="width:72px;height:72px;background:#1B3D2B;border-radius:6px;margin-bottom:0.4rem;box-shadow:0 2px 8px rgba(0,0,0,0.12);"></div>
+      <div class="fw-semibold">Forest</div>
+      <div class="text-muted">#1B3D2B</div>
+    </div>
+    <div class="text-center" style="font-size:0.72rem;">
+      <div style="width:72px;height:72px;background:#F7F3EB;border-radius:6px;margin-bottom:0.4rem;border:1px solid #D9CEBE;"></div>
+      <div class="fw-semibold">Cream</div>
+      <div class="text-muted">#F7F3EB</div>
+    </div>
+    <div class="text-center" style="font-size:0.72rem;">
+      <div style="width:72px;height:72px;background:#FEFCF8;border-radius:6px;margin-bottom:0.4rem;border:1px solid #D9CEBE;"></div>
+      <div class="fw-semibold">White</div>
+      <div class="text-muted">#FEFCF8</div>
+    </div>
+    <div class="text-center" style="font-size:0.72rem;">
+      <div style="width:72px;height:72px;background:#1A1A18;border-radius:6px;margin-bottom:0.4rem;"></div>
+      <div class="fw-semibold">Charcoal</div>
+      <div class="text-muted">#1A1A18</div>
+    </div>
+    <div class="text-center" style="font-size:0.72rem;">
+      <div style="width:72px;height:72px;background:#6B6558;border-radius:6px;margin-bottom:0.4rem;"></div>
+      <div class="fw-semibold">Muted</div>
+      <div class="text-muted">#6B6558</div>
+    </div>
+    <div class="text-center" style="font-size:0.72rem;">
+      <div style="width:72px;height:72px;background:#D9CEBE;border-radius:6px;margin-bottom:0.4rem;"></div>
+      <div class="fw-semibold">Border</div>
+      <div class="text-muted">#D9CEBE</div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- Flash message demo -->
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var band = document.getElementById('preview-messages');
+    band.innerHTML = `
+      <div class="messages-band mb-0" role="alert">
+        <div class="alert alert-success alert-dismissible fade show mb-0">
+          <div class="container d-flex align-items-center justify-content-between gap-3">
+            <span><strong>Score confirmed.</strong> Nadal def. Federer 6–3, 7–6(4).</span>
+            <button type="button" class="btn-close btn-close-sm flex-shrink-0" data-bs-dismiss="alert" aria-label="Dismiss"></button>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+</script>
+
+{% endblock %}
