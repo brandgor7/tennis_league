@@ -4,8 +4,6 @@
    Fonts: Playfair Display (headings/numbers) + DM Sans (body)
    ───────────────────────────────────────────────────────────── */
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
-
 /* ─── Design tokens ──────────────────────────────────────── */
 :root {
   --clay:         #C4522A;
@@ -445,7 +443,7 @@ h1, h2, h3, .font-serif {
   background-color: var(--sand);
 }
 
-.border-color {
+.border-theme {
   border-color: var(--border) !important;
 }
 
