@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}My Profile — TennisLeague{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>My Profile</h1>
+  <p class="page-meta">
+    {{ user.get_full_name|default:user.username }}
+    &nbsp;·&nbsp;
+    <span class="text-clay">{{ wins }}W</span>
+    &nbsp;/&nbsp;
+    <span class="text-muted">{{ losses }}L</span>
+  </p>
+</div>
+
+{% if not history %}
+<p class="text-muted">No completed matches yet.</p>
+{% else %}
+
+<!-- ── Mobile: cards ─────────────────────────────────── -->
+<div class="d-block d-md-none">
+  {% for entry in history %}
+  <div class="card mb-3">
+    <div class="card-body py-3">
+      <div class="d-flex justify-content-between align-items-start mb-1">
+        <span class="fw-500">{{ entry.opponent.get_full_name|default:entry.opponent.username }}</span>
+        <span class="status-badge status-{{ entry.match.status }}">
+          {{ entry.match.get_status_display }}
+        </span>
+      </div>
+      <div class="d-flex justify-content-between align-items-center mt-2">
+        <span class="text-muted" style="font-size:0.85rem;">
+          {% if entry.match.played_date %}{{ entry.match.played_date }}{% else %}—{% endif %}
+          &nbsp;·&nbsp;{{ entry.match.season }}
+        </span>
+        <span class="fw-600 {% if entry.result == 'W' %}text-clay{% else %}text-muted{% endif %}" style="font-size:1.05rem;">
+          {{ entry.result }}
+        </span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ── Desktop: table ────────────────────────────────── -->
+<div class="d-none d-md-block">
+  <div class="card">
+    <div class="card-header">Match History</div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Opponent</th>
+            <th>Result</th>
+            <th>Date</th>
+            <th>Season</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in history %}
+          <tr>
+            <td>{{ entry.opponent.get_full_name|default:entry.opponent.username }}</td>
+            <td>
+              <span class="fw-600 {% if entry.result == 'W' %}text-clay{% else %}text-muted{% endif %}">
+                {{ entry.result }}
+              </span>
+            </td>
+            <td class="text-muted">
+              {% if entry.match.played_date %}{{ entry.match.played_date }}{% else %}—{% endif %}
+            </td>
+            <td class="text-muted">{{ entry.match.season }}</td>
+            <td>
+              <span class="status-badge status-{{ entry.match.status }}">
+                {{ entry.match.get_status_display }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

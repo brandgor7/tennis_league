@@ -2,6 +2,9 @@ from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 
+from leagues.models import Season
+from matches.models import Match
+
 User = get_user_model()
 
 
@@ -167,3 +170,134 @@ class NavbarTemplateTest(TestCase):
         self.client.login(username='tester', password='testpass123')
         response = self.client.get(self.login_url)
         self.assertNotContains(response, 'href="/admin/"')
+
+    def test_authenticated_navbar_shows_profile_link(self):
+        self._make_user(username='tester')
+        self.client.login(username='tester', password='testpass123')
+        response = self.client.get(self.login_url)
+        self.assertContains(response, 'My Profile')
+
+
+class ProfileViewTest(TestCase):
+    def setUp(self):
+        self.url = reverse('accounts:profile')
+        self.user = User.objects.create_user(username='me', password='testpass123')
+        self.opponent = User.objects.create_user(
+            username='opponent', password='testpass123',
+            first_name='Jane', last_name='Doe',
+        )
+        self.season = Season.objects.create(name='Spring 2025', year=2025)
+
+    def _make_match(self, player1=None, player2=None, winner=None,
+                    status=Match.STATUS_COMPLETED):
+        return Match.objects.create(
+            season=self.season,
+            player1=player1 or self.user,
+            player2=player2 or self.opponent,
+            status=status,
+            winner=winner,
+        )
+
+    # ── Access control ────────────────────────────────────────────
+
+    def test_requires_login(self):
+        response = self.client.get(self.url)
+        self.assertRedirects(
+            response, f'/accounts/login/?next={self.url}',
+            fetch_redirect_response=False,
+        )
+
+    def test_authenticated_gets_200(self):
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_uses_correct_template(self):
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertTemplateUsed(response, 'accounts/profile.html')
+
+    # ── Match filtering ───────────────────────────────────────────
+
+    def test_shows_completed_match_as_player1(self):
+        self._make_match(winner=self.user)
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.context['history']), 1)
+
+    def test_shows_completed_match_as_player2(self):
+        self._make_match(player1=self.opponent, player2=self.user, winner=self.user)
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.context['history']), 1)
+
+    def test_shows_walkover_match(self):
+        self._make_match(winner=self.user, status=Match.STATUS_WALKOVER)
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.context['history']), 1)
+
+    def test_excludes_scheduled_matches(self):
+        self._make_match(status=Match.STATUS_SCHEDULED)
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.context['history']), 0)
+
+    def test_excludes_other_players_matches(self):
+        other = User.objects.create_user(username='other', password='testpass123')
+        self._make_match(player1=self.opponent, player2=other, winner=self.opponent)
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.context['history']), 0)
+
+    # ── Win/loss counts ───────────────────────────────────────────
+
+    def test_win_counts(self):
+        self._make_match(winner=self.user)
+        self._make_match(winner=self.opponent)
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertEqual(response.context['wins'], 1)
+        self.assertEqual(response.context['losses'], 1)
+
+    def test_walkover_win_counts_as_win(self):
+        self._make_match(winner=self.user, status=Match.STATUS_WALKOVER)
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertEqual(response.context['wins'], 1)
+        self.assertEqual(response.context['losses'], 0)
+
+    def test_no_winner_not_counted(self):
+        # Walkover with winner=None shouldn't count as win or loss
+        self._make_match(winner=None, status=Match.STATUS_WALKOVER)
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertEqual(response.context['wins'], 0)
+        self.assertEqual(response.context['losses'], 0)
+
+    # ── Opponent resolution ───────────────────────────────────────
+
+    def test_opponent_is_player2_when_user_is_player1(self):
+        self._make_match(winner=self.user)
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertEqual(response.context['history'][0]['opponent'], self.opponent)
+
+    def test_opponent_is_player1_when_user_is_player2(self):
+        self._make_match(player1=self.opponent, player2=self.user, winner=self.user)
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertEqual(response.context['history'][0]['opponent'], self.opponent)
+
+    # ── Template output ───────────────────────────────────────────
+
+    def test_opponent_name_appears_in_page(self):
+        self._make_match(winner=self.user)
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertContains(response, 'Jane Doe')
+
+    def test_empty_state_shown_when_no_matches(self):
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertContains(response, 'No completed matches yet')

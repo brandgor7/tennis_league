@@ -41,7 +41,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 
 **Goal:** App has a working layout and players can log in/out. The base template establishes the responsive foundation for every page.
 
-- [ ] **`templates/base.html`**:
+- [x] **`templates/base.html`**:
   - Bootstrap 5 CDN (CSS + JS bundle)
   - `<meta name="viewport" content="width=device-width, initial-scale=1">` in `<head>`
   - `navbar-expand-md`: full nav on desktop, hamburger on mobile
@@ -50,17 +50,17 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
   - Flash message block (`{% if messages %}`) — full-width alert banners, readable on both screen sizes
   - `{% block content %}` wrapped in `<div class="container">` (fluid on mobile, fixed-width on desktop is handled automatically by Bootstrap's `container`)
   - `{% block extra_css %}` and `{% block extra_js %}` for per-page additions
-- [ ] **`accounts/views.py`** — use Django's built-in `LoginView` and `LogoutView`
-- [ ] **`accounts/urls.py`** — wire up login, logout
-- [ ] **`templates/accounts/login.html`**:
+- [x] **`accounts/views.py`** — use Django's built-in `LoginView` and `LogoutView`; `profile` view with `@login_required`
+- [x] **`accounts/urls.py`** — wire up login, logout, profile
+- [x] **`templates/accounts/login.html`**:
   - Centered card layout, `max-width: 400px`, full-width on mobile
   - Full-width inputs and submit button
-- [ ] **`templates/accounts/profile.html`**:
+- [x] **`templates/accounts/profile.html`**:
   - Mobile: match history as cards (opponent, result, date, status badge)
   - Desktop: match history as a `table-responsive` table
   - Use `d-none d-md-block` / `d-block d-md-none` to render both and show the appropriate one
-- [ ] Wire `accounts/urls.py` into `config/urls.py`
-- [ ] Verify login/logout works end-to-end on both a narrow (375px) and wide (1280px) viewport
+- [x] Wire `accounts/urls.py` into `config/urls.py`
+- [x] Verify login/logout works end-to-end on both a narrow (375px) and wide (1280px) viewport
 
 ---
 
