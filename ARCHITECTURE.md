@@ -59,6 +59,81 @@ Bootstrap 5's `md` breakpoint (768px) is the single dividing line between **mobi
 
 ---
 
+## CSS Design System
+
+Source: `static/css/app.css`. All pages extend `base.html`, which loads this file automatically via `{% static %}`. No per-template imports needed.
+
+### Design Tokens
+
+CSS custom properties on `:root`. Use these in any inline styles or future CSS rather than hardcoding values.
+
+| Token | Value | Use |
+|-------|-------|-----|
+| `--clay` | `#C4522A` | Primary — buttons, links, active indicators |
+| `--clay-dark` | `#A0421E` | Primary hover state |
+| `--forest` | `#1B3D2B` | Navbar and footer background |
+| `--cream` | `#F7F3EB` | Page background |
+| `--sand` | `#EDE5D3` | Secondary surface / alternating rows |
+| `--charcoal` | `#1A1A18` | Body text |
+| `--muted` | `#6B6558` | Subdued / secondary text |
+| `--border` | `#D9CEBE` | Input borders, dividers |
+| `--white` | `#FEFCF8` | Card background |
+
+All Bootstrap 5 semantic colour variables (`--bs-primary`, `--bs-body-bg`, etc.) are remapped to these tokens, so standard Bootstrap classes (`btn-primary`, `alert-*`, etc.) use the theme automatically.
+
+### Fonts
+
+- **Headings** (`h1`–`h3`, `.font-serif`): Playfair Display — loaded via `<link>` in `base.html`
+- **Body / UI**: DM Sans
+
+### Status Badges
+
+```html
+<span class="status-badge status-{value}">Label</span>
+```
+
+`{value}` maps directly to `Match.status` field values: `scheduled` (blue), `pending` (amber), `completed` (green), `walkover` (orange), `postponed` (grey-brown), `cancelled` (red).
+
+### Component Classes
+
+| Class | Use |
+|-------|-----|
+| `.page-header` | Top-of-page wrapper; put `<h1>` and `.page-meta` inside |
+| `.page-meta` | Subtitle / metadata line below the page `<h1>` |
+| `.rank-number` | Serif rank numeral in standings |
+| `.rank-number.rank-top-3` | Rank 1–3 highlighted in clay colour |
+| `.stat-value` | Tabular-numeral cell for W, L, pts, ratios |
+| `.score-set` | Large serif score display (e.g. `6–3`) |
+| `.score-input` | Compact 64 px centred numeric input for score entry |
+| `.match-card` | Card with lift-on-hover; wrapper needs `position: relative` when using `stretched-link` |
+| `.text-clay` | Clay-coloured text |
+| `.bg-sand` | Sand background fill |
+| `.border-theme` | Theme border colour (`--border`) |
+
+### Navigation Active State
+
+Child templates mark a nav link active by emitting `nav-active` from the matching block:
+
+```django
+{# e.g. in standings.html: #}
+{% block nav_standings %}nav-active{% endblock %}
+```
+
+Available blocks: `nav_standings`, `nav_schedule`, `nav_results`, `nav_playoffs`. CSS draws a clay underline on the active link.
+
+### Base Template Context
+
+`base.html` renders the season selector and primary nav links only when these context variables are present:
+
+| Variable | Type | Notes |
+|----------|------|-------|
+| `current_season` | `Season` or `None` | Absent → season nav hidden, no error |
+| `all_seasons` | QuerySet of `Season` | Populates the season dropdown |
+
+These are supplied by a context processor added in **Phase 4**. Until then, season nav is simply hidden.
+
+---
+
 ## Project Directory Structure
 
 ```
@@ -67,11 +142,16 @@ tennis-scores-app/
 ├── requirements.txt
 ├── .env                         # SECRET_KEY, DATABASE_URL (gitignored)
 ├── .env.example                 # Template for .env
+├── TESTS.md                     # How to run the test suite
 ├── config/                      # Django project package
 │   ├── __init__.py
 │   ├── settings.py
+│   ├── test_settings.py         # Overrides DB to SQLite in-memory for tests
 │   ├── urls.py
 │   └── wsgi.py
+├── static/
+│   └── css/
+│       └── app.css              # Design system — tokens, component classes
 ├── accounts/                    # User model, login/logout, profile
 │   ├── models.py
 │   ├── views.py
@@ -358,9 +438,11 @@ In `playoffs/generator.py`:
 ## Settings Highlights
 
 ```python
-AUTH_USER_MODEL    = 'accounts.User'
-LOGIN_URL          = '/accounts/login/'
-LOGIN_REDIRECT_URL = '/'
+AUTH_USER_MODEL      = 'accounts.User'
+LOGIN_URL            = '/accounts/login/'
+LOGIN_REDIRECT_URL   = '/'
+LOGOUT_REDIRECT_URL  = '/accounts/login/'
+STATICFILES_DIRS     = [BASE_DIR / 'static']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -373,6 +455,8 @@ INSTALLED_APPS = [
     'playoffs',
 ]
 ```
+
+**Running tests:** `config/test_settings.py` overrides `DATABASES` with SQLite in-memory so the test suite runs without PostgreSQL. See `TESTS.md` for the full command reference.
 
 ---
 
