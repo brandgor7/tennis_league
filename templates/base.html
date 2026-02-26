@@ -1,0 +1,192 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Tennis League{% endblock %}</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+  <!-- App styles -->
+  <link href="{% static 'css/app.css' %}" rel="stylesheet">
+
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+  <!-- ════════════════════════════════════════════════════════
+       NAVBAR
+       Context vars expected (supplied by a context processor
+       added in Phase 4): current_season, all_seasons
+       ════════════════════════════════════════════════════════ -->
+  <nav class="navbar navbar-expand-md" aria-label="Main navigation">
+    <div class="container">
+
+      <!-- Brand -->
+      <a class="navbar-brand" href="/">
+        <!-- Tennis ball SVG mark -->
+        <svg class="brand-ball" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <circle cx="13" cy="13" r="12" fill="#C4522A"/>
+          <!-- Seam lines -->
+          <path d="M4 8 C6 11, 6 15, 4 18" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M22 8 C20 11, 20 15, 22 18" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M7 4 C10 6, 16 6, 19 4" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M7 22 C10 20, 16 20, 19 22" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        </svg>
+        TennisLeague
+      </a>
+
+      <!-- Mobile toggler -->
+      <button class="navbar-toggler" type="button"
+              data-bs-toggle="collapse" data-bs-target="#mainNav"
+              aria-controls="mainNav" aria-expanded="false"
+              aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <!-- Collapsible content -->
+      <div class="collapse navbar-collapse" id="mainNav">
+
+        <!-- Left: season selector + nav links -->
+        <ul class="navbar-nav me-auto align-items-md-center">
+
+          <!-- Season selector dropdown — only shown when a season is in context -->
+          {% if current_season %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button"
+               data-bs-toggle="dropdown" aria-expanded="false">
+              {{ current_season.name }}
+            </a>
+            <ul class="dropdown-menu">
+              {% for season in all_seasons %}
+              <li>
+                <a class="dropdown-item {% if season.pk == current_season.pk %}season-active{% endif %}"
+                   href="/seasons/{{ season.pk }}/">
+                  {{ season.name }}
+                  {% if season.status == 'active' %}
+                  <span class="ms-1 text-muted" style="font-size:0.7rem;">●</span>
+                  {% endif %}
+                </a>
+              </li>
+              {% empty %}
+              <li><span class="dropdown-item text-muted">No seasons yet</span></li>
+              {% endfor %}
+            </ul>
+          </li>
+          {% endif %}
+
+          <!-- Primary nav links -->
+          {% if current_season %}
+          <li class="nav-item">
+            <a class="nav-link {% block nav_standings %}{% endblock %}"
+               href="/seasons/{{ current_season.pk }}/standings/">Standings</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% block nav_schedule %}{% endblock %}"
+               href="/seasons/{{ current_season.pk }}/schedule/">Schedule</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% block nav_results %}{% endblock %}"
+               href="/seasons/{{ current_season.pk }}/results/">Results</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% block nav_playoffs %}{% endblock %}"
+               href="/seasons/{{ current_season.pk }}/playoffs/">Playoffs</a>
+          </li>
+          {% endif %}
+
+        </ul>
+
+        <!-- Right: auth -->
+        <ul class="navbar-nav ms-auto align-items-md-center">
+          {% if user.is_authenticated %}
+          <li class="nav-item dropdown">
+            <a class="nav-link user-badge dropdown-toggle" href="#" role="button"
+               data-bs-toggle="dropdown" aria-expanded="false">
+              <span class="user-avatar" aria-hidden="true">
+                {% if user.first_name %}{{ user.first_name|first|upper }}{{ user.last_name|first|upper }}{% else %}{{ user.username|first|upper }}{% endif %}
+              </span>
+              <span class="d-none d-md-inline">
+                {{ user.get_full_name|default:user.username }}
+              </span>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              {% if user.is_staff %}
+              <li>
+                <a class="dropdown-item" href="/admin/">
+                  <i class="bi bi-shield-check me-2" aria-hidden="true"></i>Admin
+                </a>
+              </li>
+              {% endif %}
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <form method="post" action="/accounts/logout/">
+                  {% csrf_token %}
+                  <button type="submit" class="dropdown-item">
+                    <i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i>Sign Out
+                  </button>
+                </form>
+              </li>
+            </ul>
+          </li>
+          {% else %}
+          <li class="nav-item">
+            <a class="nav-link" href="/accounts/login/">Sign In</a>
+          </li>
+          {% endif %}
+        </ul>
+
+      </div><!-- /.navbar-collapse -->
+    </div><!-- /.container -->
+  </nav>
+
+  <!-- ════════════════════════════════════════════════════════
+       FLASH MESSAGES
+       ════════════════════════════════════════════════════════ -->
+  {% if messages %}
+  <div class="messages-band" role="alert" aria-live="polite">
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-0">
+      <div class="container d-flex align-items-center justify-content-between gap-3">
+        <span>{{ message }}</span>
+        <button type="button" class="btn-close btn-close-sm flex-shrink-0"
+                data-bs-dismiss="alert" aria-label="Dismiss"></button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ════════════════════════════════════════════════════════
+       MAIN CONTENT
+       ════════════════════════════════════════════════════════ -->
+  <main>
+    <div class="container py-4">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <!-- ════════════════════════════════════════════════════════
+       FOOTER
+       ════════════════════════════════════════════════════════ -->
+  <footer class="site-footer">
+    <div class="container d-flex justify-content-between align-items-center gap-3">
+      <span>TennisLeague &copy; {% now "Y" %}</span>
+      {% if user.is_staff %}
+      <a href="/admin/">Admin</a>
+      {% endif %}
+    </div>
+  </footer>
+
+  <!-- Bootstrap 5 JS bundle (includes Popper) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  {% block extra_js %}{% endblock %}
+
+</body>
+</html>

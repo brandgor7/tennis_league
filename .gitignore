@@ -15,6 +15,10 @@ db.sqlite3
 staticfiles/
 media/
 
+# Preview / dev helpers
+preview.sqlite3
+config/settings_preview.py
+
 # IDE
 .idea/
 .vscode/
