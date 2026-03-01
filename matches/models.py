@@ -40,6 +40,7 @@ class Match(models.Model):
     season = models.ForeignKey('leagues.Season', on_delete=models.CASCADE, related_name='matches')
     player1 = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='matches_as_player1')
     player2 = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='matches_as_player2')
+    tier = models.IntegerField(null=True, blank=True, help_text='Tier this match belongs to; set from players\' tier at match creation')
     round = models.CharField(max_length=20, choices=ROUND_CHOICES, default=ROUND_REGULAR)
     scheduled_date = models.DateField(null=True, blank=True)
     played_date = models.DateField(null=True, blank=True)

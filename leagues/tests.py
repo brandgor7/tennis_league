@@ -5,6 +5,7 @@ from django.db import IntegrityError
 from django.urls import reverse
 
 from .models import Season, SeasonPlayer
+from .forms import SeasonForm
 
 User = get_user_model()
 
@@ -33,6 +34,21 @@ class SeasonModelTest(TestCase):
         new = Season(name='New', year=2025, status=Season.STATUS_UPCOMING)
         new.clean()  # must not raise
 
+    # ── Phase 5: num_tiers ───────────────────────────────────────────────────
+
+    def test_num_tiers_defaults_to_1(self):
+        season = Season.objects.create(name='Spring', year=2025)
+        self.assertEqual(season.num_tiers, 1)
+
+    def test_num_tiers_can_be_set(self):
+        season = Season.objects.create(name='Spring', year=2025, num_tiers=2)
+        self.assertEqual(season.num_tiers, 2)
+
+    def test_num_tiers_persists_after_save(self):
+        season = Season.objects.create(name='Spring', year=2025, num_tiers=3)
+        season.refresh_from_db()
+        self.assertEqual(season.num_tiers, 3)
+
 
 class SeasonPlayerModelTest(TestCase):
     def setUp(self):
@@ -48,6 +64,79 @@ class SeasonPlayerModelTest(TestCase):
         SeasonPlayer.objects.create(season=self.season, player=self.player)
         with self.assertRaises(IntegrityError):
             SeasonPlayer.objects.create(season=self.season, player=self.player)
+
+    # ── Phase 5: tier field ──────────────────────────────────────────────────
+
+    def test_tier_defaults_to_1(self):
+        sp = SeasonPlayer.objects.create(season=self.season, player=self.player)
+        self.assertEqual(sp.tier, 1)
+
+    def test_tier_can_be_set(self):
+        sp = SeasonPlayer.objects.create(season=self.season, player=self.player, tier=2)
+        self.assertEqual(sp.tier, 2)
+
+    def test_tier_persists_after_save(self):
+        sp = SeasonPlayer.objects.create(season=self.season, player=self.player, tier=3)
+        sp.refresh_from_db()
+        self.assertEqual(sp.tier, 3)
+
+    def test_different_players_can_be_in_different_tiers(self):
+        p2 = User.objects.create_user(username='player2')
+        sp1 = SeasonPlayer.objects.create(season=self.season, player=self.player, tier=1)
+        sp2 = SeasonPlayer.objects.create(season=self.season, player=p2, tier=2)
+        self.assertEqual(sp1.tier, 1)
+        self.assertEqual(sp2.tier, 2)
+
+    def test_can_filter_players_by_tier(self):
+        p2 = User.objects.create_user(username='player2')
+        p3 = User.objects.create_user(username='player3')
+        SeasonPlayer.objects.create(season=self.season, player=self.player, tier=1)
+        SeasonPlayer.objects.create(season=self.season, player=p2, tier=1)
+        SeasonPlayer.objects.create(season=self.season, player=p3, tier=2)
+        tier1 = SeasonPlayer.objects.filter(season=self.season, tier=1)
+        tier2 = SeasonPlayer.objects.filter(season=self.season, tier=2)
+        self.assertEqual(tier1.count(), 2)
+        self.assertEqual(tier2.count(), 1)
+
+
+# ─── SeasonForm tests ─────────────────────────────────────────────────────────
+
+class SeasonFormTest(TestCase):
+    def _valid_data(self, **overrides):
+        data = {
+            'name': 'Spring 2025',
+            'year': 2025,
+            'status': Season.STATUS_UPCOMING,
+            'num_tiers': 1,
+            'sets_to_win': 2,
+            'final_set_format': Season.FINAL_SET_FULL,
+            'playoff_qualifiers_count': 8,
+            'walkover_rule': Season.WALKOVER_WINNER,
+            'postponement_deadline': 14,
+            'points_for_win': 3,
+            'points_for_loss': 0,
+            'points_for_walkover_loss': 0,
+        }
+        data.update(overrides)
+        return data
+
+    def test_valid_single_tier_form(self):
+        form = SeasonForm(data=self._valid_data(num_tiers=1))
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_valid_multi_tier_form(self):
+        form = SeasonForm(data=self._valid_data(num_tiers=2))
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_num_tiers_in_fields(self):
+        form = SeasonForm()
+        self.assertIn('num_tiers', form.fields)
+
+    def test_form_saves_num_tiers(self):
+        form = SeasonForm(data=self._valid_data(num_tiers=3))
+        self.assertTrue(form.is_valid())
+        season = form.save()
+        self.assertEqual(season.num_tiers, 3)
 
 
 # ─── View tests ───────────────────────────────────────────────────────────────

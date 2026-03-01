@@ -84,15 +84,15 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 
 **Goal:** Add tier fields to models and migrations; update admin so tiers can be managed. No UI changes yet — this makes the data layer tier-aware before building views.
 
-- [ ] **`leagues/models.py`** — add `num_tiers = IntegerField(default=1)` to `Season`
-- [ ] **`leagues/models.py`** — add `tier = IntegerField(default=1)` to `SeasonPlayer`
-- [ ] **`matches/models.py`** — add `tier = IntegerField(null=True, blank=True)` to `Match`
-- [ ] **`playoffs/models.py`** — change `PlayoffBracket.season` from `OneToOneField` to `ForeignKey`; add `tier = IntegerField()`; add `unique_together = [('season', 'tier')]`
-- [ ] Run `python manage.py makemigrations` and `python manage.py migrate`
-- [ ] **`leagues/admin.py`** — update `SeasonPlayer` inline to show and allow editing the `tier` field; add `num_tiers` to `Season` admin
-- [ ] **`matches/admin.py`** — add `tier` to `Match` list_display and list_filter
-- [ ] **`leagues/forms.py`** — add `num_tiers` to `SeasonForm`
-- [ ] **`matches/forms.py`** — update `MatchScheduleForm` so player dropdowns are filtered to the same tier (enforce at form-validation level; filter at view level when possible)
+- [x] **`leagues/models.py`** — add `num_tiers = IntegerField(default=1)` to `Season`
+- [x] **`leagues/models.py`** — add `tier = IntegerField(default=1)` to `SeasonPlayer`
+- [x] **`matches/models.py`** — add `tier = IntegerField(null=True, blank=True)` to `Match`
+- [x] **`playoffs/models.py`** — change `PlayoffBracket.season` from `OneToOneField` to `ForeignKey`; add `tier = IntegerField(default=1)`; add `unique_together = [('season', 'tier')]`
+- [x] Run `python manage.py makemigrations` and `python manage.py migrate`
+- [x] **`leagues/admin.py`** — update `SeasonPlayer` inline to show and allow editing the `tier` field; add `num_tiers` to `Season` admin
+- [x] **`matches/admin.py`** — add `tier` to `Match` list_display and list_filter
+- [x] **`leagues/forms.py`** — created `SeasonForm` with `num_tiers` field
+- [x] **`matches/forms.py`** — created `MatchScheduleForm` with tier-filtered player dropdowns and cross-tier validation in `clean()`
 - [ ] Verify in admin: can create a season with `num_tiers=2`, assign players to tiers, and create matches in a given tier
 
 ---

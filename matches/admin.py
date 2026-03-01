@@ -10,8 +10,8 @@ class MatchSetInline(admin.TabularInline):
 
 @admin.register(Match)
 class MatchAdmin(admin.ModelAdmin):
-    list_display = ('match_players', 'season', 'round', 'status', 'scheduled_date', 'played_date', 'winner')
-    list_filter = ('season', 'status', 'round')
+    list_display = ('match_players', 'season', 'tier', 'round', 'status', 'scheduled_date', 'played_date', 'winner')
+    list_filter = ('season', 'tier', 'status', 'round')
     search_fields = (
         'player1__username', 'player1__first_name', 'player1__last_name',
         'player2__username', 'player2__first_name', 'player2__last_name',
@@ -19,7 +19,7 @@ class MatchAdmin(admin.ModelAdmin):
     autocomplete_fields = ('season', 'player1', 'player2', 'winner', 'entered_by', 'confirmed_by')
     inlines = [MatchSetInline]
     fieldsets = (
-        (None, {'fields': ('season', 'round', 'player1', 'player2')}),
+        (None, {'fields': ('season', 'tier', 'round', 'player1', 'player2')}),
         ('Schedule', {'fields': ('scheduled_date', 'played_date', 'status')}),
         ('Result', {'fields': ('winner', 'entered_by', 'confirmed_by')}),
         ('Notes', {'fields': ('walkover_reason', 'notes')}),
