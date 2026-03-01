@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import F
 from django.conf import settings
@@ -46,6 +47,16 @@ class Season(models.Model):
 
     class Meta:
         ordering = ['-year', 'name']
+
+    def clean(self):
+        if self.status == self.STATUS_ACTIVE:
+            qs = Season.objects.filter(status=self.STATUS_ACTIVE)
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            if qs.exists():
+                raise ValidationError(
+                    {'status': 'Only one season can be active at a time.'}
+                )
 
     def __str__(self):
         return f'{self.name} ({self.year})'
