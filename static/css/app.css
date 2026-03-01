@@ -345,6 +345,7 @@ h1, h2, h3, .font-serif {
 .status-postponed         { background: #F0EDE8; color: #5C4A2A; }
 .status-cancelled         { background: #F4EDED; color: #5C2A2A; }
 .status-upcoming          { background: #EDE8F5; color: #3A1A7A; }
+.status-active            { background: #E4F4EC; color: #1A5C34; }
 
 /* ─── Buttons ────────────────────────────────────────────── */
 .btn {
@@ -431,6 +432,11 @@ h1, h2, h3, .font-serif {
 }
 
 /* ─── Utility ────────────────────────────────────────────── */
+
+/* Font-weight helpers not in Bootstrap 5's utility set */
+.fw-500 { font-weight: 500 !important; }
+.fw-600 { font-weight: 600 !important; }
+
 .text-muted {
   color: var(--muted) !important;
 }
