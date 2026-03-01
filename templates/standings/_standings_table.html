@@ -1,8 +1,5 @@
 {% if rows %}
 
-{# ════════════════════════════════════════════════════════
-   MOBILE — one card per player (d-block d-md-none)
-   ════════════════════════════════════════════════════════ #}
 <div class="d-block d-md-none">
   {% for row in rows %}
   <div class="card mb-2">
@@ -23,9 +20,6 @@
   {% endfor %}
 </div>
 
-{# ════════════════════════════════════════════════════════
-   DESKTOP — full table (d-none d-md-block)
-   ════════════════════════════════════════════════════════ #}
 <div class="d-none d-md-block">
   <div class="table-responsive">
     <table class="table table-striped table-hover align-middle mb-0">
