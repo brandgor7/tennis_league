@@ -278,37 +278,66 @@ class CalculateStandingsRankingTest(TestCase):
         self.assertEqual(players[2], self.p3)   # 0 pts
 
     def test_equal_points_tiebreak_by_matches_played(self):
-        # p1 and p2 both have 3 pts; p1 has 2 played, p2 has 1 played
+        """Player with more matches played at equal points ranks higher."""
         p4 = make_player('p4')
+        p5 = make_player('p5')
         enroll(self.season, p4, tier=1)
-        completed_match(self.season, self.p1, self.p2, winner=self.p1)
-        completed_match(self.season, self.p2, self.p3, winner=self.p2)
-        completed_match(self.season, self.p1, p4, winner=p4)   # p1 loses
+        enroll(self.season, p5, tier=1)
+        # p1: beats p3, then loses to p4 → 3 pts, played=2
+        completed_match(self.season, self.p1, self.p3, winner=self.p1)
+        completed_match(self.season, p4, self.p1, winner=p4)
+        # p2: beats p5 only → 3 pts, played=1
+        completed_match(self.season, self.p2, p5, winner=self.p2)
         rows = calculate_standings(self.season, tier=1)
         p1_row = next(r for r in rows if r['player'] == self.p1)
         p2_row = next(r for r in rows if r['player'] == self.p2)
-        # Both have 3 pts; p1 played 2, p2 played 2 → equal played
-        # p1 set ratio = 2/4 = 0.5 (wins one match 6-4 6-4, loses one)
-        # This test just verifies both get 3 pts and ranks are deterministic
         self.assertEqual(p1_row['points'], 3)
+        self.assertEqual(p1_row['played'], 2)
         self.assertEqual(p2_row['points'], 3)
+        self.assertEqual(p2_row['played'], 1)
+        p1_pos = next(i for i, r in enumerate(rows) if r['player'] == self.p1)
+        p2_pos = next(i for i, r in enumerate(rows) if r['player'] == self.p2)
+        self.assertLess(p1_pos, p2_pos)
 
     def test_sets_ratio_tiebreaker(self):
-        """When points and played are equal, better set ratio ranks higher."""
+        """When points and played are equal, better sets_ratio ranks higher."""
         p4 = make_player('p4')
         enroll(self.season, p4, tier=1)
-        # p1 and p2 both win once, same points and played
-        # p1 wins 6-1 6-1 (dominant), p2 wins 7-5 7-5 (closer)
+        # p1 wins 2-0 in sets → sets_ratio = 1.0
+        completed_match(self.season, self.p1, self.p3, winner=self.p1,
+                        sets=[(6, 4), (6, 4)])
+        # p2 wins 2-1 in sets → sets_ratio = 2/3 ≈ 0.667
+        completed_match(self.season, self.p2, p4, winner=self.p2,
+                        sets=[(6, 4), (3, 6), (6, 4)])
+        rows = calculate_standings(self.season, tier=1)
+        p1_row = next(r for r in rows if r['player'] == self.p1)
+        p2_row = next(r for r in rows if r['player'] == self.p2)
+        # Confirm sets ratios are actually different
+        self.assertAlmostEqual(p1_row['sets_ratio'], 1.0)
+        self.assertAlmostEqual(p2_row['sets_ratio'], 2 / 3)
+        p1_pos = next(i for i, r in enumerate(rows) if r['player'] == self.p1)
+        p2_pos = next(i for i, r in enumerate(rows) if r['player'] == self.p2)
+        self.assertLess(p1_pos, p2_pos)
+
+    def test_games_ratio_tiebreaker(self):
+        """When points, played, and sets_ratio are equal, better games_ratio ranks higher."""
+        p4 = make_player('p4')
+        enroll(self.season, p4, tier=1)
+        # p1 wins 6-1 6-1: sets_ratio=1.0, games_ratio=12/14≈0.857
         completed_match(self.season, self.p1, self.p3, winner=self.p1,
                         sets=[(6, 1), (6, 1)])
+        # p2 wins 7-5 7-5: sets_ratio=1.0, games_ratio=14/24≈0.583
         completed_match(self.season, self.p2, p4, winner=self.p2,
                         sets=[(7, 5), (7, 5)])
         rows = calculate_standings(self.season, tier=1)
+        p1_row = next(r for r in rows if r['player'] == self.p1)
+        p2_row = next(r for r in rows if r['player'] == self.p2)
+        # Confirm sets ratios are equal (1.0) so games_ratio is the decider
+        self.assertAlmostEqual(p1_row['sets_ratio'], 1.0)
+        self.assertAlmostEqual(p2_row['sets_ratio'], 1.0)
+        self.assertGreater(p1_row['games_ratio'], p2_row['games_ratio'])
         p1_pos = next(i for i, r in enumerate(rows) if r['player'] == self.p1)
         p2_pos = next(i for i, r in enumerate(rows) if r['player'] == self.p2)
-        # Both win 2-0 in sets, so sets_ratio is equal (1.0)
-        # games_ratio: p1 = 12/14 ≈ 0.857, p2 = 14/24 ≈ 0.583
-        # p1 should rank higher
         self.assertLess(p1_pos, p2_pos)
 
 

@@ -117,7 +117,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
     - Desktop (`d-none d-md-block`): full `table table-striped table-hover` with all columns (rank, name, P, W, L, pts, set ratio, game ratio)
 - [x] Wire into `leagues/urls.py` at `/seasons/<id>/standings/`
 - [x] Home view now redirects to standings (instead of season detail) when an active season exists
-- [ ] Verify empty standings, partial standings, and full standings render correctly; verify tier tabs display correctly for multi-tier seasons
+- [x] Verify empty standings, partial standings, and full standings render correctly; verify tier tabs display correctly for multi-tier seasons (covered by unit tests: `CalculateStandingsEmptyTest`, `StandingsViewTest`)
 
 ---
 

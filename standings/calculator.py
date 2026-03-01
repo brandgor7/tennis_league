@@ -1,5 +1,3 @@
-from django.db.models import Q
-
 from leagues.models import SeasonPlayer
 from matches.models import Match
 
