@@ -80,43 +80,67 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 
 ---
 
-## Phase 5 — Standings
+## Phase 5 — Tier Support
 
-**Goal:** Standings table computed live from match results.
+**Goal:** Add tier fields to models and migrations; update admin so tiers can be managed. No UI changes yet — this makes the data layer tier-aware before building views.
 
-- [ ] **`standings/calculator.py`** — `calculate_standings(season)` function:
-  - Returns list of dicts: `{player, played, wins, losses, points, sets_ratio, games_ratio}`
-  - Applies tiebreaker ordering per ARCHITECTURE.md
-  - Handles walkovers per `season.walkover_rule`
-- [ ] **`standings/views.py`** — `StandingsView`: calls calculator, renders table
-- [ ] **`templates/standings/standings.html`**:
-  - Mobile (`d-block d-md-none`): list of Bootstrap cards, one per player; each card shows rank, player name, points, W-L record. Ratio columns omitted to fit the screen.
-  - Desktop (`d-none d-md-block`): full `table table-striped table-hover` with all columns (rank, name, P, W, L, pts, set ratio, game ratio)
-- [ ] Wire into `leagues/urls.py` at `/seasons/<id>/standings/`
-- [ ] Verify empty standings (no matches), partial standings, and full standings all render correctly on both viewports
+- [ ] **`leagues/models.py`** — add `num_tiers = IntegerField(default=1)` to `Season`
+- [ ] **`leagues/models.py`** — add `tier = IntegerField(default=1)` to `SeasonPlayer`
+- [ ] **`matches/models.py`** — add `tier = IntegerField(null=True, blank=True)` to `Match`
+- [ ] **`playoffs/models.py`** — change `PlayoffBracket.season` from `OneToOneField` to `ForeignKey`; add `tier = IntegerField()`; add `unique_together = [('season', 'tier')]`
+- [ ] Run `python manage.py makemigrations` and `python manage.py migrate`
+- [ ] **`leagues/admin.py`** — update `SeasonPlayer` inline to show and allow editing the `tier` field; add `num_tiers` to `Season` admin
+- [ ] **`matches/admin.py`** — add `tier` to `Match` list_display and list_filter
+- [ ] **`leagues/forms.py`** — add `num_tiers` to `SeasonForm`
+- [ ] **`matches/forms.py`** — update `MatchScheduleForm` so player dropdowns are filtered to the same tier (enforce at form-validation level; filter at view level when possible)
+- [ ] Verify in admin: can create a season with `num_tiers=2`, assign players to tiers, and create matches in a given tier
 
 ---
 
-## Phase 6 — Schedule + Results Views
+## Phase 6 — Standings
+
+**Goal:** Standings table computed live from match results, split by tier.
+
+- [ ] **`standings/calculator.py`** — `calculate_standings(season, tier)` function:
+  - Filters to `SeasonPlayer` rows where `tier == tier`
+  - Filters matches to `Match.tier == tier`
+  - Returns list of dicts: `{player, played, wins, losses, points, sets_ratio, games_ratio}`
+  - Applies tiebreaker ordering per ARCHITECTURE.md
+  - Handles walkovers per `season.walkover_rule`
+- [ ] **`standings/views.py`** — `StandingsView`:
+  - Calls `calculate_standings(season, tier)` for each tier in `range(1, season.num_tiers + 1)`
+  - Passes list of `(tier_number, standings_rows)` tuples to template
+- [ ] **`templates/standings/standings.html`**:
+  - If `season.num_tiers > 1`: render Bootstrap tabs (one tab per tier, e.g. "Tier 1", "Tier 2")
+  - Within each tier tab (or directly if single tier):
+    - Mobile (`d-block d-md-none`): list of Bootstrap cards, one per player; each card shows rank, player name, points, W-L record. Ratio columns omitted to fit the screen.
+    - Desktop (`d-none d-md-block`): full `table table-striped table-hover` with all columns (rank, name, P, W, L, pts, set ratio, game ratio)
+- [ ] Wire into `leagues/urls.py` at `/seasons/<id>/standings/`
+- [ ] Verify empty standings, partial standings, and full standings render correctly; verify tier tabs display correctly for multi-tier seasons
+
+---
+
+## Phase 7 — Schedule + Results Views
 
 **Goal:** Public pages for upcoming and completed matches.
 
 - [ ] **`matches/views.py`**:
-  - `ScheduleView` — matches with `status=scheduled` or `status=postponed`, ordered by `scheduled_date`
-  - `ResultsView` — matches with `status=completed` or `status=walkover`, ordered by `played_date` desc
-  - `MatchDetailView` — set-by-set scores, status, players, confirmation state
+  - `ScheduleView` — matches with `status=scheduled` or `status=postponed`, ordered by `scheduled_date`; grouped by tier if `season.num_tiers > 1`
+  - `ResultsView` — matches with `status=completed` or `status=walkover`, ordered by `played_date` desc; grouped by tier if `season.num_tiers > 1`
+  - `MatchDetailView` — set-by-set scores, status, players, confirmation state; shows tier label if season is multi-tier
 - [ ] **`matches/urls.py`** — routes for all match views
 - [ ] **`templates/matches/schedule.html`** and **`results.html`**:
-  - Mobile: match cards — player names as "Player A vs Player B", date and status badge below, entire card is a tappable link to match detail (`stretched-link`)
-  - Desktop: `table-responsive` table with player1, player2, date, status, detail link
+  - Mobile: match cards — player names as "Player A vs Player B", date and status badge below, entire card is a tappable link to match detail (`stretched-link`); tier badge visible if multi-tier season
+  - Desktop: `table-responsive` table with player1, player2, date, status, detail link; tier column if multi-tier
 - [ ] **`templates/matches/match_detail.html`**:
   - Mobile: stacked — match header (both players + status badge), then set scores as a compact horizontally scrollable table (`table-responsive`); action buttons (Enter Result / Confirm) full-width below
   - Desktop: two-column layout (`col-md-5` match info | `col-md-7` set scores); action buttons inline in the header area
+  - Show tier badge in match header if season is multi-tier
 - [ ] Wire into `config/urls.py`
 
 ---
 
-## Phase 7 — Result Entry
+## Phase 8 — Result Entry
 
 **Goal:** A player can enter a match score set-by-set.
 
@@ -139,7 +163,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 
 ---
 
-## Phase 8 — Result Confirmation
+## Phase 9 — Result Confirmation
 
 **Goal:** The opponent confirms or disputes the entered score.
 
@@ -155,7 +179,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 
 ---
 
-## Phase 9 — Walkover + Postponement
+## Phase 10 — Walkover + Postponement
 
 **Goal:** Admin (or player) can handle unplayed and delayed matches.
 
@@ -167,33 +191,35 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 
 ---
 
-## Phase 10 — Playoff Bracket Generation
+## Phase 11 — Playoff Bracket Generation
 
-**Goal:** Admin can generate the playoff bracket; players see the visual bracket.
+**Goal:** Admin can generate a playoff bracket per tier; players see the visual bracket for each tier.
 
-- [ ] **`playoffs/generator.py`** — `generate_bracket(season, generated_by)`:
-  - Call `calculate_standings(season)`, take top N players
+- [ ] **`playoffs/generator.py`** — `generate_bracket(season, tier, generated_by)`:
+  - Call `calculate_standings(season, tier)`, take top N players
   - Apply standard bracket seeding (1v16, 2v15, 8v9, etc.)
-  - Create `Match` objects (round=`r16` or appropriate, status=`scheduled`)
-  - Create `PlayoffBracket` + `PlayoffSlot` objects with correct `next_slot` links
+  - Create `Match` objects (round=`r16` or appropriate, status=`scheduled`, tier=tier)
+  - Create `PlayoffBracket` (with `tier` field) + `PlayoffSlot` objects with correct `next_slot` links
   - Return the `PlayoffBracket`
-- [ ] **Custom admin view** at `/admin/seasons/<id>/generate-playoffs/`:
+- [ ] **Custom admin view** at `/admin/seasons/<id>/generate-playoffs/<tier>/`:
   - Requires staff
-  - Shows confirmation page (who qualifies, bracket preview)
-  - On POST: calls `generate_bracket()`
-  - Redirect to playoff bracket page
+  - Shows confirmation page (who qualifies from that tier, bracket preview)
+  - On POST: calls `generate_bracket(season, tier, request.user)`
+  - Redirect to playoff bracket page for that tier
+  - Season detail admin page lists one "Generate" button per tier
 - [ ] **Winner advancement**: when a playoff match is confirmed as completed, a post-save signal (in `playoffs/models.py` or `matches/models.py`) checks if a `PlayoffSlot` exists for the match; if so, assigns the winner as a player in the `next_slot`'s match
-- [ ] **`playoffs/views.py`** — `PlayoffBracketView`:
-  - Loads all `PlayoffSlot` objects for season's bracket
-  - Passes structured bracket data to template
+- [ ] **`playoffs/views.py`**:
+  - `PlayoffBracketView` — takes `<tier>` from URL; loads all `PlayoffSlot` objects for `(season, tier)` bracket; passes structured bracket data to template
+  - `/seasons/<id>/playoffs/` — if single-tier, redirect to tier 1; if multi-tier, show list of tiers with links
 - [ ] **`templates/playoffs/bracket.html`**:
+  - Shows tier label ("Tier 1 Playoffs") in page header if season is multi-tier
   - Desktop: CSS grid bracket — rounds as columns, slots as rows; winner names displayed in full; completed matches show score
   - Mobile: same HTML wrapped in `overflow-x: auto` so the bracket scrolls horizontally; player names truncated to first initial + last name to reduce width; a note below the bracket ("Scroll sideways to see all rounds") for first-time clarity
-- [ ] Wire into `leagues/urls.py` at `/seasons/<id>/playoffs/`
+- [ ] Wire into `leagues/urls.py` at `/seasons/<id>/playoffs/` and `/seasons/<id>/playoffs/<tier>/`
 
 ---
 
-## Phase 11 — Polish, Responsive QA + Testing
+## Phase 12 — Polish, Responsive QA + Testing
 
 **Goal:** App is complete, manually verified end-to-end on both mobile and desktop viewports.
 
@@ -202,28 +228,29 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 - [ ] Add Django messages (success/error) to all form submit views
 - [ ] **Responsive QA pass** — using browser devtools, test every page at 375px (mobile) and 1280px (desktop):
   - Navbar: hamburger works and collapses correctly on mobile; full nav on desktop
-  - Standings: cards on mobile, table on desktop; no horizontal overflow
-  - Schedule/Results: cards on mobile, table on desktop
-  - Match detail: stacked on mobile, two-column on desktop
+  - Standings: cards on mobile, table on desktop; no horizontal overflow; tier tabs work correctly
+  - Schedule/Results: cards on mobile, table on desktop; tier grouping visible
+  - Match detail: stacked on mobile, two-column on desktop; tier badge shown for multi-tier seasons
   - Score entry: numeric keyboard triggered on mobile; all inputs reachable without zooming; tiebreak fields appear correctly
   - Confirm result: full-width buttons on mobile, inline on desktop
   - Playoff bracket: scrolls horizontally on mobile without breaking layout
   - All buttons and links meet 44px minimum tap target on mobile
   - No text is cut off or overflows its container on either size
 - [ ] Test full regular season flow:
-  1. Create season in admin
-  2. Add players to roster
-  3. Create several matches
+  1. Create season in admin with `num_tiers=2`
+  2. Add players to roster, assign them to tiers
+  3. Create several matches within each tier (verify cross-tier match creation is blocked)
   4. Enter results as player1, confirm as player2
-  5. Verify standings update correctly
+  5. Verify standings update correctly and are separated by tier
   6. Test walkover (standings respect walkover rule)
   7. Test postponement and reschedule
 - [ ] Test playoff flow:
-  1. Season with ≥ 16 active players and completed matches
-  2. Generate bracket via admin action
-  3. Verify seeding (rank 1 vs rank 16, etc.)
+  1. Season with ≥ 16 active players per tier and completed matches
+  2. Generate bracket for each tier via admin action
+  3. Verify seeding within each tier (rank 1 vs rank 16, etc.)
   4. Enter R16 results → verify QF matches are populated with correct players
   5. Carry through to Final
+- [ ] Test single-tier season (num_tiers=1): verify UI is identical to old behaviour (no tier labels or tabs shown)
 - [ ] Test auth guards: anonymous user redirected to login; wrong player cannot confirm own result
 - [ ] Verify Django admin CRUD works for all models
 
