@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ season.name }} — TennisLeague{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>{{ season.name }}</h1>
+  <p class="page-meta">
+    {{ season.year }}
+    &nbsp;·&nbsp;
+    <span class="status-badge status-{{ season.status }}">{{ season.get_status_display }}</span>
+  </p>
+</div>
+
+<!-- ── Quick-nav cards ──────────────────────────────────── -->
+<div class="row g-3 mb-4">
+
+  <div class="col-6 col-md-3">
+    <a href="/seasons/{{ season.pk }}/standings/" class="text-decoration-none">
+      <div class="card text-center py-3 h-100 match-card" style="position:relative;">
+        <div class="card-body p-2">
+          <i class="bi bi-trophy" aria-hidden="true" style="font-size:1.75rem; color:var(--clay);"></i>
+          <p class="mb-0 mt-2 fw-600">Standings</p>
+        </div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <a href="/seasons/{{ season.pk }}/schedule/" class="text-decoration-none">
+      <div class="card text-center py-3 h-100 match-card" style="position:relative;">
+        <div class="card-body p-2">
+          <i class="bi bi-calendar3" aria-hidden="true" style="font-size:1.75rem; color:var(--clay);"></i>
+          <p class="mb-0 mt-2 fw-600">Schedule</p>
+        </div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <a href="/seasons/{{ season.pk }}/results/" class="text-decoration-none">
+      <div class="card text-center py-3 h-100 match-card" style="position:relative;">
+        <div class="card-body p-2">
+          <i class="bi bi-check2-circle" aria-hidden="true" style="font-size:1.75rem; color:var(--clay);"></i>
+          <p class="mb-0 mt-2 fw-600">Results</p>
+        </div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <a href="/seasons/{{ season.pk }}/playoffs/" class="text-decoration-none">
+      <div class="card text-center py-3 h-100 match-card" style="position:relative;">
+        <div class="card-body p-2">
+          <i class="bi bi-diagram-3" aria-hidden="true" style="font-size:1.75rem; color:var(--clay);"></i>
+          <p class="mb-0 mt-2 fw-600">Playoffs</p>
+        </div>
+      </div>
+    </a>
+  </div>
+
+</div>
+
+<!-- ── Season details ──────────────────────────────────── -->
+<div class="card">
+  <div class="card-header">Season Details</div>
+  <div class="card-body">
+    <dl class="row mb-0">
+      <dt class="col-sm-4 text-muted fw-500">Match format</dt>
+      <dd class="col-sm-8">First to {{ season.sets_to_win }} sets · {{ season.get_final_set_format_display }} final set</dd>
+
+      <dt class="col-sm-4 text-muted fw-500">Points</dt>
+      <dd class="col-sm-8">
+        Win: <strong>{{ season.points_for_win }}</strong>
+        &nbsp;·&nbsp;
+        Loss: <strong>{{ season.points_for_loss }}</strong>
+        {% if season.points_for_walkover_loss %}
+        &nbsp;·&nbsp;Walkover loss: <strong>{{ season.points_for_walkover_loss }}</strong>
+        {% endif %}
+      </dd>
+
+      <dt class="col-sm-4 text-muted fw-500">Walkover rule</dt>
+      <dd class="col-sm-8">{{ season.get_walkover_rule_display }}</dd>
+
+      <dt class="col-sm-4 text-muted fw-500">Playoff qualifiers</dt>
+      <dd class="col-sm-8">{{ season.playoff_qualifiers_count }}</dd>
+
+      <dt class="col-sm-4 text-muted fw-500">Postponement deadline</dt>
+      <dd class="col-sm-8">{{ season.postponement_deadline }} days</dd>
+    </dl>
+  </div>
+</div>
+
+{% endblock %}

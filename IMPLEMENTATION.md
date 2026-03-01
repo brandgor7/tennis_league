@@ -68,13 +68,15 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 
 **Goal:** Public pages for season list and season overview.
 
-- [ ] **`leagues/views.py`**:
+- [x] **`leagues/context_processors.py`** — `season_context`: provides `current_season` (from URL pk or active season fallback) and `all_seasons` to every template; registered in `TEMPLATES` settings
+- [x] **`leagues/views.py`**:
   - `SeasonListView` — all seasons, newest first
   - `SeasonDetailView` — season info + links to standings/schedule/results/playoffs
-- [ ] **`leagues/urls.py`** — `/seasons/` and `/seasons/<id>/`
-- [ ] Templates: `season_list.html`, `season_detail.html`
-- [ ] Wire into `config/urls.py`
-- [ ] Home view (`/`) redirects to the active season's standings (or season list if none active)
+  - `home` — redirects to active season detail (or season list if none active); will redirect to standings once Phase 5 is done
+- [x] **`leagues/urls.py`** — `/seasons/` and `/seasons/<id>/`
+- [x] Templates: `season_list.html`, `season_detail.html`
+- [x] Wire into `config/urls.py`
+- [x] Home view (`/`) redirects to the active season detail (or season list if none active)
 
 ---
 
