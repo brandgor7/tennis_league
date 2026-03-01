@@ -4,12 +4,16 @@ from matches.models import PLAYOFF_ROUND_CHOICES
 
 
 class PlayoffBracket(models.Model):
-    season = models.OneToOneField('leagues.Season', on_delete=models.CASCADE, related_name='playoff_bracket')
+    season = models.ForeignKey('leagues.Season', on_delete=models.CASCADE, related_name='playoff_brackets')
+    tier = models.IntegerField(default=1, help_text='Which tier this bracket is for (1-indexed)')
     generated_at = models.DateTimeField(auto_now_add=True)
     generated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='brackets_generated')
 
+    class Meta:
+        unique_together = [('season', 'tier')]
+
     def __str__(self):
-        return f'Playoff Bracket — {self.season}'
+        return f'Playoff Bracket — {self.season} (Tier {self.tier})'
 
 
 class PlayoffSlot(models.Model):

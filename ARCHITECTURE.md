@@ -242,9 +242,10 @@ AbstractUser fields: username, email, first_name, last_name, password, is_staff,
 name                      CharField       e.g. "Spring 2025"
 year                      IntegerField
 status                    CharField       upcoming | active | completed
+num_tiers                 IntegerField    default 1; number of competitive tiers in this season
 sets_to_win               IntegerField    2 = best of 3, 3 = best of 5
 final_set_format          CharField       full | tiebreak | super
-playoff_qualifiers_count  IntegerField    e.g. 8, 16, 32
+playoff_qualifiers_count  IntegerField    e.g. 8, 16, 32 — applies per tier
 walkover_rule             CharField       winner | split | none
 postponement_deadline     IntegerField    days allowed to reschedule
 points_for_win            IntegerField    default 3
@@ -257,7 +258,8 @@ created_at                DateTimeField
 ```
 season    FK → Season
 player    FK → User
-seed      IntegerField (nullable)   initial seeding for playoffs
+tier      IntegerField              1-indexed tier number for this player in this season (default 1)
+seed      IntegerField (nullable)   initial seeding for playoffs within their tier
 is_active BooleanField
 joined_at DateTimeField
 UNIQUE: (season, player)
@@ -268,6 +270,7 @@ UNIQUE: (season, player)
 season          FK → Season
 player1         FK → User
 player2         FK → User
+tier            IntegerField (nullable)   which tier this match belongs to; set from players' tier at match creation
 round           CharField    regular | r32 | r16 | qf | sf | f
 scheduled_date  DateField (nullable)
 played_date     DateField (nullable)
@@ -295,9 +298,11 @@ ORDER BY: set_number
 
 ### `playoffs.PlayoffBracket`
 ```
-season        OneToOneField → Season
+season        FK → Season             (was OneToOneField; one bracket per tier per season)
+tier          IntegerField            which tier this bracket is for (1-indexed)
 generated_at  DateTimeField
 generated_by  FK → User
+UNIQUE: (season, tier)
 ```
 
 ### `playoffs.PlayoffSlot`
@@ -315,11 +320,14 @@ next_slot         FK → self (nullable)   winner of this slot advances to next_
 
 Computed dynamically in `standings/calculator.py`. No cache table needed at typical league scale.
 
-**Algorithm:**
+Standings are **per-tier**: the calculator takes a season and tier number, returning the ranked player list for that tier only. The standings view iterates over all tiers in the season and renders a separate table (or tab) for each.
+
+**Algorithm (for a given season + tier):**
 ```
-For each active SeasonPlayer in season:
+For each active SeasonPlayer in season where tier == requested_tier:
   matches = Match.objects.filter(
       season=season,
+      tier=requested_tier,
       status__in=['completed', 'walkover'],
       player in [player1, player2]
   )
@@ -340,6 +348,9 @@ Ranking tiebreakers (in order):
   4. games_won / games_played ratio (desc)
   5. head-to-head result (if still equal)
 ```
+
+`calculate_standings(season, tier)` → ranked list for one tier.
+The standings view calls this for each tier in `range(1, season.num_tiers + 1)`.
 
 ---
 
@@ -373,7 +384,9 @@ Admin can also directly:
 
 In `playoffs/generator.py`:
 
-1. Read standings for season → top `season.playoff_qualifiers_count` players
+Brackets are generated **per tier**. `generate_bracket(season, tier, generated_by)` handles one tier at a time. The admin action can call it for each tier in the season.
+
+1. Read standings for `(season, tier)` → top `season.playoff_qualifiers_count` players in that tier
 2. Determine bracket size (next power of 2 ≥ qualifier count)
 3. Standard tennis bracket seeding for 16-draw:
    - Position 1: seed 1 vs seed 16
@@ -384,8 +397,8 @@ In `playoffs/generator.py`:
    - Position 6: seed 6 vs seed 11
    - Position 7: seed 7 vs seed 10
    - Position 8: seed 2 vs seed 15
-4. Create `Match` objects (round=`r16`, status=`scheduled`)
-5. Create `PlayoffSlot` objects, set `next_slot` so winners advance
+4. Create `Match` objects (round=`r16` or appropriate, status=`scheduled`, tier=tier)
+5. Create `PlayoffBracket` (with `tier` field) + `PlayoffSlot` objects with correct `next_slot` links
 6. When a playoff match completes: a post-save signal (or explicit view logic)
    sets the winner as `player1` or `player2` in the next round's `Match`
 
@@ -401,10 +414,11 @@ In `playoffs/generator.py`:
 
 /seasons/                                  All seasons list
 /seasons/<id>/                             Season overview
-/seasons/<id>/standings/                   Standings table
+/seasons/<id>/standings/                   Standings (all tiers; tabs or sections per tier)
 /seasons/<id>/schedule/                    Upcoming matches
 /seasons/<id>/results/                     Completed match results
-/seasons/<id>/playoffs/                    Playoff bracket
+/seasons/<id>/playoffs/                    Playoff bracket list (redirects to tier 1 if single-tier)
+/seasons/<id>/playoffs/<tier>/             Playoff bracket for a specific tier
 
 /matches/<id>/                             Match detail (set scores, status)
 /matches/<id>/enter-result/                Enter score (player in match or admin)
@@ -413,7 +427,7 @@ In `playoffs/generator.py`:
 /matches/<id>/postpone/                    Mark postponed / set new date (admin)
 
 /admin/                                    Django admin
-/admin/seasons/<id>/generate-playoffs/     Custom admin action: generate playoff bracket
+/admin/seasons/<id>/generate-playoffs/<tier>/  Custom admin action: generate bracket for one tier
 ```
 
 ---
@@ -425,8 +439,8 @@ In `playoffs/generator.py`:
 | `ResultEntryForm` | Dynamic: N sets × (p1_games, p2_games, tb_p1, tb_p2). Validates legal scores. |
 | `WalkoverForm` | winner (player1/player2/none), reason |
 | `PostponeForm` | new_scheduled_date, reason |
-| `SeasonForm` | All Season config fields |
-| `MatchScheduleForm` | player1, player2, scheduled_date |
+| `SeasonForm` | All Season config fields, including `num_tiers` |
+| `MatchScheduleForm` | player1, player2, scheduled_date — player dropdowns filtered to same tier |
 
 **Score validation rules:**
 - Normal set: winner must have ≥ 6 games, lead by ≥ 2 (except 7-5)

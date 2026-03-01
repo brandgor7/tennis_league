@@ -35,6 +35,7 @@ class Season(models.Model):
     name = models.CharField(max_length=100)
     year = models.IntegerField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_UPCOMING)
+    num_tiers = models.IntegerField(default=1, help_text='Number of competitive tiers in this season')
     sets_to_win = models.IntegerField(default=2, help_text='2 = best of 3, 3 = best of 5')
     final_set_format = models.CharField(max_length=20, choices=FINAL_SET_CHOICES, default=FINAL_SET_FULL)
     playoff_qualifiers_count = models.IntegerField(default=8)
@@ -65,6 +66,7 @@ class Season(models.Model):
 class SeasonPlayer(models.Model):
     season = models.ForeignKey(Season, on_delete=models.CASCADE, related_name='season_players')
     player = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='season_players')
+    tier = models.IntegerField(default=1, help_text='1-indexed tier number for this player in this season')
     seed = models.IntegerField(null=True, blank=True, help_text='Initial seeding for playoffs')
     is_active = models.BooleanField(default=True)
     joined_at = models.DateTimeField(auto_now_add=True)

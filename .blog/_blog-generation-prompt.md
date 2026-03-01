@@ -37,3 +37,8 @@ Use the date the session occurred. If multiple posts come from one session, use 
 | Date | File | Topic |
 |------|------|-------|
 | 2026-02-22 | `2026-02-22-planning-with-ai.md` | First session: planning the architecture, producing spec docs, no code written |
+| 2026-02-23 | `2026-02-23-first-real-code.md` | Phase 1 + 2: venv saga, Django scaffold, five apps, full data models and migrations |
+| 2026-02-23 | `2026-02-23-ai-reviews-its-own-code.md` | Code review (11 issues found), fixes, comment stripping, unit tests, merge |
+| 2026-02-24 | `2026-02-24-clay-courts-and-css.md` | Design timing decision, Clay Court Editorial visual identity, base template, login page, SQLite preview workaround |
+| 2026-02-25 | `2026-02-25-done-means-done.md` | Code review of design branch (6 issues, 1 already fixed), Django test client rationale, 49 tests passing, discovering profile view was missing from Phase 3, building it, updating ARCHITECTURE.md |
+| 2026-02-28 | `2026-02-28-tiers-before-code.md` | Designing multi-tier season support: minimal model changes (4 fields), new Phase 5, updated Phases 6–12, planning before coding |
