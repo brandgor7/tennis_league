@@ -135,13 +135,13 @@ class MatchScheduleFormTest(TestCase):
         form = self._form(self.p1, self.p3, tier=1)
         self.assertFalse(form.is_valid())
 
-    def test_cross_tier_error_message(self):
+    def test_cross_tier_error_on_player2_field(self):
         # Use no tier kwarg so the dropdown isn't pre-filtered — then clean()
         # still enforces the cross-tier rule.
         data = {'player1': self.p1.pk, 'player2': self.p3.pk, 'tier': 1}
         form = MatchScheduleForm(data=data, season=self.season)
         form.is_valid()
-        self.assertIn('same tier', str(form.errors))
+        self.assertIn('player2', form.errors)
 
     def test_player_dropdowns_filtered_to_tier(self):
         form = MatchScheduleForm(season=self.season, tier=1)

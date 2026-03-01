@@ -26,7 +26,6 @@ class MatchScheduleForm(forms.ModelForm):
     def __init__(self, *args, season=None, tier=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.season = season
-        self.requested_tier = tier
 
         if season is not None:
             if tier is not None:
@@ -54,23 +53,18 @@ class MatchScheduleForm(forms.ModelForm):
         tier = cleaned.get('tier')
 
         if player1 and player2 and self.season and tier is not None:
-            p1_tier = (
+            tier_map = dict(
                 SeasonPlayer.objects.filter(
-                    season=self.season, player=player1, is_active=True
-                )
-                .values_list('tier', flat=True)
-                .first()
+                    season=self.season,
+                    player__in=[player1, player2],
+                    is_active=True,
+                ).values_list('player_id', 'tier')
             )
-            p2_tier = (
-                SeasonPlayer.objects.filter(
-                    season=self.season, player=player2, is_active=True
-                )
-                .values_list('tier', flat=True)
-                .first()
-            )
+            p1_tier = tier_map.get(player1.pk)
+            p2_tier = tier_map.get(player2.pk)
             if p1_tier is not None and p2_tier is not None and p1_tier != p2_tier:
                 raise forms.ValidationError(
-                    'Both players must be in the same tier to schedule a match.'
+                    {'player2': 'This player is not in the same tier to schedule a match.'}
                 )
 
         return cleaned
