@@ -1,0 +1,80 @@
+{% if rows %}
+
+{# ════════════════════════════════════════════════════════
+   MOBILE — one card per player (d-block d-md-none)
+   ════════════════════════════════════════════════════════ #}
+<div class="d-block d-md-none">
+  {% for row in rows %}
+  <div class="card mb-2">
+    <div class="card-body py-2 px-3 d-flex align-items-center gap-3">
+      <span class="rank-number {% if forloop.counter <= 3 %}rank-top-3{% endif %}">
+        {{ forloop.counter }}
+      </span>
+      <div class="flex-grow-1">
+        <div class="fw-600">{{ row.player.get_full_name|default:row.player.username }}</div>
+        <small class="text-muted">{{ row.wins }}W – {{ row.losses }}L &nbsp;·&nbsp; {{ row.played }} played</small>
+      </div>
+      <div class="text-end">
+        <span class="stat-value fw-600">{{ row.points }}</span>
+        <div class="text-muted" style="font-size:0.7rem;">pts</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{# ════════════════════════════════════════════════════════
+   DESKTOP — full table (d-none d-md-block)
+   ════════════════════════════════════════════════════════ #}
+<div class="d-none d-md-block">
+  <div class="table-responsive">
+    <table class="table table-striped table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th scope="col" class="text-center" style="width:3rem;">#</th>
+          <th scope="col">Player</th>
+          <th scope="col" class="text-center stat-value">P</th>
+          <th scope="col" class="text-center stat-value">W</th>
+          <th scope="col" class="text-center stat-value">L</th>
+          <th scope="col" class="text-center stat-value">Pts</th>
+          <th scope="col" class="text-center stat-value">Sets</th>
+          <th scope="col" class="text-center stat-value">Games</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td class="text-center">
+            <span class="rank-number {% if forloop.counter <= 3 %}rank-top-3{% endif %}">
+              {{ forloop.counter }}
+            </span>
+          </td>
+          <td>{{ row.player.get_full_name|default:row.player.username }}</td>
+          <td class="text-center stat-value">{{ row.played }}</td>
+          <td class="text-center stat-value">{{ row.wins }}</td>
+          <td class="text-center stat-value">{{ row.losses }}</td>
+          <td class="text-center stat-value fw-600">{{ row.points }}</td>
+          <td class="text-center stat-value">
+            {% if row.sets_won or row.sets_lost %}
+              {{ row.sets_won }}/{{ row.sets_won|add:row.sets_lost }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td class="text-center stat-value">
+            {% if row.games_won or row.games_lost %}
+              {{ row.games_won }}/{{ row.games_won|add:row.games_lost }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% else %}
+<p class="text-muted py-3">No players registered for this tier yet.</p>
+{% endif %}

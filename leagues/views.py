@@ -7,8 +7,7 @@ from .models import Season
 def home(request):
     active_season = Season.objects.filter(status=Season.STATUS_ACTIVE).first()
     if active_season:
-        # TODO Phase 5: redirect to 'leagues:standings' once that view exists.
-        return redirect('leagues:season_detail', pk=active_season.pk)
+        return redirect('leagues:standings', pk=active_season.pk)
     return redirect('leagues:season_list')
 
 

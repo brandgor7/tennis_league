@@ -146,10 +146,10 @@ class HomeViewTest(TestCase):
         response = self.client.get(reverse('home'))
         self.assertRedirects(response, reverse('leagues:season_list'))
 
-    def test_home_redirects_to_active_season_detail(self):
+    def test_home_redirects_to_active_season_standings(self):
         season = Season.objects.create(name='Spring', year=2025, status=Season.STATUS_ACTIVE)
         response = self.client.get(reverse('home'))
-        self.assertRedirects(response, reverse('leagues:season_detail', kwargs={'pk': season.pk}))
+        self.assertRedirects(response, reverse('leagues:standings', kwargs={'pk': season.pk}))
 
     def test_home_accessible_when_authenticated(self):
         user = User.objects.create_user(username='tester', password='pass')
