@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+
+{% block title %}Enter Result — {{ match.player1.get_full_name|default:match.player1.username }} vs {{ match.player2.get_full_name|default:match.player2.username }} — TennisLeague{% endblock %}
+
+{% block nav_matchups %}nav-active{% endblock %}
+
+{% block extra_css %}
+<style>
+  @media (max-width: 767.98px) {
+    .score-input { width: 100%; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <h1>Enter Result</h1>
+  <p class="page-meta">
+    {{ match.player1.get_full_name|default:match.player1.username }}
+    <span class="text-muted" style="font-size:0.8em;">vs</span>
+    {{ match.player2.get_full_name|default:match.player2.username }}
+    {% if multi_tier and match.tier %}&nbsp;·&nbsp; Tier {{ match.tier }}{% endif %}
+    {% if match.scheduled_date %}&nbsp;·&nbsp; {{ match.scheduled_date }}{% endif %}
+  </p>
+</div>
+
+{% if form.non_field_errors %}
+<div class="alert alert-danger" role="alert">
+  {% for error in form.non_field_errors %}
+  <div>{{ error }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {# ── Mobile layout ───────────────────────────────────────────────────── #}
+  <div class="d-block d-md-none">
+    {% for set in sets_meta %}
+    <div class="card mb-3">
+      <div class="card-header fw-600 d-flex align-items-center gap-2">
+        Set {{ set.set_num }}
+        {% if set.is_super %}
+        <small class="text-muted fw-400">— Super Tiebreak</small>
+        {% elif set.is_final_tb %}
+        <small class="text-muted fw-400">— Tiebreak Format</small>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% if set.is_super %}
+        <p class="text-muted mb-3" style="font-size:0.85rem;">
+          Enter the super tiebreak points (first to 10, lead by 2).
+        </p>
+        {% endif %}
+        <div class="row g-3">
+          <div class="col-6">
+            <label class="form-label fw-500" style="font-size:0.875rem;">{{ player1_name }}</label>
+            {{ set.p1_field }}
+            {% if set.p1_field.errors %}
+            <div class="text-danger" style="font-size:0.8rem;">{{ set.p1_field.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-500" style="font-size:0.875rem;">{{ player2_name }}</label>
+            {{ set.p2_field }}
+            {% if set.p2_field.errors %}
+            <div class="text-danger" style="font-size:0.8rem;">{{ set.p2_field.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if not set.is_super %}
+        <div id="tb-{{ set.set_num }}-mobile" class="mt-3 pt-3" style="display:none; border-top:1px solid var(--border);">
+          <p class="text-muted mb-2" style="font-size:0.8rem;">
+            Tiebreak points <span class="text-muted">(enter the loser's score)</span>
+          </p>
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label" style="font-size:0.875rem;">{{ player1_name }} TB</label>
+              {{ set.tb_p1_field }}
+            </div>
+            <div class="col-6">
+              <label class="form-label" style="font-size:0.875rem;">{{ player2_name }} TB</label>
+              {{ set.tb_p2_field }}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-primary btn-lg w-100 mt-2" style="min-height:52px;">
+      Submit Result
+    </button>
+    <a href="{% url 'matches:match_detail' match.pk %}" class="btn btn-outline-secondary w-100 mt-2">
+      Cancel
+    </a>
+  </div>
+
+  {# ── Desktop layout ──────────────────────────────────────────────────── #}
+  <div class="d-none d-md-block">
+    <div class="card mb-4" style="max-width:640px;">
+      <div class="card-body p-0">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th class="ps-3" style="width:7rem;">Set</th>
+              <th class="text-center" style="width:9rem;">{{ player1_name }}</th>
+              <th class="text-center" style="width:9rem;">{{ player2_name }}</th>
+              <th class="text-center" style="width:6rem;">TB {{ player1_name|truncatechars:4 }}</th>
+              <th class="text-center" style="width:6rem;">TB {{ player2_name|truncatechars:4 }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for set in sets_meta %}
+            <tr>
+              <td class="ps-3 fw-600">
+                Set {{ set.set_num }}
+                {% if set.is_super %}
+                <br><small class="text-muted fw-400" style="font-size:0.7rem;">Super TB</small>
+                {% elif set.is_final_tb %}
+                <br><small class="text-muted fw-400" style="font-size:0.7rem;">TB format</small>
+                {% endif %}
+              </td>
+              <td class="text-center">{{ set.p1_field }}</td>
+              <td class="text-center">{{ set.p2_field }}</td>
+              {% if set.is_super %}
+              <td colspan="2" class="text-center text-muted" style="font-size:0.8rem;">—</td>
+              {% else %}
+              <td class="text-center" id="tb-p1-{{ set.set_num }}-desktop" style="display:none;">
+                {{ set.tb_p1_field }}
+              </td>
+              <td class="text-center" id="tb-p2-{{ set.set_num }}-desktop" style="display:none;">
+                {{ set.tb_p2_field }}
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2 align-items-center">
+      <button type="submit" class="btn btn-primary btn-lg">Submit Result</button>
+      <a href="{% url 'matches:match_detail' match.pk %}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  </div>
+
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+
+  function syncTiebreak(setNum) {
+    var p1 = document.querySelector('[name="set' + setNum + '_p1"]');
+    var p2 = document.querySelector('[name="set' + setNum + '_p2"]');
+    if (!p1 || !p2) return;
+
+    var v1 = parseInt(p1.value, 10);
+    var v2 = parseInt(p2.value, 10);
+    var isTb = (v1 === 7 && v2 === 6) || (v1 === 6 && v2 === 7);
+
+    // Mobile container
+    var mobile = document.getElementById('tb-' + setNum + '-mobile');
+    if (mobile) mobile.style.display = isTb ? '' : 'none';
+
+    // Desktop cells
+    var deskP1 = document.getElementById('tb-p1-' + setNum + '-desktop');
+    var deskP2 = document.getElementById('tb-p2-' + setNum + '-desktop');
+    if (deskP1) deskP1.style.display = isTb ? '' : 'none';
+    if (deskP2) deskP2.style.display = isTb ? '' : 'none';
+
+    // Clear tiebreak values when hiding
+    if (!isTb) {
+      var tbP1 = document.querySelector('[name="set' + setNum + '_tb_p1"]');
+      var tbP2 = document.querySelector('[name="set' + setNum + '_tb_p2"]');
+      if (tbP1) tbP1.value = '';
+      if (tbP2) tbP2.value = '';
+    }
+  }
+
+  var maxSets = {{ max_sets }};
+  for (var i = 1; i <= maxSets; i++) {
+    (function (setNum) {
+      var p1 = document.querySelector('[name="set' + setNum + '_p1"]');
+      var p2 = document.querySelector('[name="set' + setNum + '_p2"]');
+      if (!p1 || !p2) return;
+      p1.addEventListener('input', function () { syncTiebreak(setNum); });
+      p2.addEventListener('input', function () { syncTiebreak(setNum); });
+      // Restore tiebreak visibility on page load (after form re-submit with errors)
+      syncTiebreak(setNum);
+    }(i));
+  }
+}());
+</script>
+{% endblock %}

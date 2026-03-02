@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth import get_user_model
 
-from leagues.models import SeasonPlayer
+from leagues.models import Season, SeasonPlayer
 from .models import Match
 
 User = get_user_model()
@@ -67,4 +67,191 @@ class MatchScheduleForm(forms.ModelForm):
                     {'player2': 'This player is not in the same tier to schedule a match.'}
                 )
 
+        return cleaned
+
+
+class ResultEntryForm(forms.Form):
+    """
+    Dynamic score-entry form. Generates fields for up to (2 * sets_to_win − 1)
+    sets based on the season configuration:
+      - set{n}_p1 / set{n}_p2  — game counts (left blank = set not played)
+      - set{n}_tb_p1 / set{n}_tb_p2  — tiebreak points (shown only for 7-6 sets)
+    For the deciding set in 'super' format, set{n}_p1/p2 hold the 10-point
+    super-tiebreak scores directly (no separate tiebreak fields).
+    """
+
+    def __init__(self, *args, match=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.match = match
+        season = match.season
+        max_sets = 2 * season.sets_to_win - 1
+        self.max_sets = max_sets
+        is_super_final = (season.final_set_format == Season.FINAL_SET_SUPER)
+
+        score_widget_attrs = {
+            'inputmode': 'numeric',
+            'class': 'form-control score-input',
+            'placeholder': '0',
+            'style': 'min-height:44px;',
+        }
+
+        for i in range(1, max_sets + 1):
+            is_super = (i == max_sets) and is_super_final
+            self.fields[f'set{i}_p1'] = forms.IntegerField(
+                required=False,
+                min_value=0,
+                widget=forms.NumberInput(attrs={
+                    **score_widget_attrs,
+                    'data-set': str(i),
+                    'data-player': '1',
+                }),
+            )
+            self.fields[f'set{i}_p2'] = forms.IntegerField(
+                required=False,
+                min_value=0,
+                widget=forms.NumberInput(attrs={
+                    **score_widget_attrs,
+                    'data-set': str(i),
+                    'data-player': '2',
+                }),
+            )
+            if not is_super:
+                self.fields[f'set{i}_tb_p1'] = forms.IntegerField(
+                    required=False,
+                    min_value=0,
+                    widget=forms.NumberInput(attrs=score_widget_attrs),
+                )
+                self.fields[f'set{i}_tb_p2'] = forms.IntegerField(
+                    required=False,
+                    min_value=0,
+                    widget=forms.NumberInput(attrs=score_widget_attrs),
+                )
+
+    # ── Per-set score validators ──────────────────────────────────────────
+
+    def _validate_set_score(self, set_num, p1, p2, tb_p1, tb_p2):
+        """Return an error string if the set score is illegal, else None."""
+        season = self.match.season
+        is_deciding = (set_num == self.max_sets)
+        is_super = is_deciding and season.final_set_format == Season.FINAL_SET_SUPER
+        is_final_tb = is_deciding and season.final_set_format == Season.FINAL_SET_TIEBREAK
+
+        if is_super:
+            winner, loser = max(p1, p2), min(p1, p2)
+            if winner < 10:
+                return f'Set {set_num}: Super tiebreak winner must reach at least 10 points.'
+            if winner - loser < 2:
+                return f'Set {set_num}: Super tiebreak winner must lead by at least 2 points.'
+            return None
+
+        if is_final_tb:
+            if not ((p1 == 7 and p2 == 6) or (p1 == 6 and p2 == 7)):
+                return f'Set {set_num}: The deciding set must end 7-6 (tiebreak format required).'
+            return self._validate_tiebreak_points(set_num, p1, p2, tb_p1, tb_p2)
+
+        # Normal set (or full-format final set)
+        if (p1 == 7 and p2 == 6) or (p1 == 6 and p2 == 7):
+            return self._validate_tiebreak_points(set_num, p1, p2, tb_p1, tb_p2)
+
+        # Non-tiebreak set
+        if tb_p1 is not None or tb_p2 is not None:
+            return f'Set {set_num}: Tiebreak scores should only be entered for 7-6 sets.'
+        winner, loser = max(p1, p2), min(p1, p2)
+        if winner < 6:
+            return f'Set {set_num}: Set winner must win at least 6 games.'
+        if winner - loser < 2:
+            return f'Set {set_num}: Set winner must lead by at least 2 games.'
+        if winner > 7 or (winner == 7 and loser != 5):
+            return f'Set {set_num}: Invalid set score (valid scores: 6-0 to 6-4, 7-5, or 7-6 with tiebreak).'
+        return None
+
+    def _validate_tiebreak_points(self, set_num, p1_games, p2_games, tb_p1, tb_p2):
+        """Validate tiebreak points for a 7-6 set. Return error string or None."""
+        if tb_p1 is None or tb_p2 is None:
+            return f'Set {set_num}: Tiebreak scores are required for a 7-6 set.'
+        if (p1_games > p2_games) != (tb_p1 > tb_p2):
+            return f'Set {set_num}: Tiebreak winner must match the set winner.'
+        winner_pts, loser_pts = max(tb_p1, tb_p2), min(tb_p1, tb_p2)
+        if winner_pts < 7:
+            return f'Set {set_num}: Tiebreak winner must reach at least 7 points.'
+        if winner_pts - loser_pts < 2:
+            return f'Set {set_num}: Tiebreak winner must lead by at least 2 points.'
+        return None
+
+    # ── Main clean ────────────────────────────────────────────────────────
+
+    def clean(self):
+        cleaned = super().clean()
+        season = self.match.season
+        max_sets = self.max_sets
+        is_super_final = (season.final_set_format == Season.FINAL_SET_SUPER)
+
+        # Collect set data: (set_num, p1, p2, tb_p1, tb_p2) or None
+        all_sets = []
+        for i in range(1, max_sets + 1):
+            p1 = cleaned.get(f'set{i}_p1')
+            p2 = cleaned.get(f'set{i}_p2')
+            is_super = (i == max_sets) and is_super_final
+            tb_p1 = None if is_super else cleaned.get(f'set{i}_tb_p1')
+            tb_p2 = None if is_super else cleaned.get(f'set{i}_tb_p2')
+
+            if p1 is None and p2 is None:
+                all_sets.append(None)
+            elif p1 is None or p2 is None:
+                raise forms.ValidationError(
+                    f'Set {i}: both game scores must be provided together.'
+                )
+            else:
+                all_sets.append((i, p1, p2, tb_p1, tb_p2))
+
+        # Find the last played set
+        last_idx = next(
+            (idx for idx in range(max_sets - 1, -1, -1) if all_sets[idx] is not None),
+            None,
+        )
+        if last_idx is None:
+            raise forms.ValidationError('Please enter at least one set score.')
+
+        # No gaps before the last played set
+        for idx in range(last_idx):
+            if all_sets[idx] is None:
+                raise forms.ValidationError(
+                    f'Set {idx + 1} score is missing. Please fill sets in order.'
+                )
+
+        # Validate each played set and track match progress
+        p1_wins = p2_wins = 0
+        match_decided_at = None
+
+        for idx in range(last_idx + 1):
+            set_data = all_sets[idx]
+            if set_data is None:
+                continue
+            set_num, p1, p2, tb_p1, tb_p2 = set_data
+
+            if match_decided_at is not None:
+                raise forms.ValidationError(
+                    f'Set {set_num} cannot be played — the match was decided after '
+                    f'Set {match_decided_at}.'
+                )
+
+            err = self._validate_set_score(set_num, p1, p2, tb_p1, tb_p2)
+            if err:
+                raise forms.ValidationError(err)
+
+            if p1 > p2:
+                p1_wins += 1
+            else:
+                p2_wins += 1
+
+            if p1_wins == season.sets_to_win or p2_wins == season.sets_to_win:
+                match_decided_at = set_num
+
+        if match_decided_at is None:
+            raise forms.ValidationError(
+                f'The match is incomplete — a player must win {season.sets_to_win} set(s).'
+            )
+
+        cleaned['_p1_set_wins'] = p1_wins
+        cleaned['_p2_set_wins'] = p2_wins
         return cleaned
