@@ -1,3 +1,4 @@
+from django.db.models import F
 from django.shortcuts import get_object_or_404
 from django.views.generic import TemplateView, DetailView
 
@@ -14,8 +15,8 @@ class MatchupsView(TemplateView):
         qs = (
             Match.objects
             .filter(season=season, status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED])
-            .select_related('player1', 'player2')
-            .order_by('scheduled_date', 'created_at')
+            .select_related('player1', 'player2', 'winner')
+            .order_by(F('scheduled_date').asc(nulls_last=True), 'created_at')
         )
         multi_tier = season.num_tiers > 1
         tiers = [
@@ -38,7 +39,7 @@ class ResultsView(TemplateView):
             Match.objects
             .filter(season=season, status__in=[Match.STATUS_COMPLETED, Match.STATUS_WALKOVER])
             .select_related('player1', 'player2', 'winner')
-            .order_by('-played_date', '-created_at')
+            .order_by(F('played_date').desc(nulls_last=True), '-created_at')
         )
         multi_tier = season.num_tiers > 1
         tiers = [
@@ -55,9 +56,9 @@ class MatchDetailView(DetailView):
     model = Match
     template_name = 'matches/match_detail.html'
     context_object_name = 'match'
-    queryset = Match.objects.select_related(
-        'player1', 'player2', 'winner', 'season', 'entered_by', 'confirmed_by'
-    ).prefetch_related('sets')
+
+    def get_queryset(self):
+        return Match.objects.select_related('player1', 'player2', 'winner', 'season')
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)

@@ -226,6 +226,18 @@ class MatchupsViewTest(TestCase):
         tier_num, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 0)
 
+    def test_excludes_pending_match(self):
+        self._match(status=Match.STATUS_PENDING)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 0)
+
+    def test_excludes_cancelled_match(self):
+        self._match(status=Match.STATUS_CANCELLED)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 0)
+
     def test_excludes_other_season_matches(self):
         other = Season.objects.create(name='Fall', year=2025)
         Match.objects.create(
@@ -265,6 +277,16 @@ class MatchupsViewTest(TestCase):
         self.assertEqual(tier2_num, 2)
         self.assertEqual(tier1_matches.count(), 1)
         self.assertEqual(tier2_matches.count(), 1)
+
+    def test_ordered_by_scheduled_date_ascending(self):
+        import datetime
+        self._match(status=Match.STATUS_SCHEDULED, scheduled_date=datetime.date(2025, 6, 10))
+        self._match(status=Match.STATUS_SCHEDULED, scheduled_date=datetime.date(2025, 6, 1))
+        self._match(status=Match.STATUS_SCHEDULED, scheduled_date=datetime.date(2025, 6, 5))
+        response = self.client.get(self.url)
+        _, matches = response.context['tiers'][0]
+        dates = [m.scheduled_date for m in matches]
+        self.assertEqual(dates, sorted(dates))
 
     def test_uses_matchups_template(self):
         response = self.client.get(self.url)
@@ -311,6 +333,24 @@ class ResultsViewTest(TestCase):
         tier_num, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 0)
 
+    def test_excludes_pending_match(self):
+        self._match(status=Match.STATUS_PENDING)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 0)
+
+    def test_excludes_postponed_match(self):
+        self._match(status=Match.STATUS_POSTPONED)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 0)
+
+    def test_excludes_cancelled_match(self):
+        self._match(status=Match.STATUS_CANCELLED)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 0)
+
     def test_excludes_other_season_matches(self):
         other = Season.objects.create(name='Fall', year=2025)
         Match.objects.create(
@@ -320,6 +360,38 @@ class ResultsViewTest(TestCase):
         response = self.client.get(self.url)
         tier_num, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 0)
+
+    def test_single_tier_multi_tier_false(self):
+        response = self.client.get(self.url)
+        self.assertFalse(response.context['multi_tier'])
+
+    def test_multi_tier_season_has_tier_tabs(self):
+        self.season.num_tiers = 2
+        self.season.save()
+        response = self.client.get(self.url)
+        self.assertTrue(response.context['multi_tier'])
+        self.assertEqual(len(response.context['tiers']), 2)
+
+    def test_ordered_by_played_date_descending(self):
+        import datetime
+        self._match(status=Match.STATUS_COMPLETED, winner=self.p1, played_date=datetime.date(2025, 5, 1))
+        self._match(status=Match.STATUS_COMPLETED, winner=self.p1, played_date=datetime.date(2025, 5, 15))
+        self._match(status=Match.STATUS_COMPLETED, winner=self.p1, played_date=datetime.date(2025, 5, 8))
+        response = self.client.get(self.url)
+        _, matches = response.context['tiers'][0]
+        dates = [m.played_date for m in matches]
+        self.assertEqual(dates, sorted(dates, reverse=True))
+
+    def test_walkover_with_no_played_date_sorts_last(self):
+        """Walkovers with no played_date should not float to the top."""
+        import datetime
+        self._match(status=Match.STATUS_COMPLETED, winner=self.p1, played_date=datetime.date(2025, 5, 1))
+        self._match(status=Match.STATUS_WALKOVER, winner=self.p1, played_date=None)
+        response = self.client.get(self.url)
+        _, matches = response.context['tiers'][0]
+        match_list = list(matches)
+        self.assertEqual(match_list[0].status, Match.STATUS_COMPLETED)
+        self.assertEqual(match_list[1].status, Match.STATUS_WALKOVER)
 
     def test_multi_tier_season_groups_results(self):
         self.season.num_tiers = 2
@@ -394,3 +466,17 @@ class MatchDetailViewTest(TestCase):
     def test_uses_match_detail_template(self):
         response = self.client.get(self.url)
         self.assertTemplateUsed(response, 'matches/match_detail.html')
+
+    def test_completed_match_back_link_goes_to_results(self):
+        response = self.client.get(self.url)
+        results_url = reverse('leagues:results', kwargs={'pk': self.season.pk})
+        self.assertContains(response, results_url)
+
+    def test_scheduled_match_back_link_goes_to_matchups(self):
+        scheduled = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_SCHEDULED,
+        )
+        response = self.client.get(reverse('matches:match_detail', kwargs={'pk': scheduled.pk}))
+        matchups_url = reverse('leagues:matchups', kwargs={'pk': self.season.pk})
+        self.assertContains(response, matchups_url)

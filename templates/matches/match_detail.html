@@ -51,6 +51,12 @@
         <dd class="col-7">{{ match.get_round_display }}</dd>
         {% endif %}
       </dl>
+      {% if match.walkover_reason %}
+      <hr class="border-theme">
+      <p class="mb-0 text-muted" style="font-size:0.875rem;">
+        <strong>Walkover reason:</strong> {{ match.walkover_reason }}
+      </p>
+      {% endif %}
     </div>
   </div>
 
@@ -89,17 +95,15 @@
   </div>
   {% endif %}
 
-  {# Walkover / notes #}
-  {% if match.walkover_reason %}
-  <div class="card mb-3">
-    <div class="card-header">Walkover Reason</div>
-    <div class="card-body">{{ match.walkover_reason }}</div>
-  </div>
-  {% endif %}
-
+  {% if match.status == 'completed' or match.status == 'walkover' %}
+  <a href="{% url 'leagues:results' season.pk %}" class="btn btn-outline-primary w-100">
+    &larr; Back to Results
+  </a>
+  {% else %}
   <a href="{% url 'leagues:matchups' season.pk %}" class="btn btn-outline-primary w-100">
     &larr; Back to Matchups
   </a>
+  {% endif %}
 
 </div>
 
@@ -186,9 +190,15 @@
   </div>
 
   <div class="mt-4">
+    {% if match.status == 'completed' or match.status == 'walkover' %}
+    <a href="{% url 'leagues:results' season.pk %}" class="btn btn-outline-primary">
+      &larr; Back to Results
+    </a>
+    {% else %}
     <a href="{% url 'leagues:matchups' season.pk %}" class="btn btn-outline-primary">
       &larr; Back to Matchups
     </a>
+    {% endif %}
   </div>
 
 </div>
