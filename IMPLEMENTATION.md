@@ -147,7 +147,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 
 **Goal:** A player can enter a match score set-by-set.
 
-- [ ] **`matches/forms.py`** — `ResultEntryForm`:
+- [x] **`matches/forms.py`** — `ResultEntryForm`:
   - Dynamically generates N sets of fields based on `season.sets_to_win`
   - Fields per set: `p1_games`, `p2_games`, `tb_p1_points` (optional), `tb_p2_points` (optional)
   - Validates legal tennis scores:
@@ -155,12 +155,12 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
     - Tiebreak set: 7-6, tiebreak scores required
     - Final set super tiebreak: first to 10 with 2-point lead
   - Validates that the match winner is consistent with set scores and season format
-- [ ] **`matches/views.py`** — `EnterResultView`:
+- [x] **`matches/views.py`** — `EnterResultView`:
   - `@login_required`
   - Must be `player1` or `player2` (or staff)
   - On valid submit: create `MatchSet` objects, set `match.status = 'pending_confirmation'`, set `match.entered_by = request.user`
   - Redirect to match detail with success message
-- [ ] **`templates/matches/enter_result.html`**:
+- [x] **`templates/matches/enter_result.html`**:
   - Mobile: one set per row, stacked vertically; each score input is full-width with `inputmode="numeric"` (triggers numeric keyboard on phones); min input height 44px; tiebreak fields appear as a collapsible row directly below the set only when that set score is 7-6; large full-width submit button
   - Desktop: sets in a compact grid/table (columns: Set #, Player 1 games, Player 2 games, TB P1, TB P2); tab-order moves logically across the row; submit button right-aligned
 

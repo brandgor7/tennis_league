@@ -5,7 +5,7 @@ from django.urls import reverse
 
 from leagues.models import Season, SeasonPlayer
 from .models import Match, MatchSet
-from .forms import MatchScheduleForm
+from .forms import MatchScheduleForm, ResultEntryForm
 
 User = get_user_model()
 
@@ -480,3 +480,382 @@ class MatchDetailViewTest(TestCase):
         response = self.client.get(reverse('matches:match_detail', kwargs={'pk': scheduled.pk}))
         matchups_url = reverse('leagues:matchups', kwargs={'pk': self.season.pk})
         self.assertContains(response, matchups_url)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 8 — ResultEntryForm tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ResultEntryFormValidScoresTest(TestCase):
+    """Valid set-score combinations are accepted."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            name='Spring', year=2025, sets_to_win=2,
+            final_set_format=Season.FINAL_SET_FULL,
+        )
+        self.p1 = User.objects.create_user(username='p1')
+        self.p2 = User.objects.create_user(username='p2')
+        self.match = Match.objects.create(season=self.season, player1=self.p1, player2=self.p2)
+
+    def _form(self, data):
+        return ResultEntryForm(data=data, match=self.match)
+
+    def test_2_0_straight_sets(self):
+        form = self._form({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_2_1_three_sets(self):
+        form = self._form({
+            'set1_p1': 6, 'set1_p2': 3,
+            'set2_p1': 3, 'set2_p2': 6,
+            'set3_p1': 6, 'set3_p2': 4,
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_7_5_set_is_valid(self):
+        form = self._form({'set1_p1': 7, 'set1_p2': 5, 'set2_p1': 6, 'set2_p2': 3})
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_7_6_with_tiebreak(self):
+        form = self._form({
+            'set1_p1': 7, 'set1_p2': 6,
+            'set1_tb_p1': 7, 'set1_tb_p2': 4,
+            'set2_p1': 6, 'set2_p2': 3,
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_p2_wins_straight_sets(self):
+        form = self._form({'set1_p1': 3, 'set1_p2': 6, 'set2_p1': 2, 'set2_p2': 6})
+        self.assertTrue(form.is_valid(), form.errors)
+
+
+class ResultEntryFormInvalidScoresTest(TestCase):
+    """Invalid set-score combinations are rejected."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            name='Spring', year=2025, sets_to_win=2,
+            final_set_format=Season.FINAL_SET_FULL,
+        )
+        self.p1 = User.objects.create_user(username='p1')
+        self.p2 = User.objects.create_user(username='p2')
+        self.match = Match.objects.create(season=self.season, player1=self.p1, player2=self.p2)
+
+    def _form(self, data):
+        return ResultEntryForm(data=data, match=self.match)
+
+    def test_empty_form_invalid(self):
+        form = self._form({})
+        self.assertFalse(form.is_valid())
+
+    def test_too_few_games_invalid(self):
+        form = self._form({'set1_p1': 5, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 3})
+        self.assertFalse(form.is_valid())
+
+    def test_winner_leads_by_one_invalid(self):
+        form = self._form({'set1_p1': 6, 'set1_p2': 5, 'set2_p1': 6, 'set2_p2': 3})
+        self.assertFalse(form.is_valid())
+
+    def test_7_6_without_tiebreak_invalid(self):
+        form = self._form({'set1_p1': 7, 'set1_p2': 6, 'set2_p1': 6, 'set2_p2': 3})
+        self.assertFalse(form.is_valid())
+
+    def test_tiebreak_on_non_76_invalid(self):
+        form = self._form({
+            'set1_p1': 6, 'set1_p2': 3,
+            'set1_tb_p1': 7, 'set1_tb_p2': 3,
+            'set2_p1': 6, 'set2_p2': 4,
+        })
+        self.assertFalse(form.is_valid())
+
+    def test_extra_set_after_match_decided_invalid(self):
+        # Match decided in 2 sets, but a 3rd set is also entered
+        form = self._form({
+            'set1_p1': 6, 'set1_p2': 3,
+            'set2_p1': 6, 'set2_p2': 3,
+            'set3_p1': 6, 'set3_p2': 3,
+        })
+        self.assertFalse(form.is_valid())
+
+    def test_incomplete_match_invalid(self):
+        # Only 1 set entered in best-of-3 — neither player has won 2
+        form = self._form({'set1_p1': 6, 'set1_p2': 3})
+        self.assertFalse(form.is_valid())
+
+    def test_gap_in_sets_invalid(self):
+        # Set 2 missing; set 3 filled (for a best-of-3)
+        form = self._form({
+            'set1_p1': 6, 'set1_p2': 3,
+            'set3_p1': 6, 'set3_p2': 4,
+        })
+        self.assertFalse(form.is_valid())
+
+    def test_tiebreak_winner_mismatch_invalid(self):
+        # Player 1 wins 7-6 but tiebreak gives p2 more points
+        form = self._form({
+            'set1_p1': 7, 'set1_p2': 6,
+            'set1_tb_p1': 4, 'set1_tb_p2': 7,
+            'set2_p1': 6, 'set2_p2': 3,
+        })
+        self.assertFalse(form.is_valid())
+
+
+class ResultEntryFormTiebreakFinalSetTest(TestCase):
+    """Deciding set with final_set_format='tiebreak' must be 7-6."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            name='Spring', year=2025, sets_to_win=2,
+            final_set_format=Season.FINAL_SET_TIEBREAK,
+        )
+        self.p1 = User.objects.create_user(username='p1')
+        self.p2 = User.objects.create_user(username='p2')
+        self.match = Match.objects.create(season=self.season, player1=self.p1, player2=self.p2)
+
+    def _form(self, data):
+        return ResultEntryForm(data=data, match=self.match)
+
+    def test_76_deciding_set_valid(self):
+        form = self._form({
+            'set1_p1': 6, 'set1_p2': 3,
+            'set2_p1': 3, 'set2_p2': 6,
+            'set3_p1': 7, 'set3_p2': 6,
+            'set3_tb_p1': 7, 'set3_tb_p2': 4,
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_non_76_deciding_set_invalid(self):
+        form = self._form({
+            'set1_p1': 6, 'set1_p2': 3,
+            'set2_p1': 3, 'set2_p2': 6,
+            'set3_p1': 6, 'set3_p2': 4,
+        })
+        self.assertFalse(form.is_valid())
+
+
+class ResultEntryFormSuperTiebreaKTest(TestCase):
+    """Deciding set with final_set_format='super' uses 10-point tiebreak."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            name='Spring', year=2025, sets_to_win=2,
+            final_set_format=Season.FINAL_SET_SUPER,
+        )
+        self.p1 = User.objects.create_user(username='p1')
+        self.p2 = User.objects.create_user(username='p2')
+        self.match = Match.objects.create(season=self.season, player1=self.p1, player2=self.p2)
+
+    def _form(self, data):
+        return ResultEntryForm(data=data, match=self.match)
+
+    def test_super_tiebreak_10_5_valid(self):
+        # Sets 1 and 2 split, super tiebreak in set 3
+        form = self._form({
+            'set1_p1': 6, 'set1_p2': 3,
+            'set2_p1': 3, 'set2_p2': 6,
+            'set3_p1': 10, 'set3_p2': 5,
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_super_tiebreak_less_than_10_invalid(self):
+        form = self._form({
+            'set1_p1': 6, 'set1_p2': 3,
+            'set2_p1': 3, 'set2_p2': 6,
+            'set3_p1': 9, 'set3_p2': 5,
+        })
+        self.assertFalse(form.is_valid())
+
+    def test_super_tiebreak_lead_by_one_invalid(self):
+        form = self._form({
+            'set1_p1': 6, 'set1_p2': 3,
+            'set2_p1': 3, 'set2_p2': 6,
+            'set3_p1': 10, 'set3_p2': 9,
+        })
+        self.assertFalse(form.is_valid())
+
+    def test_super_tiebreak_extended_11_9_valid(self):
+        form = self._form({
+            'set1_p1': 6, 'set1_p2': 3,
+            'set2_p1': 3, 'set2_p2': 6,
+            'set3_p1': 11, 'set3_p2': 9,
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+
+
+class ResultEntryFormBestOf5Test(TestCase):
+    """Best-of-5 (sets_to_win=3) match score validation."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            name='Spring', year=2025, sets_to_win=3,
+            final_set_format=Season.FINAL_SET_FULL,
+        )
+        self.p1 = User.objects.create_user(username='p1')
+        self.p2 = User.objects.create_user(username='p2')
+        self.match = Match.objects.create(season=self.season, player1=self.p1, player2=self.p2)
+
+    def _form(self, data):
+        return ResultEntryForm(data=data, match=self.match)
+
+    def test_3_0_valid(self):
+        form = self._form({
+            'set1_p1': 6, 'set1_p2': 2,
+            'set2_p1': 6, 'set2_p2': 3,
+            'set3_p1': 6, 'set3_p2': 4,
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_3_2_valid(self):
+        form = self._form({
+            'set1_p1': 6, 'set1_p2': 3,
+            'set2_p1': 3, 'set2_p2': 6,
+            'set3_p1': 6, 'set3_p2': 4,
+            'set4_p1': 4, 'set4_p2': 6,
+            'set5_p1': 6, 'set5_p2': 2,
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_max_sets_generates_5_sets(self):
+        form = ResultEntryForm(match=self.match)
+        self.assertEqual(form.max_sets, 5)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 8 — EnterResultView tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+class EnterResultViewGetTest(TestCase):
+    """GET requests to EnterResultView."""
+
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025, sets_to_win=2)
+        self.p1 = User.objects.create_user(username='p1', password='pass')
+        self.p2 = User.objects.create_user(username='p2', password='pass')
+        self.match = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_SCHEDULED,
+        )
+        self.url = reverse('matches:enter_result', kwargs={'pk': self.match.pk})
+
+    def test_anonymous_redirects_to_login(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response['Location'])
+
+    def test_player1_can_access(self):
+        self.client.login(username='p1', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_player2_can_access(self):
+        self.client.login(username='p2', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_unrelated_user_gets_403(self):
+        other = User.objects.create_user(username='other', password='pass')
+        self.client.login(username='other', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_uses_enter_result_template(self):
+        self.client.login(username='p1', password='pass')
+        response = self.client.get(self.url)
+        self.assertTemplateUsed(response, 'matches/enter_result.html')
+
+    def test_context_has_form_and_match(self):
+        self.client.login(username='p1', password='pass')
+        response = self.client.get(self.url)
+        self.assertIn('form', response.context)
+        self.assertEqual(response.context['match'], self.match)
+
+    def test_completed_match_redirects(self):
+        self.match.status = Match.STATUS_COMPLETED
+        self.match.save()
+        self.client.login(username='p1', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+
+
+class EnterResultViewPostTest(TestCase):
+    """POST requests to EnterResultView."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            name='Spring', year=2025, sets_to_win=2,
+            final_set_format=Season.FINAL_SET_FULL,
+        )
+        self.p1 = User.objects.create_user(username='p1', password='pass')
+        self.p2 = User.objects.create_user(username='p2', password='pass')
+        self.match = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_SCHEDULED,
+        )
+        self.url = reverse('matches:enter_result', kwargs={'pk': self.match.pk})
+        self.client.login(username='p1', password='pass')
+
+    def _post(self, data):
+        return self.client.post(self.url, data)
+
+    def test_valid_submission_creates_sets(self):
+        self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.assertEqual(self.match.sets.count(), 2)
+
+    def test_valid_submission_sets_status_pending(self):
+        self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_PENDING)
+
+    def test_valid_submission_sets_entered_by(self):
+        self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.entered_by, self.p1)
+
+    def test_valid_submission_redirects_to_match_detail(self):
+        response = self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.assertRedirects(
+            response,
+            reverse('matches:match_detail', kwargs={'pk': self.match.pk}),
+        )
+
+    def test_set_scores_stored_correctly(self):
+        self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 7, 'set2_p2': 5})
+        sets = list(self.match.sets.order_by('set_number'))
+        self.assertEqual(sets[0].player1_games, 6)
+        self.assertEqual(sets[0].player2_games, 3)
+        self.assertEqual(sets[1].player1_games, 7)
+        self.assertEqual(sets[1].player2_games, 5)
+
+    def test_tiebreak_scores_stored_correctly(self):
+        self._post({
+            'set1_p1': 7, 'set1_p2': 6,
+            'set1_tb_p1': 7, 'set1_tb_p2': 4,
+            'set2_p1': 6, 'set2_p2': 3,
+        })
+        s1 = self.match.sets.get(set_number=1)
+        self.assertEqual(s1.tiebreak_player1_points, 7)
+        self.assertEqual(s1.tiebreak_player2_points, 4)
+
+    def test_invalid_submission_rerenders_form(self):
+        response = self._post({'set1_p1': 5, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 3})
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'matches/enter_result.html')
+
+    def test_invalid_submission_does_not_change_status(self):
+        self._post({'set1_p1': 5, 'set1_p2': 3})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_SCHEDULED)
+
+    def test_player2_can_submit(self):
+        self.client.login(username='p2', password='pass')
+        self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_PENDING)
+
+    def test_staff_can_submit(self):
+        staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+        self.client.login(username='staff', password='pass')
+        self.client.post(self.url, {'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_PENDING)

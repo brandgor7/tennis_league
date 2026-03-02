@@ -1,9 +1,15 @@
+from django.contrib import messages
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.db.models import F
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views import View
 from django.views.generic import TemplateView, DetailView
 
 from leagues.models import Season
-from .models import Match
+from .forms import ResultEntryForm
+from .models import Match, MatchSet
 
 
 class MatchupsView(TemplateView):
@@ -67,3 +73,101 @@ class MatchDetailView(DetailView):
         ctx['multi_tier'] = self.object.season.num_tiers > 1
         ctx['sets'] = self.object.sets.all()
         return ctx
+
+
+class EnterResultView(LoginRequiredMixin, View):
+    template_name = 'matches/enter_result.html'
+
+    def _get_match(self, request, pk):
+        match = get_object_or_404(
+            Match.objects.select_related('player1', 'player2', 'season'),
+            pk=pk,
+        )
+        if not (
+            request.user == match.player1
+            or request.user == match.player2
+            or request.user.is_staff
+        ):
+            raise PermissionDenied
+        return match
+
+    def _build_context(self, form, match):
+        season = match.season
+        max_sets = season.max_sets_in_match
+
+        sets_meta = []
+        for i in range(1, max_sets + 1):
+            is_final = (i == max_sets)
+            is_super = is_final and season.is_super_final_format
+            meta = {
+                'set_num': i,
+                'is_final': is_final,
+                'is_super': is_super,
+                'is_final_tb': is_final and season.is_tiebreak_final_format,
+                'p1_field': form[f'set{i}_p1'],
+                'p2_field': form[f'set{i}_p2'],
+            }
+            if not is_super:
+                meta['tb_p1_field'] = form[f'set{i}_tb_p1']
+                meta['tb_p2_field'] = form[f'set{i}_tb_p2']
+            sets_meta.append(meta)
+
+        return {
+            'form': form,
+            'match': match,
+            'season': season,
+            'multi_tier': season.num_tiers > 1,
+            'sets_meta': sets_meta,
+            'max_sets': max_sets,
+            'games_to_win_set': season.games_to_win_set,
+            'player1_name': match.player1.get_full_name() or match.player1.username,
+            'player2_name': match.player2.get_full_name() or match.player2.username,
+        }
+
+    def _check_can_enter(self, request, match):
+        if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
+            messages.error(request, 'Results can only be entered for scheduled or postponed matches.')
+            return False
+        return True
+
+    def get(self, request, pk):
+        match = self._get_match(request, pk)
+        if not self._check_can_enter(request, match):
+            return redirect('matches:match_detail', pk=pk)
+        form = ResultEntryForm(match=match)
+        return render(request, self.template_name, self._build_context(form, match))
+
+    def post(self, request, pk):
+        match = self._get_match(request, pk)
+        if not self._check_can_enter(request, match):
+            return redirect('matches:match_detail', pk=pk)
+
+        form = ResultEntryForm(request.POST, match=match)
+        if form.is_valid():
+            season = match.season
+            cleaned = form.cleaned_data
+
+            with transaction.atomic():
+                match.sets.all().delete()
+                for i in range(1, form.max_sets + 1):
+                    p1 = cleaned.get(f'set{i}_p1')
+                    p2 = cleaned.get(f'set{i}_p2')
+                    if p1 is None or p2 is None:
+                        continue
+                    is_super = (i == form.max_sets) and season.is_super_final_format
+                    MatchSet.objects.create(
+                        match=match,
+                        set_number=i,
+                        player1_games=p1,
+                        player2_games=p2,
+                        tiebreak_player1_points=None if is_super else cleaned.get(f'set{i}_tb_p1'),
+                        tiebreak_player2_points=None if is_super else cleaned.get(f'set{i}_tb_p2'),
+                    )
+                match.status = Match.STATUS_PENDING
+                match.entered_by = request.user
+                match.save()
+
+            messages.success(request, 'Score submitted — awaiting confirmation from your opponent.')
+            return redirect('matches:match_detail', pk=pk)
+
+        return render(request, self.template_name, self._build_context(form, match))
