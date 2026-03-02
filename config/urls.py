@@ -8,4 +8,5 @@ urlpatterns = [
     path('accounts/', include('accounts.urls')),
     path('', home, name='home'),
     path('', include('leagues.urls')),
+    path('', include('matches.urls')),
 ]

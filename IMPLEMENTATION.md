@@ -121,23 +121,25 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 
 ---
 
-## Phase 7 — Schedule + Results Views
+## Phase 7 — Matchups + Results Views
 
 **Goal:** Public pages for upcoming and completed matches.
 
-- [ ] **`matches/views.py`**:
-  - `ScheduleView` — matches with `status=scheduled` or `status=postponed`, ordered by `scheduled_date`; grouped by tier if `season.num_tiers > 1`
+- [x] **`matches/views.py`**:
+  - `MatchupsView` — matches with `status=scheduled` or `status=postponed`, ordered by `scheduled_date`; grouped by tier if `season.num_tiers > 1`
   - `ResultsView` — matches with `status=completed` or `status=walkover`, ordered by `played_date` desc; grouped by tier if `season.num_tiers > 1`
   - `MatchDetailView` — set-by-set scores, status, players, confirmation state; shows tier label if season is multi-tier
-- [ ] **`matches/urls.py`** — routes for all match views
-- [ ] **`templates/matches/schedule.html`** and **`results.html`**:
+- [x] **`leagues/urls.py`** — season-scoped routes `/seasons/<pk>/matchups/` and `/seasons/<pk>/results/` (uses leagues namespace so context processor resolves current_season from URL)
+- [x] **`matches/urls.py`** — `/matches/<pk>/` match detail route
+- [x] **`templates/matches/matchups.html`** and **`results.html`**:
   - Mobile: match cards — player names as "Player A vs Player B", date and status badge below, entire card is a tappable link to match detail (`stretched-link`); tier badge visible if multi-tier season
   - Desktop: `table-responsive` table with player1, player2, date, status, detail link; tier column if multi-tier
-- [ ] **`templates/matches/match_detail.html`**:
+- [x] **`templates/matches/match_detail.html`**:
   - Mobile: stacked — match header (both players + status badge), then set scores as a compact horizontally scrollable table (`table-responsive`); action buttons (Enter Result / Confirm) full-width below
   - Desktop: two-column layout (`col-md-5` match info | `col-md-7` set scores); action buttons inline in the header area
   - Show tier badge in match header if season is multi-tier
-- [ ] Wire into `config/urls.py`
+- [x] Wire `matches/urls.py` into `config/urls.py`
+- [x] **UI terminology**: nav label and URL slug use "Matchups" (not "Schedule"); backend field names (`scheduled_date`, `STATUS_SCHEDULED`, `MatchScheduleForm`) unchanged — they describe scheduling as an action, not the concept of a matchup
 
 ---
 

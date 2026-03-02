@@ -85,17 +85,18 @@
           {% if current_season %}
           <li class="nav-item">
             <a class="nav-link {% block nav_standings %}{% endblock %}"
-               href="/seasons/{{ current_season.pk }}/standings/">Standings</a>
+               href="{% url 'leagues:standings' current_season.pk %}">Standings</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link {% block nav_schedule %}{% endblock %}"
-               href="/seasons/{{ current_season.pk }}/schedule/">Schedule</a>
+            <a class="nav-link {% block nav_matchups %}{% endblock %}"
+               href="{% url 'leagues:matchups' current_season.pk %}">Matchups</a>
           </li>
           <li class="nav-item">
             <a class="nav-link {% block nav_results %}{% endblock %}"
-               href="/seasons/{{ current_season.pk }}/results/">Results</a>
+               href="{% url 'leagues:results' current_season.pk %}">Results</a>
           </li>
           <li class="nav-item">
+            {# TODO Phase 11: replace hardcoded URL with {% url 'leagues:playoffs' current_season.pk %} #}
             <a class="nav-link {% block nav_playoffs %}{% endblock %}"
                href="/seasons/{{ current_season.pk }}/playoffs/">Playoffs</a>
           </li>

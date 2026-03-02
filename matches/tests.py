@@ -1,6 +1,7 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.urls import reverse
 
 from leagues.models import Season, SeasonPlayer
 from .models import Match, MatchSet
@@ -173,3 +174,309 @@ class MatchScheduleFormTest(TestCase):
         from django.forms import HiddenInput
         form = MatchScheduleForm(season=self.season, tier=1)
         self.assertIsInstance(form.fields['tier'].widget, HiddenInput)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 7 — View tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+class MatchupsViewTest(TestCase):
+    """Phase 7: MatchupsView — upcoming/postponed matches for a season."""
+
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025)
+        self.p1 = User.objects.create_user(username='player1')
+        self.p2 = User.objects.create_user(username='player2')
+        self.url = reverse('leagues:matchups', kwargs={'pk': self.season.pk})
+
+    def _match(self, **kwargs):
+        defaults = dict(season=self.season, player1=self.p1, player2=self.p2)
+        defaults.update(kwargs)
+        return Match.objects.create(**defaults)
+
+    def test_returns_200(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_404_for_invalid_season(self):
+        response = self.client.get(reverse('leagues:matchups', kwargs={'pk': 9999}))
+        self.assertEqual(response.status_code, 404)
+
+    def test_shows_scheduled_match(self):
+        self._match(status=Match.STATUS_SCHEDULED)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 1)
+
+    def test_shows_postponed_match(self):
+        self._match(status=Match.STATUS_POSTPONED)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 1)
+
+    def test_excludes_completed_match(self):
+        self._match(status=Match.STATUS_COMPLETED)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 0)
+
+    def test_excludes_walkover_match(self):
+        self._match(status=Match.STATUS_WALKOVER)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 0)
+
+    def test_excludes_pending_match(self):
+        self._match(status=Match.STATUS_PENDING)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 0)
+
+    def test_excludes_cancelled_match(self):
+        self._match(status=Match.STATUS_CANCELLED)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 0)
+
+    def test_excludes_other_season_matches(self):
+        other = Season.objects.create(name='Fall', year=2025)
+        Match.objects.create(
+            season=other, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_SCHEDULED,
+        )
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 0)
+
+    def test_single_tier_multi_tier_false(self):
+        response = self.client.get(self.url)
+        self.assertFalse(response.context['multi_tier'])
+
+    def test_multi_tier_season_has_tier_tabs(self):
+        self.season.num_tiers = 2
+        self.season.save()
+        response = self.client.get(self.url)
+        self.assertTrue(response.context['multi_tier'])
+        self.assertEqual(len(response.context['tiers']), 2)
+
+    def test_multi_tier_matches_grouped_by_tier(self):
+        self.season.num_tiers = 2
+        self.season.save()
+        p3 = User.objects.create_user(username='player3')
+        p4 = User.objects.create_user(username='player4')
+        self._match(tier=1, status=Match.STATUS_SCHEDULED)
+        Match.objects.create(
+            season=self.season, player1=p3, player2=p4,
+            tier=2, status=Match.STATUS_SCHEDULED,
+        )
+        response = self.client.get(self.url)
+        tiers = response.context['tiers']
+        tier1_num, tier1_matches = tiers[0]
+        tier2_num, tier2_matches = tiers[1]
+        self.assertEqual(tier1_num, 1)
+        self.assertEqual(tier2_num, 2)
+        self.assertEqual(tier1_matches.count(), 1)
+        self.assertEqual(tier2_matches.count(), 1)
+
+    def test_ordered_by_scheduled_date_ascending(self):
+        import datetime
+        self._match(status=Match.STATUS_SCHEDULED, scheduled_date=datetime.date(2025, 6, 10))
+        self._match(status=Match.STATUS_SCHEDULED, scheduled_date=datetime.date(2025, 6, 1))
+        self._match(status=Match.STATUS_SCHEDULED, scheduled_date=datetime.date(2025, 6, 5))
+        response = self.client.get(self.url)
+        _, matches = response.context['tiers'][0]
+        dates = [m.scheduled_date for m in matches]
+        self.assertEqual(dates, sorted(dates))
+
+    def test_uses_matchups_template(self):
+        response = self.client.get(self.url)
+        self.assertTemplateUsed(response, 'matches/matchups.html')
+
+
+class ResultsViewTest(TestCase):
+    """Phase 7: ResultsView — completed/walkover matches for a season."""
+
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025)
+        self.p1 = User.objects.create_user(username='player1')
+        self.p2 = User.objects.create_user(username='player2')
+        self.url = reverse('leagues:results', kwargs={'pk': self.season.pk})
+
+    def _match(self, **kwargs):
+        defaults = dict(season=self.season, player1=self.p1, player2=self.p2)
+        defaults.update(kwargs)
+        return Match.objects.create(**defaults)
+
+    def test_returns_200(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_404_for_invalid_season(self):
+        response = self.client.get(reverse('leagues:results', kwargs={'pk': 9999}))
+        self.assertEqual(response.status_code, 404)
+
+    def test_shows_completed_match(self):
+        self._match(status=Match.STATUS_COMPLETED, winner=self.p1)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 1)
+
+    def test_shows_walkover_match(self):
+        self._match(status=Match.STATUS_WALKOVER, winner=self.p1)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 1)
+
+    def test_excludes_scheduled_match(self):
+        self._match(status=Match.STATUS_SCHEDULED)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 0)
+
+    def test_excludes_pending_match(self):
+        self._match(status=Match.STATUS_PENDING)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 0)
+
+    def test_excludes_postponed_match(self):
+        self._match(status=Match.STATUS_POSTPONED)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 0)
+
+    def test_excludes_cancelled_match(self):
+        self._match(status=Match.STATUS_CANCELLED)
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 0)
+
+    def test_excludes_other_season_matches(self):
+        other = Season.objects.create(name='Fall', year=2025)
+        Match.objects.create(
+            season=other, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_COMPLETED, winner=self.p1,
+        )
+        response = self.client.get(self.url)
+        tier_num, matches = response.context['tiers'][0]
+        self.assertEqual(matches.count(), 0)
+
+    def test_single_tier_multi_tier_false(self):
+        response = self.client.get(self.url)
+        self.assertFalse(response.context['multi_tier'])
+
+    def test_multi_tier_season_has_tier_tabs(self):
+        self.season.num_tiers = 2
+        self.season.save()
+        response = self.client.get(self.url)
+        self.assertTrue(response.context['multi_tier'])
+        self.assertEqual(len(response.context['tiers']), 2)
+
+    def test_ordered_by_played_date_descending(self):
+        import datetime
+        self._match(status=Match.STATUS_COMPLETED, winner=self.p1, played_date=datetime.date(2025, 5, 1))
+        self._match(status=Match.STATUS_COMPLETED, winner=self.p1, played_date=datetime.date(2025, 5, 15))
+        self._match(status=Match.STATUS_COMPLETED, winner=self.p1, played_date=datetime.date(2025, 5, 8))
+        response = self.client.get(self.url)
+        _, matches = response.context['tiers'][0]
+        dates = [m.played_date for m in matches]
+        self.assertEqual(dates, sorted(dates, reverse=True))
+
+    def test_walkover_with_no_played_date_sorts_last(self):
+        """Walkovers with no played_date should not float to the top."""
+        import datetime
+        self._match(status=Match.STATUS_COMPLETED, winner=self.p1, played_date=datetime.date(2025, 5, 1))
+        self._match(status=Match.STATUS_WALKOVER, winner=self.p1, played_date=None)
+        response = self.client.get(self.url)
+        _, matches = response.context['tiers'][0]
+        match_list = list(matches)
+        self.assertEqual(match_list[0].status, Match.STATUS_COMPLETED)
+        self.assertEqual(match_list[1].status, Match.STATUS_WALKOVER)
+
+    def test_multi_tier_season_groups_results(self):
+        self.season.num_tiers = 2
+        self.season.save()
+        p3 = User.objects.create_user(username='player3')
+        p4 = User.objects.create_user(username='player4')
+        self._match(tier=1, status=Match.STATUS_COMPLETED, winner=self.p1)
+        Match.objects.create(
+            season=self.season, player1=p3, player2=p4,
+            tier=2, status=Match.STATUS_WALKOVER, winner=p3,
+        )
+        response = self.client.get(self.url)
+        tiers = response.context['tiers']
+        self.assertEqual(len(tiers), 2)
+        self.assertEqual(tiers[0][1].count(), 1)
+        self.assertEqual(tiers[1][1].count(), 1)
+
+    def test_uses_results_template(self):
+        response = self.client.get(self.url)
+        self.assertTemplateUsed(response, 'matches/results.html')
+
+
+class MatchDetailViewTest(TestCase):
+    """Phase 7: MatchDetailView — individual match with set scores."""
+
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025)
+        self.p1 = User.objects.create_user(username='player1')
+        self.p2 = User.objects.create_user(username='player2')
+        self.match = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_COMPLETED, winner=self.p1,
+        )
+        self.url = reverse('matches:match_detail', kwargs={'pk': self.match.pk})
+
+    def test_returns_200(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_404_for_invalid_match(self):
+        response = self.client.get(reverse('matches:match_detail', kwargs={'pk': 9999}))
+        self.assertEqual(response.status_code, 404)
+
+    def test_context_contains_match(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.context['match'], self.match)
+
+    def test_context_contains_season(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.context['season'], self.season)
+
+    def test_context_multi_tier_false_for_single_tier(self):
+        response = self.client.get(self.url)
+        self.assertFalse(response.context['multi_tier'])
+
+    def test_context_multi_tier_true_for_multi_tier_season(self):
+        self.season.num_tiers = 2
+        self.season.save()
+        response = self.client.get(self.url)
+        self.assertTrue(response.context['multi_tier'])
+
+    def test_context_contains_sets(self):
+        MatchSet.objects.create(
+            match=self.match, set_number=1, player1_games=6, player2_games=3,
+        )
+        MatchSet.objects.create(
+            match=self.match, set_number=2, player1_games=6, player2_games=4,
+        )
+        response = self.client.get(self.url)
+        self.assertEqual(response.context['sets'].count(), 2)
+
+    def test_uses_match_detail_template(self):
+        response = self.client.get(self.url)
+        self.assertTemplateUsed(response, 'matches/match_detail.html')
+
+    def test_completed_match_back_link_goes_to_results(self):
+        response = self.client.get(self.url)
+        results_url = reverse('leagues:results', kwargs={'pk': self.season.pk})
+        self.assertContains(response, results_url)
+
+    def test_scheduled_match_back_link_goes_to_matchups(self):
+        scheduled = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_SCHEDULED,
+        )
+        response = self.client.get(reverse('matches:match_detail', kwargs={'pk': scheduled.pk}))
+        matchups_url = reverse('leagues:matchups', kwargs={'pk': self.season.pk})
+        self.assertContains(response, matchups_url)

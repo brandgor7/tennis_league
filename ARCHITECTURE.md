@@ -2,7 +2,7 @@
 
 ## Overview
 
-A Django + PostgreSQL web application for managing a tennis league. Multiple seasons coexist, each with independently configurable rules. Admins set up seasons, rosters, and matches. Players log in and enter results. A confirmation flow ensures score accuracy. Dashboards show standings, results, and schedules. A playoff bracket is auto-generated from end-of-season standings.
+A Django + PostgreSQL web application for managing a tennis league. Multiple seasons coexist, each with independently configurable rules. Admins set up seasons, rosters, and matches. Players log in and enter results. A confirmation flow ensures score accuracy. Dashboards show standings, results, and matchups. A playoff bracket is auto-generated from end-of-season standings.
 
 ---
 
@@ -33,9 +33,15 @@ Bootstrap 5's `md` breakpoint (768px) is the single dividing line between **mobi
 - Mobile: Simplified card list — one card per player showing rank, name, W–L, points. Cards are tap-friendly with generous padding.
 - Desktop: Table with columns: rank, player, Wins, Losses, Pts, PD (game differential)
 
-### Schedule & Results
-- Mobile: Match cards — player names stacked vertically, date and status as badge/label below. Tapping a card opens the match detail.
-- Desktop: Table rows with player1 vs player2, date, status, and a details link
+### Matchups & Results
+- **Matchups** (scheduled/postponed):
+  - Mobile: cards with player names, scheduled date, status badge; entire card taps to match detail
+  - Desktop: table rows with player1, player2, date, status, detail link
+- **Results** (completed/walkover): inline tennis scoreboard — no click-through required to see scores
+  - Both mobile and desktop show a two-row scoreboard per match: winner name bold/charcoal, loser name muted; each set's game count in fixed-width tabular columns; tiebreak loser score as superscript
+  - Walkover matches (no sets) show "W/O" label instead of score columns
+  - Mobile: scoreboard card with date + status in a footer strip below
+  - Desktop: table with a "Match" column containing the scoreboard; date, status, and "View" link in separate columns
 
 ### Match Detail
 - Mobile: Stacked layout — match header (players + status), then set scores as a simple horizontal-scrollable score table
@@ -119,7 +125,7 @@ Child templates mark a nav link active by emitting `nav-active` from the matchin
 {% block nav_standings %}nav-active{% endblock %}
 ```
 
-Available blocks: `nav_standings`, `nav_schedule`, `nav_results`, `nav_playoffs`. CSS draws a clay underline on the active link.
+Available blocks: `nav_standings`, `nav_matchups`, `nav_results`, `nav_playoffs`. CSS draws a clay underline on the active link.
 
 ### Base Template Context
 
@@ -184,11 +190,13 @@ tennis-scores-app/
     │   ├── season_list.html
     │   └── season_detail.html
     ├── matches/
-    │   ├── schedule.html
+    │   ├── matchups.html
     │   ├── results.html
     │   ├── match_detail.html
     │   ├── enter_result.html
-    │   └── confirm_result.html
+    │   ├── confirm_result.html
+    │   ├── _match_list.html         # partial: mobile cards + desktop table (matchups)
+    │   └── _results_list.html       # partial: inline scoreboard (results)
     ├── standings/
     │   ├── standings.html
     │   └── _standings_table.html    # partial: mobile cards + desktop table
@@ -418,7 +426,7 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
 /seasons/                                  All seasons list
 /seasons/<id>/                             Season overview
 /seasons/<id>/standings/                   Standings (all tiers; tabs or sections per tier)
-/seasons/<id>/schedule/                    Upcoming matches
+/seasons/<id>/matchups/                    Upcoming matches
 /seasons/<id>/results/                     Completed match results
 /seasons/<id>/playoffs/                    Playoff bracket list (redirects to tier 1 if single-tier)
 /seasons/<id>/playoffs/<tier>/             Playoff bracket for a specific tier
