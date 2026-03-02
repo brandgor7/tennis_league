@@ -101,22 +101,23 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 
 **Goal:** Standings table computed live from match results, split by tier.
 
-- [ ] **`standings/calculator.py`** — `calculate_standings(season, tier)` function:
+- [x] **`standings/calculator.py`** — `calculate_standings(season, tier)` function:
   - Filters to `SeasonPlayer` rows where `tier == tier`
   - Filters matches to `Match.tier == tier`
   - Returns list of dicts: `{player, played, wins, losses, points, sets_ratio, games_ratio}`
   - Applies tiebreaker ordering per ARCHITECTURE.md
   - Handles walkovers per `season.walkover_rule`
-- [ ] **`standings/views.py`** — `StandingsView`:
+- [x] **`standings/views.py`** — `StandingsView`:
   - Calls `calculate_standings(season, tier)` for each tier in `range(1, season.num_tiers + 1)`
   - Passes list of `(tier_number, standings_rows)` tuples to template
-- [ ] **`templates/standings/standings.html`**:
+- [x] **`templates/standings/standings.html`**:
   - If `season.num_tiers > 1`: render Bootstrap tabs (one tab per tier, e.g. "Tier 1", "Tier 2")
   - Within each tier tab (or directly if single tier):
     - Mobile (`d-block d-md-none`): list of Bootstrap cards, one per player; each card shows rank, player name, points, W-L record. Ratio columns omitted to fit the screen.
     - Desktop (`d-none d-md-block`): full `table table-striped table-hover` with all columns (rank, name, P, W, L, pts, set ratio, game ratio)
-- [ ] Wire into `leagues/urls.py` at `/seasons/<id>/standings/`
-- [ ] Verify empty standings, partial standings, and full standings render correctly; verify tier tabs display correctly for multi-tier seasons
+- [x] Wire into `leagues/urls.py` at `/seasons/<id>/standings/`
+- [x] Home view now redirects to standings (instead of season detail) when an active season exists
+- [x] Verify empty standings, partial standings, and full standings render correctly; verify tier tabs display correctly for multi-tier seasons (covered by unit tests: `CalculateStandingsEmptyTest`, `StandingsViewTest`)
 
 ---
 

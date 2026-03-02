@@ -30,8 +30,8 @@ Bootstrap 5's `md` breakpoint (768px) is the single dividing line between **mobi
 - Desktop (`≥ md`): Full horizontal navbar; season selector inline as a dropdown
 
 ### Standings Table
-- Mobile: Simplified card list — one card per player showing rank, name, points, W-L. Ratio columns hidden. Cards are tap-friendly with generous padding.
-- Desktop: Full table with all columns (rank, name, P, W, L, pts, set ratio, game ratio), sortable headers
+- Mobile: Simplified card list — one card per player showing rank, name, W–L, points. Cards are tap-friendly with generous padding.
+- Desktop: Table with columns: rank, player, Wins, Losses, Pts, PD (game differential)
 
 ### Schedule & Results
 - Mobile: Match cards — player names stacked vertically, date and status as badge/label below. Tapping a card opens the match detail.
@@ -102,7 +102,7 @@ All Bootstrap 5 semantic colour variables (`--bs-primary`, `--bs-body-bg`, etc.)
 | `.page-meta` | Subtitle / metadata line below the page `<h1>` |
 | `.rank-number` | Serif rank numeral in standings |
 | `.rank-number.rank-top-3` | Rank 1–3 highlighted in clay colour |
-| `.stat-value` | Tabular-numeral cell for W, L, pts, ratios |
+| `.stat-value` | Tabular-numeral cell for Wins, Losses, Pts, PD |
 | `.score-set` | Large serif score display (e.g. `6–3`) |
 | `.score-input` | Compact 64 px centred numeric input for score entry |
 | `.match-card` | Card with lift-on-hover; wrapper needs `position: relative` when using `stretched-link` |
@@ -190,7 +190,8 @@ tennis-scores-app/
     │   ├── enter_result.html
     │   └── confirm_result.html
     ├── standings/
-    │   └── standings.html
+    │   ├── standings.html
+    │   └── _standings_table.html    # partial: mobile cards + desktop table
     └── playoffs/
         └── bracket.html
 ```
@@ -338,15 +339,17 @@ For each active SeasonPlayer in season where tier == requested_tier:
          + (walkover_losses * season.points_for_walkover_loss)
          + (regular_losses * season.points_for_loss)
 
-  sets_won, sets_lost   = sum from MatchSet
-  games_won, games_lost = sum from MatchSet
+  games_won, games_lost = sum from MatchSet (walkovers contribute 0)
+  pd = games_won - games_lost
 
-Ranking tiebreakers (in order):
+Returned dict per player: player, wins, losses, points, pd
+
+Ranking tiebreakers (applied internally, not exposed in the returned dict):
   1. points (desc)
   2. matches_played (desc — more matches played ranks higher)
   3. sets_won / sets_played ratio (desc)
   4. games_won / games_played ratio (desc)
-  5. head-to-head result (if still equal)
+  5. head-to-head result (if still equal — not yet implemented)
 ```
 
 `calculate_standings(season, tier)` → ranked list for one tier.
