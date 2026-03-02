@@ -37,6 +37,7 @@ class Season(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_UPCOMING)
     num_tiers = models.IntegerField(default=1, help_text='Number of competitive tiers in this season')
     sets_to_win = models.IntegerField(default=2, help_text='2 = best of 3, 3 = best of 5')
+    games_to_win_set = models.IntegerField(default=6, help_text='Games needed to win a set (typically 6, sometimes 8)')
     final_set_format = models.CharField(max_length=20, choices=FINAL_SET_CHOICES, default=FINAL_SET_FULL)
     playoff_qualifiers_count = models.IntegerField(default=8)
     walkover_rule = models.CharField(max_length=20, choices=WALKOVER_CHOICES, default=WALKOVER_WINNER)

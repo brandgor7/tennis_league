@@ -144,25 +144,30 @@ class ResultEntryForm(forms.Form):
                 return f'Set {set_num}: Super tiebreak winner must lead by at least 2 points.'
             return None
 
+        g = season.games_to_win_set
+
         if is_final_tb:
-            if not ((p1 == 7 and p2 == 6) or (p1 == 6 and p2 == 7)):
-                return f'Set {set_num}: The deciding set must end 7-6 (tiebreak format required).'
+            if not ((p1 == g + 1 and p2 == g) or (p1 == g and p2 == g + 1)):
+                return f'Set {set_num}: The deciding set must end {g+1}-{g} (tiebreak format required).'
             return self._validate_tiebreak_points(set_num, p1, p2, tb_p1, tb_p2)
 
         # Normal set (or full-format final set)
-        if (p1 == 7 and p2 == 6) or (p1 == 6 and p2 == 7):
+        if (p1 == g + 1 and p2 == g) or (p1 == g and p2 == g + 1):
             return self._validate_tiebreak_points(set_num, p1, p2, tb_p1, tb_p2)
 
         # Non-tiebreak set
         if tb_p1 is not None or tb_p2 is not None:
-            return f'Set {set_num}: Tiebreak scores should only be entered for 7-6 sets.'
+            return f'Set {set_num}: Tiebreak scores should only be entered for {g+1}-{g} sets.'
         winner, loser = max(p1, p2), min(p1, p2)
-        if winner < 6:
-            return f'Set {set_num}: Set winner must win at least 6 games.'
+        if winner < g:
+            return f'Set {set_num}: Set winner must win at least {g} games.'
         if winner - loser < 2:
             return f'Set {set_num}: Set winner must lead by at least 2 games.'
-        if winner > 7 or (winner == 7 and loser != 5):
-            return f'Set {set_num}: Invalid set score (valid scores: 6-0 to 6-4, 7-5, or 7-6 with tiebreak).'
+        if winner > g + 1 or (winner == g + 1 and loser != g - 1):
+            return (
+                f'Set {set_num}: Invalid set score '
+                f'(valid scores: {g}-0 to {g}-{g-2}, {g+1}-{g-1}, or {g+1}-{g} with tiebreak).'
+            )
         return None
 
     def _validate_tiebreak_points(self, set_num, p1_games, p2_games, tb_p1, tb_p2):
