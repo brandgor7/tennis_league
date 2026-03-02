@@ -453,6 +453,72 @@ h1, h2, h3, .font-serif {
   border-color: var(--border) !important;
 }
 
+/* ─── Results scoreboard ─────────────────────────────────── */
+
+/*
+ * Two-row tennis scoreboard: winner row and loser row side by side,
+ * with fixed-width columns for each set score.
+ *
+ *   Alice Smith   6  6
+ *   Bob Jones     3  4
+ */
+.result-scoreboard {
+  line-height: 1.5;
+  min-width: 0;
+}
+
+.result-row {
+  display: flex;
+  align-items: baseline;
+}
+
+.result-row + .result-row {
+  margin-top: 0.1rem;
+}
+
+/* Player name — fills available space, truncates if needed */
+.result-player {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 0.75rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.result-winner .result-player {
+  font-weight: 600;
+  color: var(--charcoal);
+}
+
+/* Each set score — fixed width, tabular nums */
+.result-game {
+  width: 1.6rem;
+  text-align: center;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: inherit;
+}
+
+.result-winner .result-game {
+  font-weight: 700;
+  color: var(--charcoal);
+}
+
+/* Tiebreak score — superscript next to the winner's game count */
+.tb-score {
+  font-size: 0.6em;
+  font-weight: 400;
+  color: var(--muted);
+  vertical-align: super;
+  line-height: 0;
+  margin-left: 1px;
+}
+
 /* Stretched-link cards need position:relative on the wrapper */
 .match-card {
   transition: box-shadow 0.15s ease, transform 0.15s ease;

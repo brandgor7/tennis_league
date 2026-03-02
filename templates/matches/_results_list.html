@@ -1,0 +1,108 @@
+{% if matches %}
+
+{# ── Mobile cards ──────────────────────────────────────────────────────── #}
+<div class="d-block d-md-none">
+  {% for match in matches %}
+  {% with sets=match.sets.all %}
+  <div class="card mb-2">
+    <div class="card-body py-3 px-3">
+
+      {# Scoreboard #}
+      <div class="result-scoreboard mb-2">
+
+        {# Player 1 row #}
+        <div class="result-row {% if match.winner_id == match.player1_id %}result-winner{% endif %}">
+          <span class="result-player">{{ match.player1.get_full_name|default:match.player1.username }}</span>
+          {% for s in sets %}
+          <span class="result-game">{{ s.player1_games }}{% if s.tiebreak_player1_points is not None and s.player1_games > s.player2_games %}<span class="tb-score">{{ s.tiebreak_player2_points }}</span>{% endif %}</span>
+          {% endfor %}
+        </div>
+
+        {# Player 2 row #}
+        <div class="result-row {% if match.winner_id == match.player2_id %}result-winner{% endif %}">
+          <span class="result-player">{{ match.player2.get_full_name|default:match.player2.username }}</span>
+          {% for s in sets %}
+          <span class="result-game">{{ s.player2_games }}{% if s.tiebreak_player2_points is not None and s.player2_games > s.player1_games %}<span class="tb-score">{{ s.tiebreak_player1_points }}</span>{% endif %}</span>
+          {% endfor %}
+          {% if not sets %}
+          <span class="result-game text-muted" style="font-size:0.75rem; width:auto; padding-left:0.25rem;">W/O</span>
+          {% endif %}
+        </div>
+
+      </div>
+
+      {# Footer: date + status + detail link #}
+      <div class="d-flex align-items-center gap-2 flex-wrap" style="border-top: 1px solid var(--border); padding-top: 0.5rem; margin-top: 0.25rem;">
+        {% if match.played_date %}
+        <small class="text-muted">{{ match.played_date }}</small>
+        {% endif %}
+        <span class="status-badge status-{{ match.status }}">{{ match.get_status_display }}</span>
+        <a href="{% url 'matches:match_detail' match.pk %}" class="ms-auto text-muted" style="font-size: 0.8rem; text-decoration: none; white-space: nowrap;">Details →</a>
+      </div>
+
+    </div>
+  </div>
+  {% endwith %}
+  {% endfor %}
+</div>
+
+{# ── Desktop table ─────────────────────────────────────────────────────── #}
+<div class="d-none d-md-block">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th scope="col">Match</th>
+          <th scope="col" style="width: 7rem;">Date</th>
+          <th scope="col" style="width: 9rem;">Status</th>
+          <th scope="col" style="width: 4rem;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for match in matches %}
+        {% with sets=match.sets.all %}
+        <tr>
+          <td>
+            <div class="result-scoreboard">
+
+              {# Player 1 row #}
+              <div class="result-row {% if match.winner_id == match.player1_id %}result-winner{% endif %}">
+                <span class="result-player">{{ match.player1.get_full_name|default:match.player1.username }}</span>
+                {% for s in sets %}
+                <span class="result-game">{{ s.player1_games }}{% if s.tiebreak_player1_points is not None and s.player1_games > s.player2_games %}<span class="tb-score">{{ s.tiebreak_player2_points }}</span>{% endif %}</span>
+                {% endfor %}
+              </div>
+
+              {# Player 2 row #}
+              <div class="result-row {% if match.winner_id == match.player2_id %}result-winner{% endif %}">
+                <span class="result-player">{{ match.player2.get_full_name|default:match.player2.username }}</span>
+                {% for s in sets %}
+                <span class="result-game">{{ s.player2_games }}{% if s.tiebreak_player2_points is not None and s.player2_games > s.player1_games %}<span class="tb-score">{{ s.tiebreak_player1_points }}</span>{% endif %}</span>
+                {% endfor %}
+                {% if not sets %}
+                <span class="result-game text-muted" style="font-size:0.75rem; width:auto; padding-left:0.25rem;">W/O</span>
+                {% endif %}
+              </div>
+
+            </div>
+          </td>
+          <td class="text-muted" style="font-size:0.875rem;">
+            {% if match.played_date %}{{ match.played_date }}{% else %}—{% endif %}
+          </td>
+          <td>
+            <span class="status-badge status-{{ match.status }}">{{ match.get_status_display }}</span>
+          </td>
+          <td class="text-end">
+            <a href="{% url 'matches:match_detail' match.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+          </td>
+        </tr>
+        {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% else %}
+<p class="text-muted py-3">No results yet.</p>
+{% endif %}

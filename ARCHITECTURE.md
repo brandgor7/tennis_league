@@ -34,8 +34,14 @@ Bootstrap 5's `md` breakpoint (768px) is the single dividing line between **mobi
 - Desktop: Table with columns: rank, player, Wins, Losses, Pts, PD (game differential)
 
 ### Matchups & Results
-- Mobile: Match cards — player names stacked vertically, date and status as badge/label below. Tapping a card opens the match detail.
-- Desktop: Table rows with player1 vs player2, date, status, and a details link
+- **Matchups** (scheduled/postponed):
+  - Mobile: cards with player names, scheduled date, status badge; entire card taps to match detail
+  - Desktop: table rows with player1, player2, date, status, detail link
+- **Results** (completed/walkover): inline tennis scoreboard — no click-through required to see scores
+  - Both mobile and desktop show a two-row scoreboard per match: winner name bold/charcoal, loser name muted; each set's game count in fixed-width tabular columns; tiebreak loser score as superscript
+  - Walkover matches (no sets) show "W/O" label instead of score columns
+  - Mobile: scoreboard card with date + status in a footer strip below
+  - Desktop: table with a "Match" column containing the scoreboard; date, status, and "View" link in separate columns
 
 ### Match Detail
 - Mobile: Stacked layout — match header (players + status), then set scores as a simple horizontal-scrollable score table
@@ -188,7 +194,9 @@ tennis-scores-app/
     │   ├── results.html
     │   ├── match_detail.html
     │   ├── enter_result.html
-    │   └── confirm_result.html
+    │   ├── confirm_result.html
+    │   ├── _match_list.html         # partial: mobile cards + desktop table (matchups)
+    │   └── _results_list.html       # partial: inline scoreboard (results)
     ├── standings/
     │   ├── standings.html
     │   └── _standings_table.html    # partial: mobile cards + desktop table

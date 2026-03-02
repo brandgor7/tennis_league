@@ -39,6 +39,7 @@ class ResultsView(TemplateView):
             Match.objects
             .filter(season=season, status__in=[Match.STATUS_COMPLETED, Match.STATUS_WALKOVER])
             .select_related('player1', 'player2', 'winner')
+            .prefetch_related('sets')
             .order_by(F('played_date').desc(nulls_last=True), '-created_at')
         )
         multi_tier = season.num_tiers > 1

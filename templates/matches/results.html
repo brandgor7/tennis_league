@@ -34,7 +34,7 @@
        id="tier-{{ tier_num }}-pane"
        role="tabpanel"
        aria-labelledby="tier-{{ tier_num }}-tab">
-    {% include 'matches/_match_list.html' with matches=matches show_tier=False %}
+    {% include 'matches/_results_list.html' with matches=matches %}
   </div>
   {% endfor %}
 </div>
