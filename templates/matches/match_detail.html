@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  {{ match.player1.get_full_name|default:match.player1.username }} vs
+  {{ match.player2.get_full_name|default:match.player2.username }} — TennisLeague
+{% endblock %}
+
+{% block content %}
+
+{# ── Page header ───────────────────────────────────────────────────────── #}
+<div class="page-header">
+  <h1>
+    {{ match.player1.get_full_name|default:match.player1.username }}
+    <span class="text-muted" style="font-size:0.7em; font-family:'DM Sans',sans-serif; font-weight:400;">vs</span>
+    {{ match.player2.get_full_name|default:match.player2.username }}
+  </h1>
+  <p class="page-meta">
+    {{ season.name }}
+    {% if multi_tier and match.tier %}
+    &nbsp;·&nbsp; Tier {{ match.tier }}
+    {% endif %}
+    &nbsp;·&nbsp;
+    <span class="status-badge status-{{ match.status }}">{{ match.get_status_display }}</span>
+  </p>
+</div>
+
+{# ── Mobile: stacked layout ────────────────────────────────────────────── #}
+<div class="d-block d-md-none">
+
+  {# Match info card #}
+  <div class="card mb-3">
+    <div class="card-header">Match Info</div>
+    <div class="card-body">
+      <dl class="row mb-0">
+        {% if match.scheduled_date %}
+        <dt class="col-5 text-muted fw-500">Scheduled</dt>
+        <dd class="col-7">{{ match.scheduled_date }}</dd>
+        {% endif %}
+        {% if match.played_date %}
+        <dt class="col-5 text-muted fw-500">Played</dt>
+        <dd class="col-7">{{ match.played_date }}</dd>
+        {% endif %}
+        {% if match.winner %}
+        <dt class="col-5 text-muted fw-500">Winner</dt>
+        <dd class="col-7 fw-600 text-clay">
+          {{ match.winner.get_full_name|default:match.winner.username }}
+        </dd>
+        {% endif %}
+        {% if match.round != 'regular' %}
+        <dt class="col-5 text-muted fw-500">Round</dt>
+        <dd class="col-7">{{ match.get_round_display }}</dd>
+        {% endif %}
+      </dl>
+    </div>
+  </div>
+
+  {# Set scores — horizontally scrollable #}
+  {% if sets %}
+  <div class="card mb-3">
+    <div class="card-header">Set Scores</div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col" class="ps-3">Player</th>
+              {% for s in sets %}
+              <th scope="col" class="text-center">Set {{ s.set_number }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="ps-3 fw-500">{{ match.player1.get_full_name|default:match.player1.username }}</td>
+              {% for s in sets %}
+              <td class="text-center score-set">{{ s.player1_games }}</td>
+              {% endfor %}
+            </tr>
+            <tr>
+              <td class="ps-3 fw-500">{{ match.player2.get_full_name|default:match.player2.username }}</td>
+              {% for s in sets %}
+              <td class="text-center score-set">{{ s.player2_games }}</td>
+              {% endfor %}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Walkover / notes #}
+  {% if match.walkover_reason %}
+  <div class="card mb-3">
+    <div class="card-header">Walkover Reason</div>
+    <div class="card-body">{{ match.walkover_reason }}</div>
+  </div>
+  {% endif %}
+
+  <a href="{% url 'leagues:matchups' season.pk %}" class="btn btn-outline-primary w-100">
+    &larr; Back to Matchups
+  </a>
+
+</div>
+
+{# ── Desktop: two-column layout ────────────────────────────────────────── #}
+<div class="d-none d-md-block">
+  <div class="row g-4">
+
+    {# Left column: match info #}
+    <div class="col-md-5">
+      <div class="card h-100">
+        <div class="card-header">Match Info</div>
+        <div class="card-body">
+          <dl class="row mb-0">
+            {% if match.scheduled_date %}
+            <dt class="col-5 text-muted fw-500">Scheduled</dt>
+            <dd class="col-7">{{ match.scheduled_date }}</dd>
+            {% endif %}
+            {% if match.played_date %}
+            <dt class="col-5 text-muted fw-500">Played</dt>
+            <dd class="col-7">{{ match.played_date }}</dd>
+            {% endif %}
+            {% if match.winner %}
+            <dt class="col-5 text-muted fw-500">Winner</dt>
+            <dd class="col-7 fw-600 text-clay">
+              {{ match.winner.get_full_name|default:match.winner.username }}
+            </dd>
+            {% endif %}
+            {% if match.round != 'regular' %}
+            <dt class="col-5 text-muted fw-500">Round</dt>
+            <dd class="col-7">{{ match.get_round_display }}</dd>
+            {% endif %}
+          </dl>
+          {% if match.walkover_reason %}
+          <hr class="border-theme">
+          <p class="mb-0 text-muted" style="font-size:0.875rem;">
+            <strong>Walkover reason:</strong> {{ match.walkover_reason }}
+          </p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# Right column: set scores #}
+    <div class="col-md-7">
+      {% if sets %}
+      <div class="card">
+        <div class="card-header">Set Scores</div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th scope="col" class="ps-3">Player</th>
+                  {% for s in sets %}
+                  <th scope="col" class="text-center">Set {{ s.set_number }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="ps-3 fw-500">{{ match.player1.get_full_name|default:match.player1.username }}</td>
+                  {% for s in sets %}
+                  <td class="text-center score-set">{{ s.player1_games }}</td>
+                  {% endfor %}
+                </tr>
+                <tr>
+                  <td class="ps-3 fw-500">{{ match.player2.get_full_name|default:match.player2.username }}</td>
+                  {% for s in sets %}
+                  <td class="text-center score-set">{{ s.player2_games }}</td>
+                  {% endfor %}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="card">
+        <div class="card-body text-muted">No score recorded yet.</div>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <div class="mt-4">
+    <a href="{% url 'leagues:matchups' season.pk %}" class="btn btn-outline-primary">
+      &larr; Back to Matchups
+    </a>
+  </div>
+
+</div>
+
+{% endblock %}

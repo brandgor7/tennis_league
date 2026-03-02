@@ -2,7 +2,7 @@
 
 ## Overview
 
-A Django + PostgreSQL web application for managing a tennis league. Multiple seasons coexist, each with independently configurable rules. Admins set up seasons, rosters, and matches. Players log in and enter results. A confirmation flow ensures score accuracy. Dashboards show standings, results, and schedules. A playoff bracket is auto-generated from end-of-season standings.
+A Django + PostgreSQL web application for managing a tennis league. Multiple seasons coexist, each with independently configurable rules. Admins set up seasons, rosters, and matches. Players log in and enter results. A confirmation flow ensures score accuracy. Dashboards show standings, results, and matchups. A playoff bracket is auto-generated from end-of-season standings.
 
 ---
 
@@ -33,7 +33,7 @@ Bootstrap 5's `md` breakpoint (768px) is the single dividing line between **mobi
 - Mobile: Simplified card list — one card per player showing rank, name, W–L, points. Cards are tap-friendly with generous padding.
 - Desktop: Table with columns: rank, player, Wins, Losses, Pts, PD (game differential)
 
-### Schedule & Results
+### Matchups & Results
 - Mobile: Match cards — player names stacked vertically, date and status as badge/label below. Tapping a card opens the match detail.
 - Desktop: Table rows with player1 vs player2, date, status, and a details link
 
@@ -119,7 +119,7 @@ Child templates mark a nav link active by emitting `nav-active` from the matchin
 {% block nav_standings %}nav-active{% endblock %}
 ```
 
-Available blocks: `nav_standings`, `nav_schedule`, `nav_results`, `nav_playoffs`. CSS draws a clay underline on the active link.
+Available blocks: `nav_standings`, `nav_matchups`, `nav_results`, `nav_playoffs`. CSS draws a clay underline on the active link.
 
 ### Base Template Context
 
@@ -184,7 +184,7 @@ tennis-scores-app/
     │   ├── season_list.html
     │   └── season_detail.html
     ├── matches/
-    │   ├── schedule.html
+    │   ├── matchups.html
     │   ├── results.html
     │   ├── match_detail.html
     │   ├── enter_result.html
@@ -418,7 +418,7 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
 /seasons/                                  All seasons list
 /seasons/<id>/                             Season overview
 /seasons/<id>/standings/                   Standings (all tiers; tabs or sections per tier)
-/seasons/<id>/schedule/                    Upcoming matches
+/seasons/<id>/matchups/                    Upcoming matches
 /seasons/<id>/results/                     Completed match results
 /seasons/<id>/playoffs/                    Playoff bracket list (redirects to tier 1 if single-tier)
 /seasons/<id>/playoffs/<tier>/             Playoff bracket for a specific tier
