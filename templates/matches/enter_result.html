@@ -164,9 +164,10 @@
     var p2 = document.querySelector('[name="set' + setNum + '_p2"]');
     if (!p1 || !p2) return;
 
+    var g = {{ games_to_win_set }};
     var v1 = parseInt(p1.value, 10);
     var v2 = parseInt(p2.value, 10);
-    var isTb = (v1 === 7 && v2 === 6) || (v1 === 6 && v2 === 7);
+    var isTb = (v1 === g + 1 && v2 === g) || (v1 === g && v2 === g + 1);
 
     // Mobile container
     var mobile = document.getElementById('tb-' + setNum + '-mobile');

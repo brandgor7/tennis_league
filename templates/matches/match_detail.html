@@ -96,7 +96,7 @@
   {% endif %}
 
   {% if match.status == 'scheduled' or match.status == 'postponed' %}
-    {% if user.is_authenticated and user == match.player1 or user.is_authenticated and user == match.player2 or user.is_staff %}
+    {% if user.is_authenticated and user == match.player1 or user.is_authenticated and user == match.player2 or user.is_authenticated and user.is_staff %}
   <a href="{% url 'matches:enter_result' match.pk %}" class="btn btn-primary w-100 mb-2" style="min-height:44px;">
     Enter Result
   </a>
@@ -198,7 +198,7 @@
 
   <div class="mt-4 d-flex gap-2 align-items-center flex-wrap">
     {% if match.status == 'scheduled' or match.status == 'postponed' %}
-      {% if user.is_authenticated and user == match.player1 or user.is_authenticated and user == match.player2 or user.is_staff %}
+      {% if user.is_authenticated and user == match.player1 or user.is_authenticated and user == match.player2 or user.is_authenticated and user.is_staff %}
     <a href="{% url 'matches:enter_result' match.pk %}" class="btn btn-primary">
       Enter Result
     </a>

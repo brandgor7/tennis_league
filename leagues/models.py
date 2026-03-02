@@ -50,6 +50,18 @@ class Season(models.Model):
     class Meta:
         ordering = ['-year', 'name']
 
+    @property
+    def max_sets_in_match(self):
+        return 2 * self.sets_to_win - 1
+
+    @property
+    def is_super_final_format(self):
+        return self.final_set_format == self.FINAL_SET_SUPER
+
+    @property
+    def is_tiebreak_final_format(self):
+        return self.final_set_format == self.FINAL_SET_TIEBREAK
+
     def clean(self):
         if self.status == self.STATUS_ACTIVE:
             qs = Season.objects.filter(status=self.STATUS_ACTIVE)

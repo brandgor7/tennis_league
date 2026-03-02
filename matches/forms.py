@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth import get_user_model
 
-from leagues.models import Season, SeasonPlayer
+from leagues.models import SeasonPlayer
 from .models import Match
 
 User = get_user_model()
@@ -84,9 +84,8 @@ class ResultEntryForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.match = match
         season = match.season
-        max_sets = 2 * season.sets_to_win - 1
-        self.max_sets = max_sets
-        is_super_final = (season.final_set_format == Season.FINAL_SET_SUPER)
+        self.max_sets = season.max_sets_in_match
+        is_super_final = season.is_super_final_format
 
         score_widget_attrs = {
             'inputmode': 'numeric',
@@ -95,8 +94,8 @@ class ResultEntryForm(forms.Form):
             'style': 'min-height:44px;',
         }
 
-        for i in range(1, max_sets + 1):
-            is_super = (i == max_sets) and is_super_final
+        for i in range(1, self.max_sets + 1):
+            is_super = (i == self.max_sets) and is_super_final
             self.fields[f'set{i}_p1'] = forms.IntegerField(
                 required=False,
                 min_value=0,
@@ -133,8 +132,8 @@ class ResultEntryForm(forms.Form):
         """Return an error string if the set score is illegal, else None."""
         season = self.match.season
         is_deciding = (set_num == self.max_sets)
-        is_super = is_deciding and season.final_set_format == Season.FINAL_SET_SUPER
-        is_final_tb = is_deciding and season.final_set_format == Season.FINAL_SET_TIEBREAK
+        is_super = is_deciding and season.is_super_final_format
+        is_final_tb = is_deciding and season.is_tiebreak_final_format
 
         if is_super:
             winner, loser = max(p1, p2), min(p1, p2)
@@ -171,15 +170,16 @@ class ResultEntryForm(forms.Form):
         return None
 
     def _validate_tiebreak_points(self, set_num, p1_games, p2_games, tb_p1, tb_p2):
-        """Validate tiebreak points for a 7-6 set. Return error string or None."""
+        """Validate tiebreak points for a tiebreak set. Return error string or None."""
+        g = self.match.season.games_to_win_set
         if tb_p1 is None or tb_p2 is None:
-            return f'Set {set_num}: Tiebreak scores are required for a 7-6 set.'
+            return f'Set {set_num}: Tiebreak scores are required for a {g+1}-{g} set.'
         if (p1_games > p2_games) != (tb_p1 > tb_p2):
             return f'Set {set_num}: Tiebreak winner must match the set winner.'
-        winner_pts, loser_pts = max(tb_p1, tb_p2), min(tb_p1, tb_p2)
+        winner_pts = max(tb_p1, tb_p2)
         if winner_pts < 7:
             return f'Set {set_num}: Tiebreak winner must reach at least 7 points.'
-        if winner_pts - loser_pts < 2:
+        if winner_pts - min(tb_p1, tb_p2) < 2:
             return f'Set {set_num}: Tiebreak winner must lead by at least 2 points.'
         return None
 
@@ -189,7 +189,7 @@ class ResultEntryForm(forms.Form):
         cleaned = super().clean()
         season = self.match.season
         max_sets = self.max_sets
-        is_super_final = (season.final_set_format == Season.FINAL_SET_SUPER)
+        is_super_final = season.is_super_final_format
 
         # Collect set data: (set_num, p1, p2, tb_p1, tb_p2) or None
         all_sets = []
@@ -257,6 +257,4 @@ class ResultEntryForm(forms.Form):
                 f'The match is incomplete — a player must win {season.sets_to_win} set(s).'
             )
 
-        cleaned['_p1_set_wins'] = p1_wins
-        cleaned['_p2_set_wins'] = p2_wins
         return cleaned

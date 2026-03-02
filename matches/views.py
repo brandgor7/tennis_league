@@ -93,19 +93,17 @@ class EnterResultView(LoginRequiredMixin, View):
 
     def _build_context(self, form, match):
         season = match.season
-        max_sets = 2 * season.sets_to_win - 1
-        is_super_final = season.final_set_format == Season.FINAL_SET_SUPER
-        is_tb_final = season.final_set_format == Season.FINAL_SET_TIEBREAK
+        max_sets = season.max_sets_in_match
 
         sets_meta = []
         for i in range(1, max_sets + 1):
             is_final = (i == max_sets)
-            is_super = is_final and is_super_final
+            is_super = is_final and season.is_super_final_format
             meta = {
                 'set_num': i,
                 'is_final': is_final,
                 'is_super': is_super,
-                'is_final_tb': is_final and is_tb_final,
+                'is_final_tb': is_final and season.is_tiebreak_final_format,
                 'p1_field': form[f'set{i}_p1'],
                 'p2_field': form[f'set{i}_p2'],
             }
@@ -121,6 +119,7 @@ class EnterResultView(LoginRequiredMixin, View):
             'multi_tier': season.num_tiers > 1,
             'sets_meta': sets_meta,
             'max_sets': max_sets,
+            'games_to_win_set': season.games_to_win_set,
             'player1_name': match.player1.get_full_name() or match.player1.username,
             'player2_name': match.player2.get_full_name() or match.player2.username,
         }
@@ -146,18 +145,16 @@ class EnterResultView(LoginRequiredMixin, View):
         form = ResultEntryForm(request.POST, match=match)
         if form.is_valid():
             season = match.season
-            max_sets = 2 * season.sets_to_win - 1
-            is_super_final = season.final_set_format == Season.FINAL_SET_SUPER
             cleaned = form.cleaned_data
 
             with transaction.atomic():
                 match.sets.all().delete()
-                for i in range(1, max_sets + 1):
+                for i in range(1, form.max_sets + 1):
                     p1 = cleaned.get(f'set{i}_p1')
                     p2 = cleaned.get(f'set{i}_p2')
                     if p1 is None or p2 is None:
                         continue
-                    is_super = (i == max_sets) and is_super_final
+                    is_super = (i == form.max_sets) and season.is_super_final_format
                     MatchSet.objects.create(
                         match=match,
                         set_number=i,
