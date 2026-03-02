@@ -6,9 +6,9 @@ def calculate_standings(season, tier):
     """
     Return a ranked list of dicts for all active players in the given season/tier.
 
-    Each dict contains:
-        player, played, wins, losses, points, sets_won, sets_lost,
-        sets_ratio, games_won, games_lost, games_ratio
+    Each dict contains: player, wins, losses, points, pd (game differential).
+
+    Tiebreakers (not exposed in the dict): matches played, sets ratio, games ratio.
     """
     season_players = (
         SeasonPlayer.objects
@@ -89,23 +89,26 @@ def calculate_standings(season, tier):
 
         rows.append({
             'player': player,
-            'played': played,
             'wins': wins,
             'losses': losses,
             'points': points,
-            'sets_won': sets_won,
-            'sets_lost': sets_lost,
-            'sets_ratio': sets_ratio,
-            'games_won': games_won,
-            'games_lost': games_lost,
-            'games_ratio': games_ratio,
+            'pd': games_won - games_lost,
+            # Internal fields used only for tiebreaker sorting below
+            '_played': played,
+            '_sets_ratio': sets_ratio,
+            '_games_ratio': games_ratio,
         })
 
     rows.sort(key=lambda r: (
         -r['points'],
-        -r['played'],
-        -r['sets_ratio'],
-        -r['games_ratio'],
+        -r['_played'],
+        -r['_sets_ratio'],
+        -r['_games_ratio'],
     ))
+
+    for row in rows:
+        del row['_played']
+        del row['_sets_ratio']
+        del row['_games_ratio']
 
     return rows

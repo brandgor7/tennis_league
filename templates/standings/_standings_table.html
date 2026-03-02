@@ -9,7 +9,7 @@
       </span>
       <div class="flex-grow-1">
         <div class="fw-600">{{ row.player.get_full_name|default:row.player.username }}</div>
-        <small class="text-muted">{{ row.wins }}W – {{ row.losses }}L &nbsp;·&nbsp; {{ row.played }} played</small>
+        <small class="text-muted">{{ row.wins }}W &ndash; {{ row.losses }}L</small>
       </div>
       <div class="text-end">
         <span class="stat-value fw-600">{{ row.points }}</span>
@@ -27,12 +27,10 @@
         <tr>
           <th scope="col" class="text-center" style="width:3rem;">#</th>
           <th scope="col">Player</th>
-          <th scope="col" class="text-center stat-value">P</th>
-          <th scope="col" class="text-center stat-value">W</th>
-          <th scope="col" class="text-center stat-value">L</th>
+          <th scope="col" class="text-center stat-value">Wins</th>
+          <th scope="col" class="text-center stat-value">Losses</th>
           <th scope="col" class="text-center stat-value">Pts</th>
-          <th scope="col" class="text-center stat-value">Sets</th>
-          <th scope="col" class="text-center stat-value">Games</th>
+          <th scope="col" class="text-center stat-value">PD</th>
         </tr>
       </thead>
       <tbody>
@@ -44,24 +42,10 @@
             </span>
           </td>
           <td>{{ row.player.get_full_name|default:row.player.username }}</td>
-          <td class="text-center stat-value">{{ row.played }}</td>
           <td class="text-center stat-value">{{ row.wins }}</td>
           <td class="text-center stat-value">{{ row.losses }}</td>
           <td class="text-center stat-value fw-600">{{ row.points }}</td>
-          <td class="text-center stat-value">
-            {% if row.sets_won or row.sets_lost %}
-              {{ row.sets_won }}/{{ row.sets_won|add:row.sets_lost }}
-            {% else %}
-              —
-            {% endif %}
-          </td>
-          <td class="text-center stat-value">
-            {% if row.games_won or row.games_lost %}
-              {{ row.games_won }}/{{ row.games_won|add:row.games_lost }}
-            {% else %}
-              —
-            {% endif %}
-          </td>
+          <td class="text-center stat-value">{{ row.pd }}</td>
         </tr>
         {% endfor %}
       </tbody>
