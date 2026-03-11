@@ -170,12 +170,12 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 
 **Goal:** The opponent confirms or disputes the entered score.
 
-- [ ] **`matches/views.py`** — `ConfirmResultView`:
+- [x] **`matches/views.py`** — `ConfirmResultView`:
   - `@login_required`
   - Must be the *other* player (not `entered_by`) or staff
   - **Confirm**: set `match.status = 'completed'`, `match.confirmed_by = request.user`, `match.played_date = today`; determine and set `match.winner` from set scores
   - **Dispute**: set `match.status = 'scheduled'` (revert), delete existing `MatchSet` objects, notify admin (via Django messages or email — messages is sufficient for now)
-- [ ] **`templates/matches/confirm_result.html`**:
+- [x] **`templates/matches/confirm_result.html`**:
   - Show entered score prominently (same compact score table as match detail)
   - Mobile: Confirm and Dispute as full-width stacked buttons (Confirm = `btn-success btn-lg w-100`, Dispute = `btn-outline-danger btn-lg w-100 mt-2`)
   - Desktop: Confirm and Dispute side by side, right-aligned

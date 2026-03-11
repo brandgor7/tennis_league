@@ -1,3 +1,5 @@
+import datetime
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
@@ -171,3 +173,77 @@ class EnterResultView(LoginRequiredMixin, View):
             return redirect('matches:match_detail', pk=pk)
 
         return render(request, self.template_name, self._build_context(form, match))
+
+
+class ConfirmResultView(LoginRequiredMixin, View):
+    template_name = 'matches/confirm_result.html'
+
+    def _get_match(self, request, pk):
+        match = get_object_or_404(
+            Match.objects.select_related('player1', 'player2', 'season', 'entered_by'),
+            pk=pk,
+        )
+        # Check authorization before status so unauthorized users always get 403
+        is_player = request.user in (match.player1, match.player2)
+        is_other_player = is_player and request.user != match.entered_by
+        if not (is_other_player or request.user.is_staff):
+            raise PermissionDenied
+        if match.status != Match.STATUS_PENDING:
+            messages.error(request, 'This match is not awaiting confirmation.')
+            return None
+        return match
+
+    def get(self, request, pk):
+        match = self._get_match(request, pk)
+        if match is None:
+            return redirect('matches:match_detail', pk=pk)
+        return render(request, self.template_name, {
+            'match': match,
+            'season': match.season,
+            'multi_tier': match.season.num_tiers > 1,
+            'sets': match.sets.all(),
+        })
+
+    def post(self, request, pk):
+        match = self._get_match(request, pk)
+        if match is None:
+            return redirect('matches:match_detail', pk=pk)
+
+        action = request.POST.get('action')
+        if action == 'confirm':
+            with transaction.atomic():
+                sets = list(match.sets.select_for_update().all())
+                p1_sets = sum(1 for s in sets if s.player1_games > s.player2_games)
+                p2_sets = sum(1 for s in sets if s.player2_games > s.player1_games)
+                if p1_sets == p2_sets:
+                    messages.error(request, 'Cannot confirm: sets are tied. Please contact the administrator.')
+                    return redirect('matches:match_detail', pk=pk)
+                winner = match.player1 if p1_sets > p2_sets else match.player2
+                match.status = Match.STATUS_COMPLETED
+                match.confirmed_by = request.user
+                match.played_date = datetime.date.today()
+                match.winner = winner
+                match.save()
+            messages.success(request, 'Result confirmed. Match is now complete.')
+            return redirect('matches:match_detail', pk=pk)
+
+        elif action == 'dispute':
+            with transaction.atomic():
+                match.sets.all().delete()
+                match.status = Match.STATUS_SCHEDULED
+                match.entered_by = None
+                match.save()
+            messages.warning(
+                request,
+                'Score disputed. The match has been reset to scheduled. '
+                'Please contact the administrator to resolve the discrepancy.',
+            )
+            return redirect('matches:match_detail', pk=pk)
+
+        # Unknown action — re-render
+        return render(request, self.template_name, {
+            'match': match,
+            'season': match.season,
+            'multi_tier': match.season.num_tiers > 1,
+            'sets': match.sets.all(),
+        })
