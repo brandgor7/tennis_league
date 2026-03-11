@@ -8,7 +8,10 @@ Tennis league scoring web application. Django + PostgreSQL.
 
 Full architecture is documented in **[ARCHITECTURE.md](./ARCHITECTURE.md)**.
 
-Read ARCHITECTURE.md before making any changes.
+Read ARCHITECTURE.md before making any changes. After work is done, make sure ARCHITECTURE.md is updated to reflect the current state of the project based solely on the work performed.
+The intent is that this file should be referenced instead of loading each source code file to find details of the project for the
+task at hand that aren't directly related to the task that's being performed or that are
+dependencies on the task being performed.
 
 ## Implementation Plan Reference
 
@@ -25,6 +28,7 @@ Record steps executed in that file for future reference.
 - Standings are **computed dynamically** from match data — no denormalized standings table
 - Score validation logic lives in the form (`ResultEntryForm`), not the model
 - Playoff bracket generation logic lives in `playoffs/generator.py`, not in views
+- Include as few comments as possible, and only for complex or convoluted code (which ideally shouldn't occur)
 
 
 ## Running Locally
