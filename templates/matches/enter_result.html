@@ -125,16 +125,20 @@
                 <br><small class="text-muted fw-400" style="font-size:0.7rem;">TB format</small>
                 {% endif %}
               </td>
-              <td class="text-center">{{ set.p1_field }}</td>
-              <td class="text-center">{{ set.p2_field }}</td>
+              <td class="text-center">
+                <input type="number" id="desk_set{{ set.set_num }}_p1" data-target="id_set{{ set.set_num }}_p1" inputmode="numeric" class="form-control score-input" placeholder="-" style="min-height:44px;" min="0" autocomplete="off">
+              </td>
+              <td class="text-center">
+                <input type="number" id="desk_set{{ set.set_num }}_p2" data-target="id_set{{ set.set_num }}_p2" inputmode="numeric" class="form-control score-input" placeholder="-" style="min-height:44px;" min="0" autocomplete="off">
+              </td>
               {% if set.is_super %}
               <td colspan="2" class="text-center text-muted" style="font-size:0.8rem;">—</td>
               {% else %}
               <td class="text-center" id="tb-p1-{{ set.set_num }}-desktop" style="display:none;">
-                {{ set.tb_p1_field }}
+                <input type="number" id="desk_set{{ set.set_num }}_tb_p1" data-target="id_set{{ set.set_num }}_tb_p1" inputmode="numeric" class="form-control score-input" placeholder="-" style="min-height:44px;" min="0" autocomplete="off">
               </td>
               <td class="text-center" id="tb-p2-{{ set.set_num }}-desktop" style="display:none;">
-                {{ set.tb_p2_field }}
+                <input type="number" id="desk_set{{ set.set_num }}_tb_p2" data-target="id_set{{ set.set_num }}_tb_p2" inputmode="numeric" class="form-control score-input" placeholder="-" style="min-height:44px;" min="0" autocomplete="off">
               </td>
               {% endif %}
             </tr>
@@ -179,13 +183,39 @@
     if (deskP1) deskP1.style.display = isTb ? '' : 'none';
     if (deskP2) deskP2.style.display = isTb ? '' : 'none';
 
-    // Clear tiebreak values when hiding
+    // Clear tiebreak values when hiding (real inputs and desktop mirrors)
     if (!isTb) {
       var tbP1 = document.querySelector('[name="set' + setNum + '_tb_p1"]');
       var tbP2 = document.querySelector('[name="set' + setNum + '_tb_p2"]');
       if (tbP1) tbP1.value = '';
       if (tbP2) tbP2.value = '';
+      var deskTbP1 = document.getElementById('desk_set' + setNum + '_tb_p1');
+      var deskTbP2 = document.getElementById('desk_set' + setNum + '_tb_p2');
+      if (deskTbP1) deskTbP1.value = '';
+      if (deskTbP2) deskTbP2.value = '';
     }
+  }
+
+  // Desktop mirror inputs have no `name` attribute so they never submit.
+  // When the user types in a desktop mirror, sync the value to the real
+  // (mobile) input and fire an `input` event so syncTiebreak runs.
+  // On page load, copy any pre-filled real values into the desktop mirrors
+  // (needed when the form is re-displayed after a validation error).
+  var mirrors = document.querySelectorAll('[data-target]');
+  for (var m = 0; m < mirrors.length; m++) {
+    (function (deskInput) {
+      var realInput = document.getElementById(deskInput.getAttribute('data-target'));
+      if (!realInput) return;
+
+      deskInput.addEventListener('input', function () {
+        realInput.value = deskInput.value;
+        realInput.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+
+      if (realInput.value !== '') {
+        deskInput.value = realInput.value;
+      }
+    }(mirrors[m]));
   }
 
   var maxSets = {{ max_sets }};
