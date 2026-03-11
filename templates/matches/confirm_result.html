@@ -45,13 +45,23 @@
           <tr>
             <td class="ps-3 fw-500">{{ match.player1.get_full_name|default:match.player1.username }}</td>
             {% for s in sets %}
-            <td class="text-center score-set">{{ s.player1_games }}</td>
+            <td class="text-center score-set">
+              {{ s.player1_games }}
+              {% if s.tiebreak_player1_points is not None and s.player1_games < s.player2_games %}
+              <sup class="text-muted" style="font-size:0.6em;">{{ s.tiebreak_player1_points }}</sup>
+              {% endif %}
+            </td>
             {% endfor %}
           </tr>
           <tr>
             <td class="ps-3 fw-500">{{ match.player2.get_full_name|default:match.player2.username }}</td>
             {% for s in sets %}
-            <td class="text-center score-set">{{ s.player2_games }}</td>
+            <td class="text-center score-set">
+              {{ s.player2_games }}
+              {% if s.tiebreak_player2_points is not None and s.player2_games < s.player1_games %}
+              <sup class="text-muted" style="font-size:0.6em;">{{ s.tiebreak_player2_points }}</sup>
+              {% endif %}
+            </td>
             {% endfor %}
           </tr>
         </tbody>

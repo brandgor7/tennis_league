@@ -941,6 +941,12 @@ class ConfirmResultViewConfirmTest(ConfirmResultViewSetupMixin, TestCase):
         self.client.login(username='p2', password='pass')
         return self.client.post(self.url, {'action': 'confirm'})
 
+    def test_entered_by_player_post_gets_403(self):
+        """The player who entered cannot POST a confirmation either."""
+        self.client.login(username='p1', password='pass')
+        response = self.client.post(self.url, {'action': 'confirm'})
+        self.assertEqual(response.status_code, 403)
+
     def test_confirm_sets_status_completed(self):
         self._confirm()
         self.match.refresh_from_db()
@@ -985,6 +991,15 @@ class ConfirmResultViewConfirmTest(ConfirmResultViewSetupMixin, TestCase):
         self.client.post(self.url, {'action': 'confirm'})
         self.match.refresh_from_db()
         self.assertEqual(self.match.status, Match.STATUS_COMPLETED)
+
+    def test_tied_sets_does_not_complete_match(self):
+        """If sets are somehow tied, confirm redirects without completing the match."""
+        self.match.sets.all().delete()
+        MatchSet.objects.create(match=self.match, set_number=1, player1_games=6, player2_games=3)
+        MatchSet.objects.create(match=self.match, set_number=2, player1_games=3, player2_games=6)
+        self._confirm()
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_PENDING)
 
 
 class ConfirmResultViewDisputeTest(ConfirmResultViewSetupMixin, TestCase):
