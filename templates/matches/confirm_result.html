@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Confirm Result — {{ match.player1.get_full_name|default:match.player1.username }} vs
+  {{ match.player2.get_full_name|default:match.player2.username }} — TennisLeague
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <h1>Confirm Result</h1>
+  <p class="page-meta">
+    {{ match.player1.get_full_name|default:match.player1.username }}
+    <span class="text-muted" style="font-size:0.85em;">vs</span>
+    {{ match.player2.get_full_name|default:match.player2.username }}
+    &nbsp;·&nbsp; {{ season.name }}
+    {% if multi_tier and match.tier %}
+    &nbsp;·&nbsp; Tier {{ match.tier }}
+    {% endif %}
+  </p>
+</div>
+
+<p class="text-muted mb-4" style="font-size:0.9375rem;">
+  The following score was entered by
+  <strong>{{ match.entered_by.get_full_name|default:match.entered_by.username }}</strong>.
+  Please confirm it is correct, or dispute it if the score is wrong.
+</p>
+
+{# ── Score table ─────────────────────────────────────────────────────────── #}
+{% if sets %}
+<div class="card mb-4">
+  <div class="card-header">Entered Score</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th scope="col" class="ps-3">Player</th>
+            {% for s in sets %}
+            <th scope="col" class="text-center">Set {{ s.set_number }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="ps-3 fw-500">{{ match.player1.get_full_name|default:match.player1.username }}</td>
+            {% for s in sets %}
+            <td class="text-center score-set">{{ s.player1_games }}</td>
+            {% endfor %}
+          </tr>
+          <tr>
+            <td class="ps-3 fw-500">{{ match.player2.get_full_name|default:match.player2.username }}</td>
+            {% for s in sets %}
+            <td class="text-center score-set">{{ s.player2_games }}</td>
+            {% endfor %}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Mobile: stacked full-width buttons ─────────────────────────────────── #}
+<div class="d-block d-md-none">
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" name="action" value="confirm"
+            class="btn btn-success btn-lg w-100 mb-2" style="min-height:44px;">
+      Confirm Score
+    </button>
+    <button type="submit" name="action" value="dispute"
+            class="btn btn-outline-danger btn-lg w-100" style="min-height:44px;">
+      Dispute Score
+    </button>
+  </form>
+  <a href="{% url 'matches:match_detail' match.pk %}" class="btn btn-outline-secondary w-100 mt-2">
+    Cancel
+  </a>
+</div>
+
+{# ── Desktop: buttons right-aligned side by side ────────────────────────── #}
+<div class="d-none d-md-flex gap-2 justify-content-end align-items-center">
+  <a href="{% url 'matches:match_detail' match.pk %}" class="btn btn-outline-secondary">
+    Cancel
+  </a>
+  <form method="post" class="d-flex gap-2">
+    {% csrf_token %}
+    <button type="submit" name="action" value="dispute" class="btn btn-outline-danger">
+      Dispute Score
+    </button>
+    <button type="submit" name="action" value="confirm" class="btn btn-success">
+      Confirm Score
+    </button>
+  </form>
+</div>
+
+{% endblock %}

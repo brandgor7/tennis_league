@@ -859,3 +859,158 @@ class EnterResultViewPostTest(TestCase):
         self.client.post(self.url, {'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
         self.match.refresh_from_db()
         self.assertEqual(self.match.status, Match.STATUS_PENDING)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 9 — ConfirmResultView tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ConfirmResultViewSetupMixin:
+    """Shared setup: a pending match with two sets entered by p1."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            name='Spring', year=2025, sets_to_win=2,
+            final_set_format=Season.FINAL_SET_FULL,
+        )
+        self.p1 = User.objects.create_user(username='p1', password='pass')
+        self.p2 = User.objects.create_user(username='p2', password='pass')
+        self.match = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_PENDING, entered_by=self.p1,
+        )
+        MatchSet.objects.create(match=self.match, set_number=1, player1_games=6, player2_games=3)
+        MatchSet.objects.create(match=self.match, set_number=2, player1_games=6, player2_games=4)
+        self.url = reverse('matches:confirm_result', kwargs={'pk': self.match.pk})
+
+
+class ConfirmResultViewGetTest(ConfirmResultViewSetupMixin, TestCase):
+    """GET requests to ConfirmResultView."""
+
+    def test_anonymous_redirects_to_login(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response['Location'])
+
+    def test_opponent_can_access(self):
+        self.client.login(username='p2', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_entered_by_player_gets_403(self):
+        """The player who entered the score cannot confirm it."""
+        self.client.login(username='p1', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_unrelated_user_gets_403(self):
+        other = User.objects.create_user(username='other', password='pass')
+        self.client.login(username='other', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_can_access(self):
+        staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+        self.client.login(username='staff', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_non_pending_match_redirects(self):
+        self.match.status = Match.STATUS_SCHEDULED
+        self.match.save()
+        self.client.login(username='p2', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+
+    def test_context_has_match_and_sets(self):
+        self.client.login(username='p2', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.context['match'], self.match)
+        self.assertEqual(response.context['sets'].count(), 2)
+
+    def test_uses_confirm_result_template(self):
+        self.client.login(username='p2', password='pass')
+        response = self.client.get(self.url)
+        self.assertTemplateUsed(response, 'matches/confirm_result.html')
+
+
+class ConfirmResultViewConfirmTest(ConfirmResultViewSetupMixin, TestCase):
+    """POST action=confirm."""
+
+    def _confirm(self):
+        self.client.login(username='p2', password='pass')
+        return self.client.post(self.url, {'action': 'confirm'})
+
+    def test_confirm_sets_status_completed(self):
+        self._confirm()
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_COMPLETED)
+
+    def test_confirm_sets_winner_correctly(self):
+        """p1 won both sets (6-3, 6-4) so p1 should be winner."""
+        self._confirm()
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.winner, self.p1)
+
+    def test_confirm_sets_confirmed_by(self):
+        self._confirm()
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.confirmed_by, self.p2)
+
+    def test_confirm_sets_played_date_to_today(self):
+        import datetime
+        self._confirm()
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.played_date, datetime.date.today())
+
+    def test_confirm_redirects_to_match_detail(self):
+        response = self._confirm()
+        self.assertRedirects(
+            response,
+            reverse('matches:match_detail', kwargs={'pk': self.match.pk}),
+        )
+
+    def test_confirm_p2_winner(self):
+        """When p2 wins more sets, p2 is the winner."""
+        self.match.sets.all().delete()
+        MatchSet.objects.create(match=self.match, set_number=1, player1_games=3, player2_games=6)
+        MatchSet.objects.create(match=self.match, set_number=2, player1_games=4, player2_games=6)
+        self._confirm()
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.winner, self.p2)
+
+    def test_staff_can_confirm(self):
+        staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+        self.client.login(username='staff', password='pass')
+        self.client.post(self.url, {'action': 'confirm'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_COMPLETED)
+
+
+class ConfirmResultViewDisputeTest(ConfirmResultViewSetupMixin, TestCase):
+    """POST action=dispute."""
+
+    def _dispute(self):
+        self.client.login(username='p2', password='pass')
+        return self.client.post(self.url, {'action': 'dispute'})
+
+    def test_dispute_resets_status_to_scheduled(self):
+        self._dispute()
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_SCHEDULED)
+
+    def test_dispute_deletes_sets(self):
+        self._dispute()
+        self.assertEqual(self.match.sets.count(), 0)
+
+    def test_dispute_clears_entered_by(self):
+        self._dispute()
+        self.match.refresh_from_db()
+        self.assertIsNone(self.match.entered_by)
+
+    def test_dispute_redirects_to_match_detail(self):
+        response = self._dispute()
+        self.assertRedirects(
+            response,
+            reverse('matches:match_detail', kwargs={'pk': self.match.pk}),
+        )
