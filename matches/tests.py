@@ -1135,38 +1135,50 @@ class WalkoverViewGetTest(WalkoverViewSetupMixin, TestCase):
     def test_anonymous_redirects(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response['Location'])
 
-    def test_non_staff_redirects(self):
+    def test_unrelated_user_gets_403(self):
+        other = User.objects.create_user(username='other', password='pass')
+        self.client.login(username='other', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_player1_can_access(self):
         self.client.login(username='p1', password='pass')
         response = self.client.get(self.url)
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200)
 
-    def test_staff_gets_200(self):
+    def test_player2_can_access(self):
+        self.client.login(username='p2', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_staff_can_access(self):
         self.client.login(username='staff', password='pass')
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
 
     def test_uses_walkover_template(self):
-        self.client.login(username='staff', password='pass')
+        self.client.login(username='p1', password='pass')
         response = self.client.get(self.url)
         self.assertTemplateUsed(response, 'matches/walkover.html')
 
     def test_context_has_form_and_match(self):
-        self.client.login(username='staff', password='pass')
+        self.client.login(username='p1', password='pass')
         response = self.client.get(self.url)
         self.assertIn('form', response.context)
         self.assertEqual(response.context['match'], self.match)
 
 
 class WalkoverViewPostTest(WalkoverViewSetupMixin, TestCase):
-    def _post(self, winner=WalkoverForm.WINNER_P1, reason=''):
-        self.client.login(username='staff', password='pass')
+    def _post(self, winner=WalkoverForm.WINNER_P1, reason='', user='p1'):
+        self.client.login(username=user, password='pass')
         return self.client.post(self.url, {'winner': winner, 'reason': reason})
 
-    def test_sets_status_walkover(self):
+    def test_sets_status_pending(self):
         self._post()
         self.match.refresh_from_db()
-        self.assertEqual(self.match.status, Match.STATUS_WALKOVER)
+        self.assertEqual(self.match.status, Match.STATUS_PENDING)
 
     def test_sets_winner_player1(self):
         self._post(winner=WalkoverForm.WINNER_P1)
@@ -1188,17 +1200,32 @@ class WalkoverViewPostTest(WalkoverViewSetupMixin, TestCase):
         self.match.refresh_from_db()
         self.assertEqual(self.match.walkover_reason, '')
 
-    def test_sets_played_date_to_today(self):
+    def test_sets_entered_by(self):
+        self._post(user='p1')
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.entered_by, self.p1)
+
+    def test_played_date_not_set_until_confirmed(self):
         self._post()
         self.match.refresh_from_db()
-        self.assertEqual(self.match.played_date, datetime.date.today())
+        self.assertIsNone(self.match.played_date)
 
     def test_redirects_to_match_detail(self):
         response = self._post()
         self.assertRedirects(response, reverse('matches:match_detail', kwargs={'pk': self.match.pk}))
 
+    def test_player2_can_submit(self):
+        self._post(user='p2')
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_PENDING)
+
+    def test_staff_can_submit(self):
+        self._post(user='staff')
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_PENDING)
+
     def test_invalid_form_rerenders(self):
-        self.client.login(username='staff', password='pass')
+        self.client.login(username='p1', password='pass')
         response = self.client.post(self.url, {'winner': 'invalid_choice'})
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'matches/walkover.html')
@@ -1224,7 +1251,7 @@ class WalkoverViewPostTest(WalkoverViewSetupMixin, TestCase):
         self.match.save()
         self._post()
         self.match.refresh_from_db()
-        self.assertEqual(self.match.status, Match.STATUS_WALKOVER)
+        self.assertEqual(self.match.status, Match.STATUS_PENDING)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1373,6 +1400,99 @@ class PostponeViewPostTest(PostponeViewSetupMixin, TestCase):
         self._post(date=new_date.isoformat())
         self.match.refresh_from_db()
         self.assertEqual(self.match.scheduled_date, new_date)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 10 — Walkover confirmation (via ConfirmResultView) tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+class WalkoverConfirmTest(TestCase):
+    """Walkover submitted by player1, confirmed/disputed by player2."""
+
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025)
+        self.p1 = User.objects.create_user(username='p1', password='pass')
+        self.p2 = User.objects.create_user(username='p2', password='pass')
+        self.match = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_PENDING,
+            entered_by=self.p1,
+            winner=self.p1,
+            walkover_reason='No show',
+        )
+        self.url = reverse('matches:confirm_result', kwargs={'pk': self.match.pk})
+
+    def test_get_shows_is_walkover_true(self):
+        self.client.login(username='p2', password='pass')
+        response = self.client.get(self.url)
+        self.assertTrue(response.context['is_walkover'])
+
+    def test_get_shows_is_walkover_false_when_sets_exist(self):
+        MatchSet.objects.create(match=self.match, set_number=1, player1_games=6, player2_games=3)
+        MatchSet.objects.create(match=self.match, set_number=2, player1_games=6, player2_games=4)
+        self.client.login(username='p2', password='pass')
+        response = self.client.get(self.url)
+        self.assertFalse(response.context['is_walkover'])
+
+    def test_confirm_sets_status_walkover(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'confirm'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_WALKOVER)
+
+    def test_confirm_preserves_winner(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'confirm'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.winner, self.p1)
+
+    def test_confirm_sets_confirmed_by(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'confirm'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.confirmed_by, self.p2)
+
+    def test_confirm_sets_played_date(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'confirm'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.played_date, datetime.date.today())
+
+    def test_dispute_resets_to_scheduled(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'dispute'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_SCHEDULED)
+
+    def test_dispute_clears_winner(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'dispute'})
+        self.match.refresh_from_db()
+        self.assertIsNone(self.match.winner)
+
+    def test_dispute_clears_walkover_reason(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'dispute'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.walkover_reason, '')
+
+    def test_dispute_clears_entered_by(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'dispute'})
+        self.match.refresh_from_db()
+        self.assertIsNone(self.match.entered_by)
+
+    def test_entered_by_player_cannot_confirm_own_walkover(self):
+        self.client.login(username='p1', password='pass')
+        response = self.client.post(self.url, {'action': 'confirm'})
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_can_confirm_walkover(self):
+        staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+        self.client.login(username='staff', password='pass')
+        self.client.post(self.url, {'action': 'confirm'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_WALKOVER)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

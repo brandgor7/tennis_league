@@ -21,13 +21,36 @@
 </div>
 
 <p class="text-muted mb-4" style="font-size:0.9375rem;">
+  {% if is_walkover %}
+  <strong>{{ match.entered_by.get_full_name|default:match.entered_by.username }}</strong>
+  has recorded a walkover. Please confirm this is correct, or dispute it to reset the match.
+  {% else %}
   The following score was entered by
   <strong>{{ match.entered_by.get_full_name|default:match.entered_by.username }}</strong>.
   Please confirm it is correct, or dispute it if the score is wrong.
+  {% endif %}
 </p>
 
+{# ── Walkover card ────────────────────────────────────────────────────────── #}
+{% if is_walkover %}
+<div class="card mb-4">
+  <div class="card-header">Claimed Walkover</div>
+  <div class="card-body">
+    <dl class="row mb-0">
+      <dt class="col-5 text-muted fw-500">Winner</dt>
+      <dd class="col-7 fw-600 text-clay">
+        {{ match.winner.get_full_name|default:match.winner.username }}
+      </dd>
+      {% if match.walkover_reason %}
+      <dt class="col-5 text-muted fw-500">Reason</dt>
+      <dd class="col-7">{{ match.walkover_reason }}</dd>
+      {% endif %}
+    </dl>
+  </div>
+</div>
+
 {# ── Score table ─────────────────────────────────────────────────────────── #}
-{% if sets %}
+{% else %}
 <div class="card mb-4">
   <div class="card-header">Entered Score</div>
   <div class="card-body p-0">
@@ -77,11 +100,11 @@
     {% csrf_token %}
     <button type="submit" name="action" value="confirm"
             class="btn btn-success btn-lg w-100 mb-2" style="min-height:44px;">
-      Confirm Score
+      {% if is_walkover %}Confirm Walkover{% else %}Confirm Score{% endif %}
     </button>
     <button type="submit" name="action" value="dispute"
             class="btn btn-outline-danger btn-lg w-100" style="min-height:44px;">
-      Dispute Score
+      {% if is_walkover %}Dispute Walkover{% else %}Dispute Score{% endif %}
     </button>
   </form>
   <a href="{% url 'matches:match_detail' match.pk %}" class="btn btn-outline-secondary w-100 mt-2">
@@ -97,10 +120,10 @@
   <form method="post" class="d-flex gap-2">
     {% csrf_token %}
     <button type="submit" name="action" value="dispute" class="btn btn-outline-danger">
-      Dispute Score
+      {% if is_walkover %}Dispute Walkover{% else %}Dispute Score{% endif %}
     </button>
     <button type="submit" name="action" value="confirm" class="btn btn-success">
-      Confirm Score
+      {% if is_walkover %}Confirm Walkover{% else %}Confirm Score{% endif %}
     </button>
   </form>
 </div>

@@ -2,12 +2,10 @@ import datetime
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.admin.views.decorators import staff_member_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import F
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import TemplateView, DetailView
 
@@ -209,11 +207,13 @@ class ConfirmResultView(LoginRequiredMixin, View):
         match = self._get_match(request, pk)
         if match is None:
             return redirect('matches:match_detail', pk=pk)
+        sets = match.sets.all()
         return render(request, self.template_name, {
             'match': match,
             'season': match.season,
             'multi_tier': match.season.num_tiers > 1,
-            'sets': match.sets.all(),
+            'sets': sets,
+            'is_walkover': not sets,
         })
 
     def post(self, request, pk):
@@ -225,18 +225,26 @@ class ConfirmResultView(LoginRequiredMixin, View):
         if action == 'confirm':
             with transaction.atomic():
                 sets = list(match.sets.select_for_update().all())
-                p1_sets = sum(1 for s in sets if s.player1_games > s.player2_games)
-                p2_sets = sum(1 for s in sets if s.player2_games > s.player1_games)
-                if p1_sets == p2_sets:
-                    messages.error(request, 'Cannot confirm: sets are tied. Please contact the administrator.')
-                    return redirect('matches:match_detail', pk=pk)
-                winner = match.player1 if p1_sets > p2_sets else match.player2
-                match.status = Match.STATUS_COMPLETED
-                match.confirmed_by = request.user
-                match.played_date = datetime.date.today()
-                match.winner = winner
-                match.save()
-            messages.success(request, 'Result confirmed. Match is now complete.')
+                if not sets:
+                    # Walkover confirmation — winner already set by WalkoverView
+                    match.status = Match.STATUS_WALKOVER
+                    match.confirmed_by = request.user
+                    match.played_date = datetime.date.today()
+                    match.save(update_fields=['status', 'confirmed_by', 'played_date'])
+                    messages.success(request, 'Walkover confirmed.')
+                else:
+                    p1_sets = sum(1 for s in sets if s.player1_games > s.player2_games)
+                    p2_sets = sum(1 for s in sets if s.player2_games > s.player1_games)
+                    if p1_sets == p2_sets:
+                        messages.error(request, 'Cannot confirm: sets are tied. Please contact the administrator.')
+                        return redirect('matches:match_detail', pk=pk)
+                    winner = match.player1 if p1_sets > p2_sets else match.player2
+                    match.status = Match.STATUS_COMPLETED
+                    match.confirmed_by = request.user
+                    match.played_date = datetime.date.today()
+                    match.winner = winner
+                    match.save()
+                    messages.success(request, 'Result confirmed. Match is now complete.')
             return redirect('matches:match_detail', pk=pk)
 
         elif action == 'dispute':
@@ -244,32 +252,42 @@ class ConfirmResultView(LoginRequiredMixin, View):
                 match.sets.all().delete()
                 match.status = Match.STATUS_SCHEDULED
                 match.entered_by = None
+                match.winner = None
+                match.walkover_reason = ''
                 match.save()
             messages.warning(
                 request,
-                'Score disputed. The match has been reset to scheduled. '
+                'Result disputed. The match has been reset to scheduled. '
                 'Please contact the administrator to resolve the discrepancy.',
             )
             return redirect('matches:match_detail', pk=pk)
 
         # Unknown action — re-render
+        sets = match.sets.all()
         return render(request, self.template_name, {
             'match': match,
             'season': match.season,
             'multi_tier': match.season.num_tiers > 1,
-            'sets': match.sets.all(),
+            'sets': sets,
+            'is_walkover': not sets,
         })
 
 
-@method_decorator(staff_member_required, name='dispatch')
-class WalkoverView(View):
+class WalkoverView(LoginRequiredMixin, View):
     template_name = 'matches/walkover.html'
 
-    def _get_match(self, pk):
-        return get_object_or_404(
+    def _get_match(self, request, pk):
+        match = get_object_or_404(
             Match.objects.select_related('player1', 'player2', 'season'),
             pk=pk,
         )
+        if not (
+            request.user == match.player1
+            or request.user == match.player2
+            or request.user.is_staff
+        ):
+            raise PermissionDenied
+        return match
 
     def _context(self, form, match):
         return {
@@ -280,11 +298,11 @@ class WalkoverView(View):
         }
 
     def get(self, request, pk):
-        match = self._get_match(pk)
+        match = self._get_match(request, pk)
         return render(request, self.template_name, self._context(WalkoverForm(match=match), match))
 
     def post(self, request, pk):
-        match = self._get_match(pk)
+        match = self._get_match(request, pk)
         if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
             messages.error(request, 'Walkovers can only be recorded for scheduled or postponed matches.')
             return redirect('matches:match_detail', pk=pk)
@@ -292,12 +310,12 @@ class WalkoverView(View):
         if form.is_valid():
             winner_choice = form.cleaned_data['winner']
             winner = match.player1 if winner_choice == WalkoverForm.WINNER_P1 else match.player2
-            match.status = Match.STATUS_WALKOVER
+            match.status = Match.STATUS_PENDING
             match.winner = winner
             match.walkover_reason = form.cleaned_data['reason']
-            match.played_date = datetime.date.today()
-            match.save(update_fields=['status', 'winner', 'walkover_reason', 'played_date'])
-            messages.success(request, f'Match recorded as a walkover. {winner.get_full_name() or winner.username} wins.')
+            match.entered_by = request.user
+            match.save(update_fields=['status', 'winner', 'walkover_reason', 'entered_by'])
+            messages.success(request, 'Walkover submitted — awaiting confirmation from the other player.')
             return redirect('matches:match_detail', pk=pk)
         return render(request, self.template_name, self._context(form, match))
 

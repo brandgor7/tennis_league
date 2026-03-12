@@ -111,11 +111,13 @@
       {% endif %}
     {% endif %}
   {% endif %}
-  {% if user.is_staff %}
-    {% if match.status == 'scheduled' or match.status == 'postponed' %}
+  {% if match.status == 'scheduled' or match.status == 'postponed' %}
+    {% if user.is_authenticated %}
+      {% if user == match.player1 or user == match.player2 or user.is_staff %}
   <a href="{% url 'matches:walkover' match.pk %}" class="btn btn-outline-warning w-100 mb-2" style="min-height:44px;">
     Record Walkover
   </a>
+      {% endif %}
     {% endif %}
   {% endif %}
   {% if match.status == 'scheduled' or match.status == 'postponed' %}
@@ -238,11 +240,13 @@
         {% endif %}
       {% endif %}
     {% endif %}
-    {% if user.is_staff %}
-      {% if match.status == 'scheduled' or match.status == 'postponed' %}
+    {% if match.status == 'scheduled' or match.status == 'postponed' %}
+      {% if user.is_authenticated %}
+        {% if user == match.player1 or user == match.player2 or user.is_staff %}
     <a href="{% url 'matches:walkover' match.pk %}" class="btn btn-outline-warning">
       Record Walkover
     </a>
+        {% endif %}
       {% endif %}
     {% endif %}
     {% if match.status == 'scheduled' or match.status == 'postponed' %}
