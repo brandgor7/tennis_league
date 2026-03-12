@@ -111,6 +111,18 @@
       {% endif %}
     {% endif %}
   {% endif %}
+  {% if user.is_staff and match.status == 'scheduled' or user.is_staff and match.status == 'postponed' %}
+  <a href="{% url 'matches:walkover' match.pk %}" class="btn btn-outline-warning w-100 mb-2" style="min-height:44px;">
+    Record Walkover
+  </a>
+  {% endif %}
+  {% if match.status == 'scheduled' or match.status == 'pending_confirmation' %}
+    {% if user.is_authenticated and user == match.player1 or user.is_authenticated and user == match.player2 or user.is_authenticated and user.is_staff %}
+  <a href="{% url 'matches:postpone' match.pk %}" class="btn btn-outline-secondary w-100 mb-2" style="min-height:44px;">
+    Postpone
+  </a>
+    {% endif %}
+  {% endif %}
   {% if match.status == 'completed' or match.status == 'walkover' %}
   <a href="{% url 'leagues:results' season.pk %}" class="btn btn-outline-primary w-100">
     &larr; Back to Results
@@ -220,6 +232,18 @@
       Confirm / Dispute Result
     </a>
         {% endif %}
+      {% endif %}
+    {% endif %}
+    {% if user.is_staff and match.status == 'scheduled' or user.is_staff and match.status == 'postponed' %}
+    <a href="{% url 'matches:walkover' match.pk %}" class="btn btn-outline-warning">
+      Record Walkover
+    </a>
+    {% endif %}
+    {% if match.status == 'scheduled' or match.status == 'pending_confirmation' %}
+      {% if user.is_authenticated and user == match.player1 or user.is_authenticated and user == match.player2 or user.is_authenticated and user.is_staff %}
+    <a href="{% url 'matches:postpone' match.pk %}" class="btn btn-outline-secondary">
+      Postpone
+    </a>
       {% endif %}
     {% endif %}
     {% if match.status == 'completed' or match.status == 'walkover' %}

@@ -186,11 +186,13 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 
 **Goal:** Admin (or player) can handle unplayed and delayed matches.
 
-- [ ] **`matches/views.py`**:
-  - `WalkoverView` — `@staff_member_required`; `WalkoverForm`; set status, winner, reason
-  - `PostponeView` — `@login_required` (player or staff); `PostponeForm`; set new `scheduled_date`, status=`postponed`, add reason to `notes`
-- [ ] Templates: `walkover.html`, `postpone.html`
-- [ ] Wire into `matches/urls.py`
+- [x] **`matches/forms.py`** — `WalkoverForm` (winner RadioSelect + reason); `PostponeForm` (new_date + reason)
+- [x] **`matches/views.py`**:
+  - `WalkoverView` — `@staff_member_required`; `WalkoverForm`; set status, winner, reason, played_date
+  - `PostponeView` — `@login_required` (player or staff); `PostponeForm`; set new `scheduled_date`, status=`postponed`, append reason to `notes`
+- [x] Templates: `walkover.html`, `postpone.html` (mobile: full-width stacked; desktop: right-aligned, max-width 600px)
+- [x] Wire into `matches/urls.py` at `/matches/<id>/walkover/` and `/matches/<id>/postpone/`
+- [x] `match_detail.html` — Walkover button (staff, scheduled/postponed); Postpone button (player or staff, scheduled/pending)
 
 ---
 

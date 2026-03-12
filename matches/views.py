@@ -2,15 +2,17 @@ import datetime
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.admin.views.decorators import staff_member_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import F
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import TemplateView, DetailView
 
 from leagues.models import Season
-from .forms import ResultEntryForm
+from .forms import ResultEntryForm, WalkoverForm, PostponeForm
 from .models import Match, MatchSet
 
 
@@ -247,3 +249,85 @@ class ConfirmResultView(LoginRequiredMixin, View):
             'multi_tier': match.season.num_tiers > 1,
             'sets': match.sets.all(),
         })
+
+
+@method_decorator(staff_member_required, name='dispatch')
+class WalkoverView(View):
+    template_name = 'matches/walkover.html'
+
+    def _get_match(self, pk):
+        return get_object_or_404(
+            Match.objects.select_related('player1', 'player2', 'season'),
+            pk=pk,
+        )
+
+    def _context(self, form, match):
+        return {
+            'form': form,
+            'match': match,
+            'season': match.season,
+            'multi_tier': match.season.num_tiers > 1,
+        }
+
+    def get(self, request, pk):
+        match = self._get_match(pk)
+        return render(request, self.template_name, self._context(WalkoverForm(match=match), match))
+
+    def post(self, request, pk):
+        match = self._get_match(pk)
+        form = WalkoverForm(request.POST, match=match)
+        if form.is_valid():
+            winner_choice = form.cleaned_data['winner']
+            winner = match.player1 if winner_choice == WalkoverForm.WINNER_P1 else match.player2
+            match.status = Match.STATUS_WALKOVER
+            match.winner = winner
+            match.walkover_reason = form.cleaned_data.get('reason', '')
+            match.played_date = datetime.date.today()
+            match.save()
+            messages.success(request, f'Match recorded as a walkover. {winner.get_full_name() or winner.username} wins.')
+            return redirect('matches:match_detail', pk=pk)
+        return render(request, self.template_name, self._context(form, match))
+
+
+class PostponeView(LoginRequiredMixin, View):
+    template_name = 'matches/postpone.html'
+
+    def _get_match(self, request, pk):
+        match = get_object_or_404(
+            Match.objects.select_related('player1', 'player2', 'season'),
+            pk=pk,
+        )
+        if not (
+            request.user == match.player1
+            or request.user == match.player2
+            or request.user.is_staff
+        ):
+            raise PermissionDenied
+        return match
+
+    def _context(self, form, match):
+        return {
+            'form': form,
+            'match': match,
+            'season': match.season,
+            'multi_tier': match.season.num_tiers > 1,
+        }
+
+    def get(self, request, pk):
+        match = self._get_match(request, pk)
+        return render(request, self.template_name, self._context(PostponeForm(), match))
+
+    def post(self, request, pk):
+        match = self._get_match(request, pk)
+        form = PostponeForm(request.POST)
+        if form.is_valid():
+            reason = form.cleaned_data.get('reason', '').strip()
+            match.scheduled_date = form.cleaned_data['new_date']
+            match.status = Match.STATUS_POSTPONED
+            if reason:
+                existing = match.notes.strip()
+                match.notes = f'{existing}\nPostponed: {reason}'.strip()
+            match.save()
+            messages.success(request, 'Match postponed and rescheduled.')
+            return redirect('matches:match_detail', pk=pk)
+        return render(request, self.template_name, self._context(form, match))

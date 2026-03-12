@@ -1,3 +1,5 @@
+import datetime
+
 from django import forms
 from django.contrib.auth import get_user_model
 
@@ -68,6 +70,51 @@ class MatchScheduleForm(forms.ModelForm):
                 )
 
         return cleaned
+
+
+class WalkoverForm(forms.Form):
+    WINNER_P1 = 'player1'
+    WINNER_P2 = 'player2'
+
+    winner = forms.ChoiceField(
+        choices=[],
+        widget=forms.RadioSelect,
+        label='Winner',
+    )
+    reason = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+        label='Reason (optional)',
+    )
+
+    def __init__(self, *args, match=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.match = match
+        if match is not None:
+            p1_name = match.player1.get_full_name() or match.player1.username
+            p2_name = match.player2.get_full_name() or match.player2.username
+            self.fields['winner'].choices = [
+                (self.WINNER_P1, p1_name),
+                (self.WINNER_P2, p2_name),
+            ]
+
+
+class PostponeForm(forms.Form):
+    new_date = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+        label='New scheduled date',
+    )
+    reason = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+        label='Reason (optional)',
+    )
+
+    def clean_new_date(self):
+        date = self.cleaned_data['new_date']
+        if date < datetime.date.today():
+            raise forms.ValidationError('The new date must be today or in the future.')
+        return date
 
 
 class ResultEntryForm(forms.Form):
