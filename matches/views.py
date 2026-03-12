@@ -285,15 +285,18 @@ class WalkoverView(View):
 
     def post(self, request, pk):
         match = self._get_match(pk)
+        if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
+            messages.error(request, 'Walkovers can only be recorded for scheduled or postponed matches.')
+            return redirect('matches:match_detail', pk=pk)
         form = WalkoverForm(request.POST, match=match)
         if form.is_valid():
             winner_choice = form.cleaned_data['winner']
             winner = match.player1 if winner_choice == WalkoverForm.WINNER_P1 else match.player2
             match.status = Match.STATUS_WALKOVER
             match.winner = winner
-            match.walkover_reason = form.cleaned_data.get('reason', '')
+            match.walkover_reason = form.cleaned_data['reason']
             match.played_date = datetime.date.today()
-            match.save()
+            match.save(update_fields=['status', 'winner', 'walkover_reason', 'played_date'])
             messages.success(request, f'Match recorded as a walkover. {winner.get_full_name() or winner.username} wins.')
             return redirect('matches:match_detail', pk=pk)
         return render(request, self.template_name, self._context(form, match))
@@ -329,15 +332,18 @@ class PostponeView(LoginRequiredMixin, View):
 
     def post(self, request, pk):
         match = self._get_match(request, pk)
+        if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
+            messages.error(request, 'Only scheduled or postponed matches can be rescheduled.')
+            return redirect('matches:match_detail', pk=pk)
         form = PostponeForm(request.POST)
         if form.is_valid():
-            reason = form.cleaned_data.get('reason', '').strip()
+            reason = form.cleaned_data['reason'].strip()
             match.scheduled_date = form.cleaned_data['new_date']
             match.status = Match.STATUS_POSTPONED
             if reason:
                 existing = match.notes.strip()
                 match.notes = f'{existing}\nPostponed: {reason}'.strip()
-            match.save()
+            match.save(update_fields=['scheduled_date', 'status', 'notes'])
             messages.success(request, 'Match postponed and rescheduled.')
             return redirect('matches:match_detail', pk=pk)
         return render(request, self.template_name, self._context(form, match))
