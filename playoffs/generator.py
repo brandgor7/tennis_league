@@ -20,6 +20,11 @@ _ROUND_FOR_SIZE = {
 _ROUND_SEQUENCE = [Match.ROUND_R32, Match.ROUND_R16, Match.ROUND_QF, Match.ROUND_SF, Match.ROUND_FINAL]
 
 
+def bracket_size_for(n_qualifiers):
+    """Return the largest power-of-2 ≤ n_qualifiers, or 0 if fewer than 2."""
+    return 2 ** int(math.log2(n_qualifiers)) if n_qualifiers >= 2 else 0
+
+
 def _seed_order(n):
     """
     Return the 1-indexed seed positions in bracket slot order for a bracket of size n.
@@ -56,7 +61,7 @@ def generate_bracket(season, tier, generated_by):
         raise ValueError('Not enough players to generate a bracket (minimum 2 required).')
 
     # Largest power-of-2 ≤ max_qualifiers avoids the need for byes
-    bracket_size = 2 ** int(math.log2(max_qualifiers))
+    bracket_size = bracket_size_for(max_qualifiers)
     qualifiers = [row['player'] for row in standings[:bracket_size]]
 
     first_round_code = _ROUND_FOR_SIZE[bracket_size]

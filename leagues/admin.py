@@ -4,6 +4,8 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
 
 from .models import Season, SeasonPlayer
+from playoffs.generator import bracket_size_for, generate_bracket
+from playoffs.models import PlayoffBracket
 from standings.calculator import calculate_standings
 
 
@@ -52,20 +54,16 @@ class SeasonAdmin(admin.ModelAdmin):
         return super().change_view(request, object_id, form_url, extra_context)
 
     def generate_playoffs_view(self, request, season_id, tier):
-        from playoffs.generator import generate_bracket
-        from playoffs.models import PlayoffBracket
-
         season = get_object_or_404(Season, pk=season_id)
         existing_bracket = PlayoffBracket.objects.filter(season=season, tier=tier).first()
         standings = calculate_standings(season, tier)
-        import math
         max_q = min(season.playoff_qualifiers_count, len(standings))
-        bracket_size = 2 ** int(math.log2(max_q)) if max_q >= 2 else 0
-        qualifiers = standings[:bracket_size]
+        size = bracket_size_for(max_q)
+        qualifiers = standings[:size]
 
         if request.method == 'POST' and not existing_bracket:
             try:
-                bracket = generate_bracket(season, tier, request.user)
+                generate_bracket(season, tier, request.user)
                 messages.success(request, f'Tier {tier} playoff bracket generated successfully.')
                 return HttpResponseRedirect(
                     reverse('leagues:playoffs_tier', kwargs={'pk': season_id, 'tier': tier})
@@ -78,7 +76,7 @@ class SeasonAdmin(admin.ModelAdmin):
             'season': season,
             'tier': tier,
             'qualifiers': qualifiers,
-            'bracket_size': bracket_size,
+            'bracket_size': size,
             'existing_bracket': existing_bracket,
             'title': f'Generate Tier {tier} Playoffs — {season.name}',
         }

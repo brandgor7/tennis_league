@@ -2,11 +2,11 @@ from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import TemplateView
 
 from leagues.models import Season
-from .models import PlayoffBracket, PlayoffSlot
+from .generator import _ROUND_SEQUENCE
+from .models import PlayoffBracket
 from matches.models import Match
 
 
-_ROUND_SEQUENCE = [Match.ROUND_R32, Match.ROUND_R16, Match.ROUND_QF, Match.ROUND_SF, Match.ROUND_FINAL]
 _ROUND_LABELS = {
     Match.ROUND_R32: 'Round of 32',
     Match.ROUND_R16: 'Round of 16',

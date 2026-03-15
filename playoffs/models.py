@@ -39,6 +39,8 @@ class PlayoffSlot(models.Model):
 @receiver(post_save, sender=Match)
 def advance_playoff_winner(sender, instance, **kwargs):
     """When a playoff match finishes, place the winner in the next round's match."""
+    if instance.round == Match.ROUND_REGULAR:
+        return
     if instance.status not in (Match.STATUS_COMPLETED, Match.STATUS_WALKOVER):
         return
     if not instance.winner_id:
