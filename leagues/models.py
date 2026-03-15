@@ -42,6 +42,7 @@ class Season(models.Model):
     playoff_qualifiers_count = models.IntegerField(default=8)
     walkover_rule = models.CharField(max_length=20, choices=WALKOVER_CHOICES, default=WALKOVER_WINNER)
     postponement_deadline = models.IntegerField(default=14, help_text='Days allowed to reschedule')
+    grace_period_days = models.IntegerField(default=7, help_text='Days after the scheduled date a match can be played without a formal postponement')
     points_for_win = models.IntegerField(default=3)
     points_for_loss = models.IntegerField(default=0)
     points_for_walkover_loss = models.IntegerField(default=0)

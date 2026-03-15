@@ -1,3 +1,5 @@
+import datetime
+
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -5,7 +7,7 @@ from django.urls import reverse
 
 from leagues.models import Season, SeasonPlayer
 from .models import Match, MatchSet
-from .forms import MatchScheduleForm, ResultEntryForm
+from .forms import MatchScheduleForm, ResultEntryForm, WalkoverForm, PostponeForm
 
 User = get_user_model()
 
@@ -1029,3 +1031,532 @@ class ConfirmResultViewDisputeTest(ConfirmResultViewSetupMixin, TestCase):
             response,
             reverse('matches:match_detail', kwargs={'pk': self.match.pk}),
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 10 — WalkoverForm tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+class WalkoverFormTest(TestCase):
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025)
+        self.p1 = User.objects.create_user(username='p1', first_name='Alice', last_name='Smith')
+        self.p2 = User.objects.create_user(username='p2', first_name='Bob', last_name='Jones')
+        self.match = Match.objects.create(season=self.season, player1=self.p1, player2=self.p2)
+
+    def _form(self, winner, reason=''):
+        return WalkoverForm(data={'winner': winner, 'reason': reason}, match=self.match)
+
+    def test_player1_wins_valid(self):
+        form = self._form(WalkoverForm.WINNER_P1)
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_player2_wins_valid(self):
+        form = self._form(WalkoverForm.WINNER_P2)
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_missing_winner_invalid(self):
+        form = WalkoverForm(data={'reason': 'no show'}, match=self.match)
+        self.assertFalse(form.is_valid())
+        self.assertIn('winner', form.errors)
+
+    def test_invalid_winner_choice_rejected(self):
+        form = self._form('player3')
+        self.assertFalse(form.is_valid())
+
+    def test_reason_optional(self):
+        form = WalkoverForm(data={'winner': WalkoverForm.WINNER_P1}, match=self.match)
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_winner_choices_show_player_names(self):
+        form = WalkoverForm(match=self.match)
+        choice_labels = [label for _, label in form.fields['winner'].choices]
+        self.assertIn('Alice Smith', choice_labels)
+        self.assertIn('Bob Jones', choice_labels)
+
+    def test_winner_choices_fall_back_to_username(self):
+        p3 = User.objects.create_user(username='noname')
+        p4 = User.objects.create_user(username='alsononame')
+        match = Match.objects.create(season=self.season, player1=p3, player2=p4)
+        form = WalkoverForm(match=match)
+        choice_labels = [label for _, label in form.fields['winner'].choices]
+        self.assertIn('noname', choice_labels)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 10 — PostponeForm tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+class PostponeFormTest(TestCase):
+    def _form(self, date, reason=''):
+        return PostponeForm(data={'new_date': date.isoformat(), 'reason': reason})
+
+    def test_future_date_valid(self):
+        form = self._form(datetime.date.today() + datetime.timedelta(days=7))
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_today_valid(self):
+        form = self._form(datetime.date.today())
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_past_date_invalid(self):
+        form = self._form(datetime.date.today() - datetime.timedelta(days=1))
+        self.assertFalse(form.is_valid())
+        self.assertIn('new_date', form.errors)
+
+    def test_reason_optional(self):
+        form = PostponeForm(data={'new_date': datetime.date.today().isoformat()})
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_missing_date_invalid(self):
+        form = PostponeForm(data={'reason': 'rain'})
+        self.assertFalse(form.is_valid())
+        self.assertIn('new_date', form.errors)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 10 — WalkoverView tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+class WalkoverViewSetupMixin:
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025)
+        self.p1 = User.objects.create_user(username='p1', password='pass')
+        self.p2 = User.objects.create_user(username='p2', password='pass')
+        self.staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+        self.match = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_SCHEDULED,
+        )
+        self.url = reverse('matches:walkover', kwargs={'pk': self.match.pk})
+
+
+class WalkoverViewGetTest(WalkoverViewSetupMixin, TestCase):
+    def test_anonymous_redirects(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response['Location'])
+
+    def test_unrelated_user_gets_403(self):
+        other = User.objects.create_user(username='other', password='pass')
+        self.client.login(username='other', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_player1_can_access(self):
+        self.client.login(username='p1', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_player2_can_access(self):
+        self.client.login(username='p2', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_staff_can_access(self):
+        self.client.login(username='staff', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_uses_walkover_template(self):
+        self.client.login(username='p1', password='pass')
+        response = self.client.get(self.url)
+        self.assertTemplateUsed(response, 'matches/walkover.html')
+
+    def test_context_has_form_and_match(self):
+        self.client.login(username='p1', password='pass')
+        response = self.client.get(self.url)
+        self.assertIn('form', response.context)
+        self.assertEqual(response.context['match'], self.match)
+
+
+class WalkoverViewPostTest(WalkoverViewSetupMixin, TestCase):
+    def _post(self, winner=WalkoverForm.WINNER_P1, reason='', user='p1'):
+        self.client.login(username=user, password='pass')
+        return self.client.post(self.url, {'winner': winner, 'reason': reason})
+
+    def test_sets_status_pending(self):
+        self._post()
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_PENDING)
+
+    def test_sets_winner_player1(self):
+        self._post(winner=WalkoverForm.WINNER_P1)
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.winner, self.p1)
+
+    def test_sets_winner_player2(self):
+        self._post(winner=WalkoverForm.WINNER_P2)
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.winner, self.p2)
+
+    def test_sets_walkover_reason(self):
+        self._post(reason='No show')
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.walkover_reason, 'No show')
+
+    def test_empty_reason_stored_as_empty_string(self):
+        self._post(reason='')
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.walkover_reason, '')
+
+    def test_sets_entered_by(self):
+        self._post(user='p1')
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.entered_by, self.p1)
+
+    def test_played_date_not_set_until_confirmed(self):
+        self._post()
+        self.match.refresh_from_db()
+        self.assertIsNone(self.match.played_date)
+
+    def test_redirects_to_match_detail(self):
+        response = self._post()
+        self.assertRedirects(response, reverse('matches:match_detail', kwargs={'pk': self.match.pk}))
+
+    def test_player2_can_submit(self):
+        self._post(user='p2')
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_PENDING)
+
+    def test_staff_can_submit(self):
+        self._post(user='staff')
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_PENDING)
+
+    def test_invalid_form_rerenders(self):
+        self.client.login(username='p1', password='pass')
+        response = self.client.post(self.url, {'winner': 'invalid_choice'})
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'matches/walkover.html')
+
+    def test_completed_match_rejected(self):
+        self.match.status = Match.STATUS_COMPLETED
+        self.match.winner = self.p1
+        self.match.save()
+        self._post()
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_COMPLETED)
+
+    def test_already_walkover_rejected(self):
+        self.match.status = Match.STATUS_WALKOVER
+        self.match.winner = self.p1
+        self.match.save()
+        self._post(winner=WalkoverForm.WINNER_P2)
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.winner, self.p1)
+
+    def test_postponed_match_accepted(self):
+        self.match.status = Match.STATUS_POSTPONED
+        self.match.save()
+        self._post()
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_PENDING)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 10 — PostponeView tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+class PostponeViewSetupMixin:
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025)
+        self.p1 = User.objects.create_user(username='p1', password='pass')
+        self.p2 = User.objects.create_user(username='p2', password='pass')
+        self.staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+        self.match = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_SCHEDULED,
+        )
+        self.url = reverse('matches:postpone', kwargs={'pk': self.match.pk})
+        self.future_date = (datetime.date.today() + datetime.timedelta(days=7)).isoformat()
+
+
+class PostponeViewGetTest(PostponeViewSetupMixin, TestCase):
+    def test_anonymous_redirects(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response['Location'])
+
+    def test_unrelated_user_gets_403(self):
+        other = User.objects.create_user(username='other', password='pass')
+        self.client.login(username='other', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_player1_can_access(self):
+        self.client.login(username='p1', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_player2_can_access(self):
+        self.client.login(username='p2', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_staff_can_access(self):
+        self.client.login(username='staff', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_uses_postpone_template(self):
+        self.client.login(username='p1', password='pass')
+        response = self.client.get(self.url)
+        self.assertTemplateUsed(response, 'matches/postpone.html')
+
+    def test_context_has_form_and_match(self):
+        self.client.login(username='p1', password='pass')
+        response = self.client.get(self.url)
+        self.assertIn('form', response.context)
+        self.assertEqual(response.context['match'], self.match)
+
+
+class PostponeViewPostTest(PostponeViewSetupMixin, TestCase):
+    def _post(self, date=None, reason='', user='p1'):
+        self.client.login(username=user, password='pass')
+        return self.client.post(self.url, {
+            'new_date': date or self.future_date,
+            'reason': reason,
+        })
+
+    def test_sets_status_postponed(self):
+        self._post()
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_POSTPONED)
+
+    def test_sets_new_scheduled_date(self):
+        new_date = datetime.date.today() + datetime.timedelta(days=14)
+        self._post(date=new_date.isoformat())
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.scheduled_date, new_date)
+
+    def test_reason_appended_to_notes(self):
+        self._post(reason='Rain delay')
+        self.match.refresh_from_db()
+        self.assertIn('Rain delay', self.match.notes)
+        self.assertIn('Postponed:', self.match.notes)
+
+    def test_reason_appended_to_existing_notes(self):
+        self.match.notes = 'Previous note'
+        self.match.save()
+        self._post(reason='Injury')
+        self.match.refresh_from_db()
+        self.assertIn('Previous note', self.match.notes)
+        self.assertIn('Injury', self.match.notes)
+
+    def test_empty_reason_does_not_change_notes(self):
+        self.match.notes = 'Original'
+        self.match.save()
+        self._post(reason='')
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.notes, 'Original')
+
+    def test_redirects_to_match_detail(self):
+        response = self._post()
+        self.assertRedirects(response, reverse('matches:match_detail', kwargs={'pk': self.match.pk}))
+
+    def test_past_date_rerenders_form(self):
+        past = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+        response = self._post(date=past)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'matches/postpone.html')
+
+    def test_past_date_does_not_change_status(self):
+        past = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+        self._post(date=past)
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_SCHEDULED)
+
+    def test_player2_can_postpone(self):
+        self._post(user='p2')
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_POSTPONED)
+
+    def test_staff_can_postpone(self):
+        self._post(user='staff')
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_POSTPONED)
+
+    def test_completed_match_rejected(self):
+        self.match.status = Match.STATUS_COMPLETED
+        self.match.winner = self.p1
+        self.match.save()
+        self._post()
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_COMPLETED)
+
+    def test_walkover_match_rejected(self):
+        self.match.status = Match.STATUS_WALKOVER
+        self.match.winner = self.p1
+        self.match.save()
+        self._post()
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_WALKOVER)
+
+    def test_already_postponed_match_can_be_rescheduled(self):
+        self.match.status = Match.STATUS_POSTPONED
+        self.match.save()
+        new_date = datetime.date.today() + datetime.timedelta(days=21)
+        self._post(date=new_date.isoformat())
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.scheduled_date, new_date)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 10 — Walkover confirmation (via ConfirmResultView) tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+class WalkoverConfirmTest(TestCase):
+    """Walkover submitted by player1, confirmed/disputed by player2."""
+
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025)
+        self.p1 = User.objects.create_user(username='p1', password='pass')
+        self.p2 = User.objects.create_user(username='p2', password='pass')
+        self.match = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_PENDING,
+            entered_by=self.p1,
+            winner=self.p1,
+            walkover_reason='No show',
+        )
+        self.url = reverse('matches:confirm_result', kwargs={'pk': self.match.pk})
+
+    def test_get_shows_is_walkover_true(self):
+        self.client.login(username='p2', password='pass')
+        response = self.client.get(self.url)
+        self.assertTrue(response.context['is_walkover'])
+
+    def test_get_shows_is_walkover_false_when_sets_exist(self):
+        MatchSet.objects.create(match=self.match, set_number=1, player1_games=6, player2_games=3)
+        MatchSet.objects.create(match=self.match, set_number=2, player1_games=6, player2_games=4)
+        self.client.login(username='p2', password='pass')
+        response = self.client.get(self.url)
+        self.assertFalse(response.context['is_walkover'])
+
+    def test_confirm_sets_status_walkover(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'confirm'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_WALKOVER)
+
+    def test_confirm_preserves_winner(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'confirm'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.winner, self.p1)
+
+    def test_confirm_sets_confirmed_by(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'confirm'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.confirmed_by, self.p2)
+
+    def test_confirm_sets_played_date(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'confirm'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.played_date, datetime.date.today())
+
+    def test_dispute_resets_to_scheduled(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'dispute'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_SCHEDULED)
+
+    def test_dispute_clears_winner(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'dispute'})
+        self.match.refresh_from_db()
+        self.assertIsNone(self.match.winner)
+
+    def test_dispute_clears_walkover_reason(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'dispute'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.walkover_reason, '')
+
+    def test_dispute_clears_entered_by(self):
+        self.client.login(username='p2', password='pass')
+        self.client.post(self.url, {'action': 'dispute'})
+        self.match.refresh_from_db()
+        self.assertIsNone(self.match.entered_by)
+
+    def test_entered_by_player_cannot_confirm_own_walkover(self):
+        self.client.login(username='p1', password='pass')
+        response = self.client.post(self.url, {'action': 'confirm'})
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_can_confirm_walkover(self):
+        staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+        self.client.login(username='staff', password='pass')
+        self.client.post(self.url, {'action': 'confirm'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_WALKOVER)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 10 — Grace period (EnterResultView) tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+class GracePeriodTest(TestCase):
+    def setUp(self):
+        self.season = Season.objects.create(
+            name='Spring', year=2025, sets_to_win=2,
+            final_set_format=Season.FINAL_SET_FULL,
+            grace_period_days=7,
+        )
+        self.p1 = User.objects.create_user(username='p1', password='pass')
+        self.p2 = User.objects.create_user(username='p2', password='pass')
+        self.client.login(username='p1', password='pass')
+
+    def _match(self, scheduled_date):
+        return Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_SCHEDULED, scheduled_date=scheduled_date,
+        )
+
+    def _get_url(self, match):
+        return reverse('matches:enter_result', kwargs={'pk': match.pk})
+
+    def test_within_grace_period_allowed(self):
+        match = self._match(datetime.date.today() - datetime.timedelta(days=3))
+        response = self.client.get(self._get_url(match))
+        self.assertEqual(response.status_code, 200)
+
+    def test_on_deadline_day_allowed(self):
+        match = self._match(datetime.date.today() - datetime.timedelta(days=7))
+        response = self.client.get(self._get_url(match))
+        self.assertEqual(response.status_code, 200)
+
+    def test_one_day_past_deadline_blocked(self):
+        match = self._match(datetime.date.today() - datetime.timedelta(days=8))
+        response = self.client.get(self._get_url(match))
+        self.assertEqual(response.status_code, 302)
+
+    def test_no_scheduled_date_always_allowed(self):
+        match = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_SCHEDULED, scheduled_date=None,
+        )
+        response = self.client.get(self._get_url(match))
+        self.assertEqual(response.status_code, 200)
+
+    def test_grace_period_zero_means_must_play_on_day(self):
+        self.season.grace_period_days = 0
+        self.season.save()
+        match = self._match(datetime.date.today() - datetime.timedelta(days=1))
+        response = self.client.get(self._get_url(match))
+        self.assertEqual(response.status_code, 302)
+
+    def test_large_grace_period_allows_old_match(self):
+        self.season.grace_period_days = 365
+        self.season.save()
+        match = self._match(datetime.date.today() - datetime.timedelta(days=100))
+        response = self.client.get(self._get_url(match))
+        self.assertEqual(response.status_code, 200)
+
+    def test_future_scheduled_date_always_allowed(self):
+        match = self._match(datetime.date.today() + datetime.timedelta(days=5))
+        response = self.client.get(self._get_url(match))
+        self.assertEqual(response.status_code, 200)

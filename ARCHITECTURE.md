@@ -257,6 +257,7 @@ final_set_format          CharField       full | tiebreak | super
 playoff_qualifiers_count  IntegerField    e.g. 8, 16, 32 — applies per tier
 walkover_rule             CharField       winner | split | none
 postponement_deadline     IntegerField    days allowed to reschedule
+grace_period_days         IntegerField    default 7; days after scheduled_date a match can be played without a formal postponement
 points_for_win            IntegerField    default 3
 points_for_loss           IntegerField    default 0
 points_for_walkover_loss  IntegerField    default 0 (set to 1 if walkover_rule=split)

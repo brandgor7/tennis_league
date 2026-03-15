@@ -20,7 +20,7 @@ class SeasonAdmin(admin.ModelAdmin):
         ('Match Format', {'fields': ('sets_to_win', 'games_to_win_set', 'final_set_format')}),
         ('Playoffs', {'fields': ('playoff_qualifiers_count',)}),
         ('Points', {'fields': ('points_for_win', 'points_for_loss', 'points_for_walkover_loss')}),
-        ('Rules', {'fields': ('walkover_rule', 'postponement_deadline')}),
+        ('Rules', {'fields': ('walkover_rule', 'postponement_deadline', 'grace_period_days')}),
     )
 
 

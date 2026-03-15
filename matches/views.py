@@ -10,7 +10,7 @@ from django.views import View
 from django.views.generic import TemplateView, DetailView
 
 from leagues.models import Season
-from .forms import ResultEntryForm
+from .forms import ResultEntryForm, WalkoverForm, PostponeForm
 from .models import Match, MatchSet
 
 
@@ -130,6 +130,16 @@ class EnterResultView(LoginRequiredMixin, View):
         if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
             messages.error(request, 'Results can only be entered for scheduled or postponed matches.')
             return False
+        if match.scheduled_date:
+            grace = match.season.grace_period_days
+            deadline = match.scheduled_date + datetime.timedelta(days=grace)
+            if datetime.date.today() > deadline:
+                messages.error(
+                    request,
+                    f'This match is more than {grace} day{"s" if grace != 1 else ""} past its scheduled date. '
+                    'Please postpone it with a new date before entering the result.',
+                )
+                return False
         return True
 
     def get(self, request, pk):
@@ -197,11 +207,13 @@ class ConfirmResultView(LoginRequiredMixin, View):
         match = self._get_match(request, pk)
         if match is None:
             return redirect('matches:match_detail', pk=pk)
+        sets = match.sets.all()
         return render(request, self.template_name, {
             'match': match,
             'season': match.season,
             'multi_tier': match.season.num_tiers > 1,
-            'sets': match.sets.all(),
+            'sets': sets,
+            'is_walkover': not sets,
         })
 
     def post(self, request, pk):
@@ -213,18 +225,26 @@ class ConfirmResultView(LoginRequiredMixin, View):
         if action == 'confirm':
             with transaction.atomic():
                 sets = list(match.sets.select_for_update().all())
-                p1_sets = sum(1 for s in sets if s.player1_games > s.player2_games)
-                p2_sets = sum(1 for s in sets if s.player2_games > s.player1_games)
-                if p1_sets == p2_sets:
-                    messages.error(request, 'Cannot confirm: sets are tied. Please contact the administrator.')
-                    return redirect('matches:match_detail', pk=pk)
-                winner = match.player1 if p1_sets > p2_sets else match.player2
-                match.status = Match.STATUS_COMPLETED
-                match.confirmed_by = request.user
-                match.played_date = datetime.date.today()
-                match.winner = winner
-                match.save()
-            messages.success(request, 'Result confirmed. Match is now complete.')
+                if not sets:
+                    # Walkover confirmation — winner already set by WalkoverView
+                    match.status = Match.STATUS_WALKOVER
+                    match.confirmed_by = request.user
+                    match.played_date = datetime.date.today()
+                    match.save(update_fields=['status', 'confirmed_by', 'played_date'])
+                    messages.success(request, 'Walkover confirmed.')
+                else:
+                    p1_sets = sum(1 for s in sets if s.player1_games > s.player2_games)
+                    p2_sets = sum(1 for s in sets if s.player2_games > s.player1_games)
+                    if p1_sets == p2_sets:
+                        messages.error(request, 'Cannot confirm: sets are tied. Please contact the administrator.')
+                        return redirect('matches:match_detail', pk=pk)
+                    winner = match.player1 if p1_sets > p2_sets else match.player2
+                    match.status = Match.STATUS_COMPLETED
+                    match.confirmed_by = request.user
+                    match.played_date = datetime.date.today()
+                    match.winner = winner
+                    match.save()
+                    messages.success(request, 'Result confirmed. Match is now complete.')
             return redirect('matches:match_detail', pk=pk)
 
         elif action == 'dispute':
@@ -232,18 +252,116 @@ class ConfirmResultView(LoginRequiredMixin, View):
                 match.sets.all().delete()
                 match.status = Match.STATUS_SCHEDULED
                 match.entered_by = None
+                match.winner = None
+                match.walkover_reason = ''
                 match.save()
             messages.warning(
                 request,
-                'Score disputed. The match has been reset to scheduled. '
+                'Result disputed. The match has been reset to scheduled. '
                 'Please contact the administrator to resolve the discrepancy.',
             )
             return redirect('matches:match_detail', pk=pk)
 
         # Unknown action — re-render
+        sets = match.sets.all()
         return render(request, self.template_name, {
             'match': match,
             'season': match.season,
             'multi_tier': match.season.num_tiers > 1,
-            'sets': match.sets.all(),
+            'sets': sets,
+            'is_walkover': not sets,
         })
+
+
+class WalkoverView(LoginRequiredMixin, View):
+    template_name = 'matches/walkover.html'
+
+    def _get_match(self, request, pk):
+        match = get_object_or_404(
+            Match.objects.select_related('player1', 'player2', 'season'),
+            pk=pk,
+        )
+        if not (
+            request.user == match.player1
+            or request.user == match.player2
+            or request.user.is_staff
+        ):
+            raise PermissionDenied
+        return match
+
+    def _context(self, form, match):
+        return {
+            'form': form,
+            'match': match,
+            'season': match.season,
+            'multi_tier': match.season.num_tiers > 1,
+        }
+
+    def get(self, request, pk):
+        match = self._get_match(request, pk)
+        return render(request, self.template_name, self._context(WalkoverForm(match=match), match))
+
+    def post(self, request, pk):
+        match = self._get_match(request, pk)
+        if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
+            messages.error(request, 'Walkovers can only be recorded for scheduled or postponed matches.')
+            return redirect('matches:match_detail', pk=pk)
+        form = WalkoverForm(request.POST, match=match)
+        if form.is_valid():
+            winner_choice = form.cleaned_data['winner']
+            winner = match.player1 if winner_choice == WalkoverForm.WINNER_P1 else match.player2
+            match.status = Match.STATUS_PENDING
+            match.winner = winner
+            match.walkover_reason = form.cleaned_data['reason']
+            match.entered_by = request.user
+            match.save(update_fields=['status', 'winner', 'walkover_reason', 'entered_by'])
+            messages.success(request, 'Walkover submitted — awaiting confirmation from the other player.')
+            return redirect('matches:match_detail', pk=pk)
+        return render(request, self.template_name, self._context(form, match))
+
+
+class PostponeView(LoginRequiredMixin, View):
+    template_name = 'matches/postpone.html'
+
+    def _get_match(self, request, pk):
+        match = get_object_or_404(
+            Match.objects.select_related('player1', 'player2', 'season'),
+            pk=pk,
+        )
+        if not (
+            request.user == match.player1
+            or request.user == match.player2
+            or request.user.is_staff
+        ):
+            raise PermissionDenied
+        return match
+
+    def _context(self, form, match):
+        return {
+            'form': form,
+            'match': match,
+            'season': match.season,
+            'multi_tier': match.season.num_tiers > 1,
+        }
+
+    def get(self, request, pk):
+        match = self._get_match(request, pk)
+        return render(request, self.template_name, self._context(PostponeForm(), match))
+
+    def post(self, request, pk):
+        match = self._get_match(request, pk)
+        if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
+            messages.error(request, 'Only scheduled or postponed matches can be rescheduled.')
+            return redirect('matches:match_detail', pk=pk)
+        form = PostponeForm(request.POST)
+        if form.is_valid():
+            reason = form.cleaned_data['reason'].strip()
+            match.scheduled_date = form.cleaned_data['new_date']
+            match.status = Match.STATUS_POSTPONED
+            if reason:
+                existing = match.notes.strip()
+                match.notes = f'{existing}\nPostponed: {reason}'.strip()
+            match.save(update_fields=['scheduled_date', 'status', 'notes'])
+            messages.success(request, 'Match postponed and rescheduled.')
+            return redirect('matches:match_detail', pk=pk)
+        return render(request, self.template_name, self._context(form, match))

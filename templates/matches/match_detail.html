@@ -111,6 +111,24 @@
       {% endif %}
     {% endif %}
   {% endif %}
+  {% if match.status == 'scheduled' or match.status == 'postponed' %}
+    {% if user.is_authenticated %}
+      {% if user == match.player1 or user == match.player2 or user.is_staff %}
+  <a href="{% url 'matches:walkover' match.pk %}" class="btn btn-outline-warning w-100 mb-2" style="min-height:44px;">
+    Record Walkover
+  </a>
+      {% endif %}
+    {% endif %}
+  {% endif %}
+  {% if match.status == 'scheduled' or match.status == 'postponed' %}
+    {% if user.is_authenticated %}
+      {% if user == match.player1 or user == match.player2 or user.is_staff %}
+  <a href="{% url 'matches:postpone' match.pk %}" class="btn btn-outline-secondary w-100 mb-2" style="min-height:44px;">
+    Postpone
+  </a>
+      {% endif %}
+    {% endif %}
+  {% endif %}
   {% if match.status == 'completed' or match.status == 'walkover' %}
   <a href="{% url 'leagues:results' season.pk %}" class="btn btn-outline-primary w-100">
     &larr; Back to Results
@@ -218,6 +236,24 @@
         {% if user != match.entered_by and user == match.player1 or user != match.entered_by and user == match.player2 or user.is_staff %}
     <a href="{% url 'matches:confirm_result' match.pk %}" class="btn btn-success">
       Confirm / Dispute Result
+    </a>
+        {% endif %}
+      {% endif %}
+    {% endif %}
+    {% if match.status == 'scheduled' or match.status == 'postponed' %}
+      {% if user.is_authenticated %}
+        {% if user == match.player1 or user == match.player2 or user.is_staff %}
+    <a href="{% url 'matches:walkover' match.pk %}" class="btn btn-outline-warning">
+      Record Walkover
+    </a>
+        {% endif %}
+      {% endif %}
+    {% endif %}
+    {% if match.status == 'scheduled' or match.status == 'postponed' %}
+      {% if user.is_authenticated %}
+        {% if user == match.player1 or user == match.player2 or user.is_staff %}
+    <a href="{% url 'matches:postpone' match.pk %}" class="btn btn-outline-secondary">
+      Postpone
     </a>
         {% endif %}
       {% endif %}

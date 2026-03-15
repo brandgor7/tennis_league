@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Record Walkover — {{ match.player1.get_full_name|default:match.player1.username }} vs
+  {{ match.player2.get_full_name|default:match.player2.username }} — TennisLeague
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <h1>Record Walkover</h1>
+  <p class="page-meta">
+    {{ match.player1.get_full_name|default:match.player1.username }}
+    <span class="text-muted" style="font-size:0.85em;">vs</span>
+    {{ match.player2.get_full_name|default:match.player2.username }}
+    &nbsp;·&nbsp; {{ season.name }}
+    {% if multi_tier and match.tier %}
+    &nbsp;·&nbsp; Tier {{ match.tier }}
+    {% endif %}
+  </p>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-12 col-md-6" style="max-width:600px;">
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <div class="mb-4">
+        <label class="form-label fw-500">{{ form.winner.label }}</label>
+        {% if form.winner.errors %}
+        <div class="text-danger small mb-1">{{ form.winner.errors }}</div>
+        {% endif %}
+        {% for radio in form.winner %}
+        <div class="form-check">
+          {{ radio.tag }}
+          <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label fw-500" for="{{ form.reason.id_for_label }}">{{ form.reason.label }}</label>
+        {% if form.reason.errors %}
+        <div class="text-danger small mb-1">{{ form.reason.errors }}</div>
+        {% endif %}
+        {{ form.reason }}
+      </div>
+
+      {# Mobile: full-width stacked buttons #}
+      <div class="d-block d-md-none">
+        <button type="submit" class="btn btn-warning btn-lg w-100 mb-2" style="min-height:44px;">
+          Record Walkover
+        </button>
+        <a href="{% url 'matches:match_detail' match.pk %}" class="btn btn-outline-secondary w-100" style="min-height:44px;">
+          Cancel
+        </a>
+      </div>
+
+      {# Desktop: right-aligned buttons #}
+      <div class="d-none d-md-flex gap-2 justify-content-end">
+        <a href="{% url 'matches:match_detail' match.pk %}" class="btn btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn btn-warning">Record Walkover</button>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+{% endblock %}
