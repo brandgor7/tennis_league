@@ -1,0 +1,54 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div style="max-width: 720px;">
+  <h1>{{ title }}</h1>
+
+  {% if existing_bracket %}
+  <div class="alert alert-warning">
+    A bracket for Tier {{ tier }} was already generated on {{ existing_bracket.generated_at|date:"N j, Y" }}.
+    Delete it from the admin before regenerating.
+  </div>
+  {% elif bracket_size == 0 %}
+  <div class="alert alert-warning">
+    Not enough players with standings to generate a bracket (minimum 2 required).
+  </div>
+  {% else %}
+  <p>
+    <strong>{{ qualifiers|length }}</strong> player{{ qualifiers|length|pluralize }} will qualify
+    into a <strong>{{ bracket_size }}-player bracket</strong>.
+    Players are seeded by current standings.
+  </p>
+
+  <table class="table table-sm" style="max-width: 400px; margin-bottom: 1.5rem;">
+    <thead>
+      <tr><th>#</th><th>Player</th><th>Pts</th><th>W</th><th>L</th></tr>
+    </thead>
+    <tbody>
+      {% for row in qualifiers %}
+      <tr>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ row.player.get_full_name|default:row.player.username }}</td>
+        <td>{{ row.points }}</td>
+        <td>{{ row.wins }}</td>
+        <td>{{ row.losses }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit" class="button default" onclick="this.disabled=true;this.form.submit();">
+      Generate Bracket
+    </button>
+    <a href="../../../" class="button cancel-link" style="margin-left: 0.75rem;">Cancel</a>
+  </form>
+  {% endif %}
+
+  {% if not existing_bracket and bracket_size > 0 %}
+  {% else %}
+  <p style="margin-top: 1rem;"><a href="../../../">&lsaquo; Back to season</a></p>
+  {% endif %}
+</div>
+{% endblock %}

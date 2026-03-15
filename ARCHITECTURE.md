@@ -278,8 +278,8 @@ UNIQUE: (season, player)
 ### `matches.Match`
 ```
 season          FK → Season
-player1         FK → User
-player2         FK → User
+player1         FK → User (nullable)   null for TBD playoff slots until winner is determined
+player2         FK → User (nullable)   null for TBD playoff slots until winner is determined
 tier            IntegerField (nullable)   which tier this match belongs to; set from players' tier at match creation
 round           CharField    regular | r32 | r16 | qf | sf | f
 scheduled_date  DateField (nullable)

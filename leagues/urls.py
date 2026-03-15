@@ -3,6 +3,7 @@ from django.urls import path
 from . import views
 from standings.views import StandingsView
 from matches.views import MatchupsView, ResultsView
+from playoffs.views import PlayoffListView, PlayoffBracketView
 
 app_name = 'leagues'
 
@@ -12,4 +13,6 @@ urlpatterns = [
     path('seasons/<int:pk>/standings/', StandingsView.as_view(), name='standings'),
     path('seasons/<int:pk>/matchups/', MatchupsView.as_view(), name='matchups'),
     path('seasons/<int:pk>/results/', ResultsView.as_view(), name='results'),
+    path('seasons/<int:pk>/playoffs/', PlayoffListView.as_view(), name='playoffs'),
+    path('seasons/<int:pk>/playoffs/<int:tier>/', PlayoffBracketView.as_view(), name='playoffs_tier'),
 ]

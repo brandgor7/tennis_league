@@ -22,7 +22,7 @@ class MatchupsView(TemplateView):
         season = get_object_or_404(Season, pk=self.kwargs['pk'])
         qs = (
             Match.objects
-            .filter(season=season, status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED, Match.STATUS_PENDING])
+            .filter(season=season, status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED])
             .select_related('player1', 'player2', 'winner')
             .order_by(F('scheduled_date').asc(nulls_last=True), 'created_at')
         )

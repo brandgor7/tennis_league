@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Playoffs — {{ season.name }}{% endblock %}
+{% block nav_playoffs %}nav-active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Playoffs</h1>
+  <p class="page-meta">{{ season.name }}</p>
+</div>
+
+<div class="row g-3">
+  {% for tier_num, bracket in tier_brackets %}
+  <div class="col-sm-6 col-md-4">
+    <div class="card h-100">
+      <div class="card-header">Tier {{ tier_num }}</div>
+      <div class="card-body d-flex flex-column justify-content-between">
+        {% if bracket %}
+        <p class="text-muted mb-3" style="font-size: 0.85rem;">
+          Generated {{ bracket.generated_at|date:"N j, Y" }}
+        </p>
+        <a href="{% url 'leagues:playoffs_tier' season.pk tier_num %}" class="btn btn-primary btn-sm align-self-start">
+          View Bracket
+        </a>
+        {% else %}
+        <p class="text-muted mb-0">Bracket not yet generated.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

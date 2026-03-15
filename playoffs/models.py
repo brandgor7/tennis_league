@@ -1,6 +1,8 @@
 from django.db import models
 from django.conf import settings
-from matches.models import PLAYOFF_ROUND_CHOICES
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from matches.models import PLAYOFF_ROUND_CHOICES, Match
 
 
 class PlayoffBracket(models.Model):
@@ -32,3 +34,26 @@ class PlayoffSlot(models.Model):
 
     def __str__(self):
         return f'{self.bracket} — {self.get_round_display()} pos {self.bracket_position}'
+
+
+@receiver(post_save, sender=Match)
+def advance_playoff_winner(sender, instance, **kwargs):
+    """When a playoff match finishes, place the winner in the next round's match."""
+    if instance.status not in (Match.STATUS_COMPLETED, Match.STATUS_WALKOVER):
+        return
+    if not instance.winner_id:
+        return
+    try:
+        slot = instance.playoff_slot
+    except PlayoffSlot.DoesNotExist:
+        return
+    if not slot.next_slot:
+        return
+
+    next_match = slot.next_slot.match
+    prev_slots = list(slot.next_slot.previous_slots.order_by('bracket_position'))
+    if prev_slots and slot == prev_slots[0]:
+        next_match.player1 = instance.winner
+    else:
+        next_match.player2 = instance.winner
+    next_match.save(update_fields=['player1', 'player2'])

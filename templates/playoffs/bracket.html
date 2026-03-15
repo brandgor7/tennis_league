@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}{{ season.name }} — {% if multi_tier %}Tier {{ tier }} {% endif %}Playoffs{% endblock %}
+{% block nav_playoffs %}nav-active{% endblock %}
+
+{% block extra_css %}
+<style>
+  .bracket-scroll {
+    overflow-x: auto;
+    padding-bottom: 1rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .bracket-rounds-header {
+    display: grid;
+    grid-template-columns: repeat({{ num_rounds }}, 200px);
+    gap: 0 2.5rem;
+    margin-bottom: 0.5rem;
+    min-width: max-content;
+  }
+
+  .bracket-round-label {
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    padding: 0.4rem 0;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .bracket-grid {
+    display: grid;
+    grid-template-rows: repeat({{ bracket_size }}, 52px);
+    grid-template-columns: repeat({{ num_rounds }}, 200px);
+    gap: 0 2.5rem;
+    min-width: max-content;
+  }
+
+  .bracket-match {
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+
+  .bracket-match:not(.bracket-final)::after {
+    content: '';
+    position: absolute;
+    right: -1.25rem;
+    top: 50%;
+    width: 1.25rem;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .bracket-card {
+    width: 100%;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  .bracket-player {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.82rem;
+    line-height: 1.3;
+    min-height: 34px;
+    gap: 0.4rem;
+  }
+
+  .bracket-player + .bracket-player {
+    border-top: 1px solid var(--border);
+  }
+
+  .bracket-player.is-winner {
+    font-weight: 700;
+    color: var(--clay);
+    background: rgba(196, 82, 42, 0.04);
+  }
+
+  .bracket-player.is-loser {
+    color: var(--muted);
+  }
+
+  .bracket-player-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+
+  .bracket-player-score {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+  }
+
+  .bracket-tbd {
+    color: var(--muted);
+    font-style: italic;
+    font-size: 0.82rem;
+  }
+
+  @media (max-width: 767.98px) {
+    .bracket-full-name { display: none; }
+    .bracket-short-name { display: inline; }
+  }
+  @media (min-width: 768px) {
+    .bracket-full-name { display: inline; }
+    .bracket-short-name { display: none; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Playoffs{% if multi_tier %} — Tier {{ tier }}{% endif %}</h1>
+  <p class="page-meta">{{ season.name }}</p>
+</div>
+
+{% if multi_tier %}
+<div class="d-flex gap-2 mb-4">
+  {% for t in tier_range %}
+  <a href="{% url 'leagues:playoffs_tier' season.pk t %}"
+     class="btn btn-sm {% if t == tier %}btn-primary{% else %}btn-outline-primary{% endif %}">
+    Tier {{ t }}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if not rounds_data %}
+<p class="text-muted">No bracket data found.</p>
+{% else %}
+
+<p class="d-md-none text-muted small mb-2">
+  <i class="bi bi-arrow-left-right me-1"></i>Scroll sideways to see all rounds
+</p>
+
+<div class="bracket-scroll">
+  <div class="bracket-rounds-header">
+    {% for round in rounds_data %}
+    <div class="bracket-round-label">{{ round.label }}</div>
+    {% endfor %}
+  </div>
+
+  <div class="bracket-grid">
+    {% for round in rounds_data %}
+      {% for slot in round.slots %}
+      {% with match=slot.match %}
+      <div class="bracket-match{% if round.code == 'f' %} bracket-final{% endif %}"
+           style="grid-row: {{ slot.grid_row_start }} / {{ slot.grid_row_end }}; grid-column: {{ round.col_index }};">
+        <a href="{% url 'matches:match_detail' match.pk %}" class="bracket-card text-decoration-none text-reset">
+
+          {# Player 1 row #}
+          {% if match.player1 %}
+          <div class="bracket-player{% if match.winner_id == match.player1_id %} is-winner{% elif match.winner_id %} is-loser{% endif %}">
+            <span class="bracket-player-name">
+              <span class="bracket-full-name">{{ match.player1.get_full_name|default:match.player1.username }}</span>
+              <span class="bracket-short-name">{% if match.player1.first_name %}{{ match.player1.first_name|first }}.&nbsp;{% endif %}{{ match.player1.last_name|default:match.player1.username }}</span>
+            </span>
+            {% if match.status == 'completed' %}
+            <span class="bracket-player-score">{% for s in match.sets.all %}{{ s.player1_games }}{% if not forloop.last %}&thinsp;{% endif %}{% endfor %}</span>
+            {% elif match.status == 'walkover' and match.winner_id == match.player1_id %}
+            <span class="bracket-player-score">W/O</span>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="bracket-player"><span class="bracket-tbd">TBD</span></div>
+          {% endif %}
+
+          {# Player 2 row #}
+          {% if match.player2 %}
+          <div class="bracket-player{% if match.winner_id == match.player2_id %} is-winner{% elif match.winner_id %} is-loser{% endif %}">
+            <span class="bracket-player-name">
+              <span class="bracket-full-name">{{ match.player2.get_full_name|default:match.player2.username }}</span>
+              <span class="bracket-short-name">{% if match.player2.first_name %}{{ match.player2.first_name|first }}.&nbsp;{% endif %}{{ match.player2.last_name|default:match.player2.username }}</span>
+            </span>
+            {% if match.status == 'completed' %}
+            <span class="bracket-player-score">{% for s in match.sets.all %}{{ s.player2_games }}{% if not forloop.last %}&thinsp;{% endif %}{% endfor %}</span>
+            {% elif match.status == 'walkover' and match.winner_id == match.player2_id %}
+            <span class="bracket-player-score">W/O</span>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="bracket-player"><span class="bracket-tbd">TBD</span></div>
+          {% endif %}
+
+        </a>
+      </div>
+      {% endwith %}
+      {% endfor %}
+    {% endfor %}
+  </div>
+</div>
+
+<p class="text-muted mt-4" style="font-size: 0.8rem;">
+  Generated {{ bracket.generated_at|date:"N j, Y" }}
+  by {{ bracket.generated_by.get_full_name|default:bracket.generated_by.username }}
+</p>
+{% endif %}
+{% endblock %}
