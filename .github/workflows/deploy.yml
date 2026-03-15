@@ -23,7 +23,6 @@ jobs:
         run: |
           echo "SECRET_KEY=ci-secret-key-not-used-in-production" >> .env
           echo "DEBUG=True" >> .env
-          echo "DATABASE_URL=sqlite:///unused" >> .env
           echo "ALLOWED_HOSTS=localhost" >> .env
 
       - name: Run tests
