@@ -14,6 +14,17 @@ from .forms import ResultEntryForm, WalkoverForm, PostponeForm
 from .models import Match, MatchSet
 
 
+def _get_player_match(request, pk):
+    """Load a match; require the requesting user to be one of its players or staff."""
+    match = get_object_or_404(
+        Match.objects.select_related('player1', 'player2', 'season'),
+        pk=pk,
+    )
+    if not (request.user == match.player1 or request.user == match.player2 or request.user.is_staff):
+        raise PermissionDenied
+    return match
+
+
 class MatchupsView(TemplateView):
     template_name = 'matches/matchups.html'
 
@@ -22,7 +33,7 @@ class MatchupsView(TemplateView):
         season = get_object_or_404(Season, pk=self.kwargs['pk'])
         qs = (
             Match.objects
-            .filter(season=season, status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED, Match.STATUS_PENDING])
+            .filter(season=season, status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED])
             .select_related('player1', 'player2', 'winner')
             .order_by(F('scheduled_date').asc(nulls_last=True), 'created_at')
         )
@@ -80,19 +91,6 @@ class MatchDetailView(DetailView):
 class EnterResultView(LoginRequiredMixin, View):
     template_name = 'matches/enter_result.html'
 
-    def _get_match(self, request, pk):
-        match = get_object_or_404(
-            Match.objects.select_related('player1', 'player2', 'season'),
-            pk=pk,
-        )
-        if not (
-            request.user == match.player1
-            or request.user == match.player2
-            or request.user.is_staff
-        ):
-            raise PermissionDenied
-        return match
-
     def _build_context(self, form, match):
         season = match.season
         max_sets = season.max_sets_in_match
@@ -143,14 +141,14 @@ class EnterResultView(LoginRequiredMixin, View):
         return True
 
     def get(self, request, pk):
-        match = self._get_match(request, pk)
+        match = _get_player_match(request, pk)
         if not self._check_can_enter(request, match):
             return redirect('matches:match_detail', pk=pk)
         form = ResultEntryForm(match=match)
         return render(request, self.template_name, self._build_context(form, match))
 
     def post(self, request, pk):
-        match = self._get_match(request, pk)
+        match = _get_player_match(request, pk)
         if not self._check_can_enter(request, match):
             return redirect('matches:match_detail', pk=pk)
 
@@ -276,19 +274,6 @@ class ConfirmResultView(LoginRequiredMixin, View):
 class WalkoverView(LoginRequiredMixin, View):
     template_name = 'matches/walkover.html'
 
-    def _get_match(self, request, pk):
-        match = get_object_or_404(
-            Match.objects.select_related('player1', 'player2', 'season'),
-            pk=pk,
-        )
-        if not (
-            request.user == match.player1
-            or request.user == match.player2
-            or request.user.is_staff
-        ):
-            raise PermissionDenied
-        return match
-
     def _context(self, form, match):
         return {
             'form': form,
@@ -298,11 +283,11 @@ class WalkoverView(LoginRequiredMixin, View):
         }
 
     def get(self, request, pk):
-        match = self._get_match(request, pk)
+        match = _get_player_match(request, pk)
         return render(request, self.template_name, self._context(WalkoverForm(match=match), match))
 
     def post(self, request, pk):
-        match = self._get_match(request, pk)
+        match = _get_player_match(request, pk)
         if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
             messages.error(request, 'Walkovers can only be recorded for scheduled or postponed matches.')
             return redirect('matches:match_detail', pk=pk)
@@ -323,19 +308,6 @@ class WalkoverView(LoginRequiredMixin, View):
 class PostponeView(LoginRequiredMixin, View):
     template_name = 'matches/postpone.html'
 
-    def _get_match(self, request, pk):
-        match = get_object_or_404(
-            Match.objects.select_related('player1', 'player2', 'season'),
-            pk=pk,
-        )
-        if not (
-            request.user == match.player1
-            or request.user == match.player2
-            or request.user.is_staff
-        ):
-            raise PermissionDenied
-        return match
-
     def _context(self, form, match):
         return {
             'form': form,
@@ -345,11 +317,11 @@ class PostponeView(LoginRequiredMixin, View):
         }
 
     def get(self, request, pk):
-        match = self._get_match(request, pk)
+        match = _get_player_match(request, pk)
         return render(request, self.template_name, self._context(PostponeForm(), match))
 
     def post(self, request, pk):
-        match = self._get_match(request, pk)
+        match = _get_player_match(request, pk)
         if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
             messages.error(request, 'Only scheduled or postponed matches can be rescheduled.')
             return redirect('matches:match_detail', pk=pk)

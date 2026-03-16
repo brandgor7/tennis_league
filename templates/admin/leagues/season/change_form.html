@@ -1,0 +1,12 @@
+{% extends "admin/change_form.html" %}
+
+{% block object-tools-items %}
+  {{ block.super }}
+  {% for item in generate_playoff_urls %}
+  <li>
+    <a href="{{ item.url }}" class="historylink">
+      Generate Tier {{ item.tier }} Playoffs
+    </a>
+  </li>
+  {% endfor %}
+{% endblock %}

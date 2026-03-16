@@ -200,27 +200,29 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full data model, URL map, and d
 
 **Goal:** Admin can generate a playoff bracket per tier; players see the visual bracket for each tier.
 
-- [ ] **`playoffs/generator.py`** — `generate_bracket(season, tier, generated_by)`:
-  - Call `calculate_standings(season, tier)`, take top N players
-  - Apply standard bracket seeding (1v16, 2v15, 8v9, etc.)
-  - Create `Match` objects (round=`r16` or appropriate, status=`scheduled`, tier=tier)
+- [x] **`playoffs/generator.py`** — `generate_bracket(season, tier, generated_by)`:
+  - Call `calculate_standings(season, tier)`, take top N players (largest power-of-2 ≤ qualifier count)
+  - Apply standard recursive bracket seeding
+  - Create `Match` objects (round appropriate for bracket size, status=`scheduled`, tier=tier)
   - Create `PlayoffBracket` (with `tier` field) + `PlayoffSlot` objects with correct `next_slot` links
   - Return the `PlayoffBracket`
-- [ ] **Custom admin view** at `/admin/seasons/<id>/generate-playoffs/<tier>/`:
+- [x] **Custom admin view** at `/admin/seasons/<id>/generate-playoffs/<tier>/`:
   - Requires staff
-  - Shows confirmation page (who qualifies from that tier, bracket preview)
+  - Shows confirmation page (who qualifies from that tier, bracket size)
   - On POST: calls `generate_bracket(season, tier, request.user)`
   - Redirect to playoff bracket page for that tier
-  - Season detail admin page lists one "Generate" button per tier
-- [ ] **Winner advancement**: when a playoff match is confirmed as completed, a post-save signal (in `playoffs/models.py` or `matches/models.py`) checks if a `PlayoffSlot` exists for the match; if so, assigns the winner as a player in the `next_slot`'s match
-- [ ] **`playoffs/views.py`**:
-  - `PlayoffBracketView` — takes `<tier>` from URL; loads all `PlayoffSlot` objects for `(season, tier)` bracket; passes structured bracket data to template
-  - `/seasons/<id>/playoffs/` — if single-tier, redirect to tier 1; if multi-tier, show list of tiers with links
-- [ ] **`templates/playoffs/bracket.html`**:
-  - Shows tier label ("Tier 1 Playoffs") in page header if season is multi-tier
+  - Season change page lists one "Generate Tier N Playoffs" button per tier via overridden change_form template
+- [x] **Winner advancement**: `post_save` signal on `Match` in `playoffs/models.py` checks if a `PlayoffSlot` exists; if so, assigns winner as player1 or player2 in the `next_slot`'s match (position determined by bracket_position ordering)
+- [x] **`playoffs/views.py`**:
+  - `PlayoffBracketView` — takes `<tier>` from URL; loads all `PlayoffSlot` objects for `(season, tier)` bracket; passes structured bracket data with grid positions to template
+  - `PlayoffListView` at `/seasons/<id>/playoffs/` — if single-tier, redirect to tier 1; if multi-tier, show list of tiers with links
+- [x] **`templates/playoffs/bracket.html`**:
+  - Shows tier label in page header if season is multi-tier; tier switcher buttons shown
   - Desktop: CSS grid bracket — rounds as columns, slots as rows; winner names displayed in full; completed matches show score
-  - Mobile: same HTML wrapped in `overflow-x: auto` so the bracket scrolls horizontally; player names truncated to first initial + last name to reduce width; a note below the bracket ("Scroll sideways to see all rounds") for first-time clarity
-- [ ] Wire into `leagues/urls.py` at `/seasons/<id>/playoffs/` and `/seasons/<id>/playoffs/<tier>/`
+  - Mobile: same HTML wrapped in `overflow-x: auto` so the bracket scrolls horizontally; player names truncated to first initial + last name; scroll hint shown
+- [x] Wire into `leagues/urls.py` at `/seasons/<id>/playoffs/` and `/seasons/<id>/playoffs/<tier>/`
+- [x] **`matches/models.py`**: made `player1` and `player2` nullable (null=True, blank=True) to support TBD slots in later rounds
+- [x] **Pre-existing bug fix**: `MatchupsView` incorrectly included `pending_confirmation` matches; fixed to only show `scheduled` and `postponed`
 
 ---
 

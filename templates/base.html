@@ -96,9 +96,8 @@
                href="{% url 'leagues:results' current_season.pk %}">Results</a>
           </li>
           <li class="nav-item">
-            {# TODO Phase 11: replace hardcoded URL with {% url 'leagues:playoffs' current_season.pk %} #}
-            <a class="nav-link {% block nav_playoffs %}{% endblock %}"
-               href="/seasons/{{ current_season.pk }}/playoffs/">Playoffs</a>
+              <a class="nav-link {% block nav_playoffs %}{% endblock %}"
+               href="{% url 'leagues:playoffs' current_season.pk %}">Playoffs</a>
           </li>
           {% endif %}
 
