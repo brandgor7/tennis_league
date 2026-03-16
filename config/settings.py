@@ -1,5 +1,6 @@
 from pathlib import Path
 import environ
+from django.db.backends.signals import connection_created
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -64,12 +65,12 @@ DATABASES = {
     }
 }
 
-from django.db.backends.signals import connection_created
 
 def _set_wal_mode(sender, connection, **kwargs):
     if connection.vendor == 'sqlite':
         connection.cursor().execute('PRAGMA journal_mode=WAL')
         connection.cursor().execute('PRAGMA synchronous=NORMAL')
+
 
 connection_created.connect(_set_wal_mode)
 

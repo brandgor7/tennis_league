@@ -1,3 +1,3 @@
 from .settings import *
 
-DATABASES['default']['NAME'] = ':memory:'
+DATABASES = {**DATABASES, 'default': {**DATABASES['default'], 'NAME': ':memory:'}}
