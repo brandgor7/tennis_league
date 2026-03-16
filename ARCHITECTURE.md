@@ -2,7 +2,7 @@
 
 ## Overview
 
-A Django + PostgreSQL web application for managing a tennis league. Multiple seasons coexist, each with independently configurable rules. Admins set up seasons, rosters, and matches. Players log in and enter results. A confirmation flow ensures score accuracy. Dashboards show standings, results, and matchups. A playoff bracket is auto-generated from end-of-season standings.
+A Django + SQLite web application for managing a tennis league. Multiple seasons coexist, each with independently configurable rules. Admins set up seasons, rosters, and matches. Players log in and enter results. A confirmation flow ensures score accuracy. Dashboards show standings, results, and matchups. A playoff bracket is auto-generated from end-of-season standings.
 
 ---
 
@@ -11,7 +11,7 @@ A Django + PostgreSQL web application for managing a tennis league. Multiple sea
 | Layer | Choice | Notes |
 |-------|--------|-------|
 | Backend | Django 5.x (Python) | |
-| Database | PostgreSQL | |
+| Database | SQLite (WAL mode) | Used in dev, test, and production |
 | Auth | Django `AbstractUser` | Built-in session auth |
 | Frontend | Django Templates + Bootstrap 5 | Server-rendered; Bootstrap via CDN |
 | Admin | Django admin + custom views | Augmented for league management |

@@ -1,0 +1,53 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env
+        run: |
+          echo "SECRET_KEY=ci-secret-key-not-used-in-production" >> .env
+          echo "DEBUG=True" >> .env
+          echo "ALLOWED_HOSTS=localhost" >> .env
+
+      - name: Run tests
+        run: python manage.py test --settings=config.test_settings -v 2
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Lightsail
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USER }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.APP_DIR }}
+
+            git pull origin main
+
+            .venv/bin/pip install -r requirements.txt --quiet
+
+            .venv/bin/python manage.py migrate --settings=config.settings_production
+            .venv/bin/python manage.py collectstatic --noinput --settings=config.settings_production
+
+            sudo systemctl restart gunicorn
