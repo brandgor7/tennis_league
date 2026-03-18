@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This app runs on a single AWS Lightsail instance ($5/month) with SQLite on disk.
+This app runs on a single AWS Lightsail instance with SQLite on disk.
 Deployments are fully automated via GitHub Actions — merging to `main` runs tests
 and, if they pass, deploys to the server automatically.
 
@@ -16,8 +16,10 @@ and, if they pass, deploys to the server automatically.
 
 ## 1. Create the Lightsail Instance
 
+Run these from your **local machine**:
+
 ```bash
-# Create a $5/month Ubuntu 22.04 instance
+# Create a Ubuntu 22.04 instance
 aws lightsail create-instances \
   --instance-names tennis-league \
   --availability-zone us-east-1a \
@@ -53,7 +55,7 @@ aws lightsail get-static-ip --static-ip-name tennis-league-ip \
 
 ## 2. Get the SSH Key
 
-Lightsail uses its own key pair. Download it and lock down permissions:
+Run from your **local machine**:
 
 ```bash
 aws lightsail download-default-key-pair \
@@ -72,6 +74,8 @@ ssh -i ~/.ssh/lightsail-tennis-league.pem ubuntu@YOUR_STATIC_IP
 
 ## 3. Enable Automatic Daily Snapshots
 
+Run from your **local machine**:
+
 ```bash
 aws lightsail enable-add-on \
   --resource-name tennis-league \
@@ -85,183 +89,66 @@ spinning up a new instance from the snapshot in the Lightsail console.
 
 ## 4. Set Up the Server
 
-SSH into the instance and run the following:
-
-### System packages
+SSH into the instance and run `deploy.sh`:
 
 ```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y python3.12 python3.12-venv python3-pip git nginx
+ssh -i ~/.ssh/lightsail-tennis-league.pem ubuntu@YOUR_STATIC_IP
 ```
 
-### Clone the repo
+On the server:
 
 ```bash
-cd /home/ubuntu
+# Clone the repo (only needed the very first time)
 git clone https://github.com/YOUR_ORG/YOUR_REPO.git tennis-scores-app
 cd tennis-scores-app
+
+# Run the setup script
+./deploy.sh
 ```
 
-### Python environment
+The script requires a **real DNS domain name** pointed at the server's static IP — Let's Encrypt cannot issue certificates for bare IP addresses. Point an A record at the static IP before running the script.
+
+The script will prompt for:
+- **Domain name** — e.g. `tennis.example.com` (must resolve to this server)
+- **Let's Encrypt email** — for certificate expiry notifications
+- **GitHub repo URL** — used if the repo isn't already cloned
+- **S3 backups** — optional; see § S3 Backups below
+
+It then handles automatically:
+- System package installation (including `certbot` and `python3-certbot-nginx`)
+- Python venv and dependency installation
+- `.env` generation (random `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS`)
+- Database migration and static file collection
+- Gunicorn systemd service (enabled + started)
+- Sudoers entry so the deploy workflow can restart gunicorn without a password
+- Nginx site configuration
+- Let's Encrypt TLS certificate via certbot (rewrites nginx config to HTTPS-only with HTTP → HTTPS redirect)
+- Certbot auto-renewal systemd timer (enabled)
+
+After the script finishes, create the admin user:
 
 ```bash
-python3.12 -m venv .venv
-.venv/bin/pip install --upgrade pip
-.venv/bin/pip install -r requirements.txt
-```
-
-### Environment file
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with production values:
-
-```
-SECRET_KEY=<generate with: python -c "import secrets; print(secrets.token_urlsafe(50))">
-DEBUG=False
-ALLOWED_HOSTS=YOUR_STATIC_IP,yourdomain.com
-```
-
-### Initialise the app
-
-```bash
-.venv/bin/python manage.py migrate --settings=config.settings_production
-.venv/bin/python manage.py collectstatic --noinput --settings=config.settings_production
 .venv/bin/python manage.py createsuperuser --settings=config.settings_production
 ```
 
 ---
 
-## 5. Configure Gunicorn
+## 5. S3 Backups (optional but recommended)
 
-Create the systemd service:
+When `deploy.sh` asks about S3 backups, answer `y` and provide a globally unique
+bucket name. The script will:
 
-```bash
-sudo nano /etc/systemd/system/gunicorn.service
-```
+1. Create the S3 bucket
+2. Add a 30-day lifecycle expiry rule
+3. Install a daily cron at `/etc/cron.daily/backup-db` that snapshots the SQLite
+   file and uploads it to the bucket
 
-Paste:
-
-```ini
-[Unit]
-Description=Gunicorn for tennis-league
-After=network.target
-
-[Service]
-User=ubuntu
-Group=www-data
-WorkingDirectory=/home/ubuntu/tennis-scores-app
-ExecStart=/home/ubuntu/tennis-scores-app/.venv/bin/gunicorn \
-    --workers 2 \
-    --bind unix:/home/ubuntu/tennis-scores-app/gunicorn.sock \
-    config.wsgi:application
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable gunicorn
-sudo systemctl start gunicorn
-
-# Verify it's running
-sudo systemctl status gunicorn
-```
-
-Allow the deploy workflow to restart gunicorn without a password prompt:
-
-```bash
-echo "ubuntu ALL=(ALL) NOPASSWD: /bin/systemctl restart gunicorn" \
-  | sudo tee /etc/sudoers.d/gunicorn
-```
+The AWS CLI on the instance must have permissions to write to that bucket. Attach
+an IAM role to the instance or configure `aws configure` on the server.
 
 ---
 
-## 6. Configure Nginx
-
-```bash
-sudo nano /etc/nginx/sites-available/tennis-league
-```
-
-Paste:
-
-```nginx
-server {
-    listen 80;
-    server_name YOUR_STATIC_IP;
-
-    location /static/ {
-        alias /home/ubuntu/tennis-scores-app/staticfiles/;
-    }
-
-    location / {
-        proxy_pass http://unix:/home/ubuntu/tennis-scores-app/gunicorn.sock;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
-```
-
-Enable the site and reload:
-
-```bash
-sudo ln -s /etc/nginx/sites-available/tennis-league /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
----
-
-## 7. Set Up S3 Backups (optional but recommended)
-
-```bash
-# Create a bucket (replace with a globally unique name)
-aws s3 mb s3://tennis-league-backups
-
-# Set a lifecycle rule to delete backups older than 30 days
-aws s3api put-bucket-lifecycle-configuration \
-  --bucket tennis-league-backups \
-  --lifecycle-configuration '{
-    "Rules": [{
-      "ID": "expire-old-backups",
-      "Status": "Enabled",
-      "Filter": {"Prefix": ""},
-      "Expiration": {"Days": 30}
-    }]
-  }'
-```
-
-Create the daily backup cron:
-
-```bash
-sudo nano /etc/cron.daily/backup-db
-```
-
-Paste:
-
-```bash
-#!/bin/bash
-set -e
-BACKUP=/tmp/tennis-db-$(date +%Y%m%d).sqlite3
-sqlite3 /home/ubuntu/tennis-scores-app/db.sqlite3 ".backup $BACKUP"
-aws s3 cp "$BACKUP" s3://tennis-league-backups/
-rm "$BACKUP"
-```
-
-```bash
-sudo chmod +x /etc/cron.daily/backup-db
-```
-
----
-
-## 8. Configure GitHub Actions Secrets
+## 6. Configure GitHub Actions Secrets
 
 In the GitHub repo go to **Settings → Secrets and variables → Actions** and add:
 
@@ -296,6 +183,54 @@ Two GitHub Actions workflows live in `.github/workflows/`:
    - `sudo systemctl restart gunicorn`
 
 The deploy job uses `appleboy/ssh-action` and the four `LIGHTSAIL_*` secrets above.
+
+---
+
+## Troubleshooting
+
+### Log locations
+
+| Source | How to read |
+|--------|-------------|
+| **Gunicorn** (Django app output, Python errors) | `sudo journalctl -u gunicorn -n 100 -f` |
+| **Nginx access log** | `sudo tail -f /var/log/nginx/access.log` |
+| **Nginx error log** (bad gateway, socket errors) | `sudo tail -f /var/log/nginx/error.log` |
+| **Certbot** | `sudo journalctl -u certbot -n 50` or `/var/log/letsencrypt/letsencrypt.log` |
+| **Cron / S3 backup** | `sudo journalctl -u cron -n 50` |
+
+Django has no `LOGGING` configuration, so all application output (requests, errors, tracebacks) goes to gunicorn's stdout/stderr, which systemd captures in the journal.
+
+### Reading the journal
+
+`journalctl` is how you read logs for any systemd-managed service. Key flags:
+
+```bash
+sudo journalctl -u gunicorn -n 100    # last 100 lines
+sudo journalctl -u gunicorn -f        # follow live output
+sudo journalctl -u gunicorn -p err    # errors only
+sudo journalctl -u gunicorn --since "2026-03-18 10:00"
+```
+
+Each line is formatted as `timestamp hostname service[pid]: message`. If a request returns a bad response, check gunicorn first (Django traceback will be there). If the request never reaches gunicorn, check the nginx error log (usually a socket permission problem).
+
+### Common checks
+
+```bash
+# Is gunicorn running and did it start cleanly?
+sudo systemctl status gunicorn
+
+# Can nginx reach the socket? (permission denied = /home/ubuntu is not world-executable)
+sudo -u www-data stat /home/ubuntu/tennis-scores-app/gunicorn.sock
+
+# Fix socket permission issue
+sudo chmod o+x /home/ubuntu
+
+# Test nginx config before reloading
+sudo nginx -t
+
+# Check TLS certificate status
+sudo certbot certificates
+```
 
 ---
 
