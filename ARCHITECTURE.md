@@ -89,7 +89,7 @@ All Bootstrap 5 semantic colour variables (`--bs-primary`, `--bs-body-bg`, etc.)
 
 ### Fonts
 
-- **Headings** (`h1`–`h3`, `.font-serif`): Playfair Display — loaded via `<link>` in `base.html`
+- **Headings** (`h1`–`h3`, `.font-serif`): Lora — loaded via `<link>` in `base.html`
 - **Body / UI**: DM Sans
 
 ### Status Badges

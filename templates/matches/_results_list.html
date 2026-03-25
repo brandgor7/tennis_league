@@ -12,7 +12,7 @@
         <table class="align-middle mb-0 w-100" style="border-collapse:collapse;">
           <tbody>
             <tr>
-              <td class="pe-3 pb-1 fw-600" style="white-space:nowrap; font-size:0.9rem;">
+              <td class="pe-3 pb-1 fw-bold" style="white-space:nowrap; font-size:0.9rem;">
                 {{ match.player1.get_full_name|default:match.player1.username }}
               </td>
               {% for s in sets %}
@@ -70,34 +70,23 @@
         {% with sets=match.sets.all %}
         <tr>
           <td>
-            {# Embedded score table — same style as match_detail.html #}
-            <table class="align-middle mb-0" style="border-collapse:collapse;">
-              <tbody>
-                <tr>
-                  <td class="pe-4 pb-1 fw-600" style="white-space:nowrap; font-size:0.9rem;">
-                    {{ match.player1.get_full_name|default:match.player1.username }}
-                  </td>
-                  {% for s in sets %}
-                  <td class="text-center pb-1 {% if match.winner_id == match.player1_id %}score-set{% else %}text-muted{% endif %}" style="min-width:2rem;">
-                    {{ s.player1_games }}{% if s.tiebreak_player1_points is not None and s.player1_games > s.player2_games %}<sup style="font-size:0.55em; font-family:'DM Sans',sans-serif; font-weight:400; vertical-align:super;">{{ s.tiebreak_player2_points }}</sup>{% endif %}
-                  </td>
-                  {% endfor %}
-                  {% if not sets %}
-                  <td class="text-muted pb-1" style="font-size:0.8rem; padding-left:0.5rem;">W/O</td>
-                  {% endif %}
-                </tr>
-                <tr>
-                  <td class="pe-4 text-muted" style="white-space:nowrap; font-size:0.9rem;">
-                    {{ match.player2.get_full_name|default:match.player2.username }}
-                  </td>
-                  {% for s in sets %}
-                  <td class="text-center {% if match.winner_id == match.player2_id %}score-set{% else %}text-muted{% endif %}" style="min-width:2rem;">
-                    {{ s.player2_games }}{% if s.tiebreak_player2_points is not None and s.player2_games > s.player1_games %}<sup style="font-size:0.55em; font-family:'DM Sans',sans-serif; font-weight:400; vertical-align:super;">{{ s.tiebreak_player1_points }}</sup>{% endif %}
-                  </td>
-                  {% endfor %}
-                </tr>
-              </tbody>
-            </table>
+            <div class="result-score-row pb-1">
+              <span class="result-name fw-bold">{{ match.player1.get_full_name|default:match.player1.username }}</span>
+              {% for s in sets %}
+              <span class="result-score {% if match.winner_id == match.player1_id %}score-set{% else %}text-muted{% endif %}">
+                {{ s.player1_games }}{% if s.tiebreak_player1_points is not None and s.player1_games > s.player2_games %}<sup style="font-size:0.55em; font-family:'DM Sans',sans-serif; font-weight:400; vertical-align:super;">{{ s.tiebreak_player2_points }}</sup>{% endif %}
+              </span>
+              {% endfor %}
+              {% if not sets %}<span class="text-muted" style="font-size:0.8rem;">W/O</span>{% endif %}
+            </div>
+            <div class="result-score-row">
+              <span class="result-name text-muted">{{ match.player2.get_full_name|default:match.player2.username }}</span>
+              {% for s in sets %}
+              <span class="result-score {% if match.winner_id == match.player2_id %}score-set{% else %}text-muted{% endif %}">
+                {{ s.player2_games }}{% if s.tiebreak_player2_points is not None and s.player2_games > s.player1_games %}<sup style="font-size:0.55em; font-family:'DM Sans',sans-serif; font-weight:400; vertical-align:super;">{{ s.tiebreak_player1_points }}</sup>{% endif %}
+              </span>
+              {% endfor %}
+            </div>
           </td>
           <td class="text-muted" style="font-size:0.875rem;">
             {% if match.played_date %}{{ match.played_date }}{% else %}—{% endif %}

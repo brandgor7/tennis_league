@@ -1,7 +1,7 @@
 /* ─────────────────────────────────────────────────────────────
    Tennis League — App Styles
    Aesthetic: Clay Court Editorial
-   Fonts: Playfair Display (headings/numbers) + DM Sans (body)
+   Fonts: Lora (headings/numbers) + DM Sans (body)
    ───────────────────────────────────────────────────────────── */
 
 /* ─── Design tokens ──────────────────────────────────────── */
@@ -44,7 +44,7 @@ main {
 }
 
 h1, h2, h3, .font-serif {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Lora', Georgia, serif;
   letter-spacing: -0.02em;
 }
 
@@ -57,7 +57,7 @@ h1, h2, h3, .font-serif {
 }
 
 .navbar-brand {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Lora', Georgia, serif;
   font-weight: 800;
   font-size: 1.35rem;
   color: var(--cream) !important;
@@ -300,7 +300,7 @@ h1, h2, h3, .font-serif {
 
 /* ─── Standings-specific ─────────────────────────────────── */
 .rank-number {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Lora', Georgia, serif;
   font-weight: 700;
   font-size: 1.05rem;
   color: var(--muted);
@@ -318,9 +318,30 @@ h1, h2, h3, .font-serif {
   font-weight: 500;
 }
 
+/* ─── Desktop results score layout ──────────────────────── */
+.result-score-row {
+  display: flex;
+  align-items: baseline;
+  font-size: 0.9rem;
+}
+
+.result-name {
+  width: 11rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-score {
+  width: 2rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
 /* ─── Score display ──────────────────────────────────────── */
 .score-set {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: 'Lora', Georgia, serif;
   font-weight: 700;
   font-size: 1.15rem;
   letter-spacing: -0.02em;
