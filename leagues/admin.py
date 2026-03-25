@@ -1,3 +1,5 @@
+import datetime
+
 from django.contrib import admin, messages
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
@@ -39,6 +41,11 @@ class SeasonAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.generate_playoffs_view),
                 name='leagues_season_generate_playoffs',
             ),
+            path(
+                '<int:season_id>/generate-schedule/',
+                self.admin_site.admin_view(self.generate_schedule_view),
+                name='leagues_season_generate_schedule',
+            ),
         ]
         return custom + urls
 
@@ -52,7 +59,70 @@ class SeasonAdmin(admin.ModelAdmin):
                 'url': reverse('admin:leagues_season_generate_playoffs', args=[object_id, tier]),
             })
         extra_context['generate_playoff_urls'] = generate_urls
+        extra_context['generate_schedule_url'] = reverse(
+            'admin:leagues_season_generate_schedule', args=[object_id]
+        )
         return super().change_view(request, object_id, form_url, extra_context)
+
+    def generate_schedule_view(self, request, season_id):
+        from matches.models import Match
+        from matches.scheduler import generate_schedule
+
+        season = get_object_or_404(Season, pk=season_id)
+        has_matches = Match.objects.filter(season=season, round=Match.ROUND_REGULAR).exists()
+
+        tier_info = []
+        for tier in range(1, season.num_tiers + 1):
+            count = SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True).count()
+            max_rounds = count - 1 + count % 2  # N-1 for even N, N for odd N
+            tier_info.append({'tier': tier, 'player_count': count, 'max_rounds': max_rounds})
+
+        error = None
+        start_date_val = ''
+        num_rounds_val = ''
+
+        if request.method == 'POST' and not has_matches:
+            start_date_val = request.POST.get('start_date', '')
+            num_rounds_val = request.POST.get('num_rounds', '')
+            start_date = None
+
+            try:
+                start_date = datetime.date.fromisoformat(start_date_val)
+            except (ValueError, TypeError):
+                error = 'Please enter a valid start date.'
+
+            if not error:
+                try:
+                    num_rounds = int(num_rounds_val)
+                    if num_rounds < 1:
+                        raise ValueError
+                except (ValueError, TypeError):
+                    error = 'Number of rounds must be a positive integer.'
+
+            if not error:
+                try:
+                    matches = generate_schedule(season, start_date, num_rounds)
+                    messages.success(
+                        request,
+                        f'{len(matches)} match{"es" if len(matches) != 1 else ""} scheduled for {season}.',
+                    )
+                    return HttpResponseRedirect(
+                        reverse('admin:leagues_season_change', args=[season_id])
+                    )
+                except ValueError as e:
+                    error = str(e)
+
+        context = {
+            **self.admin_site.each_context(request),
+            'season': season,
+            'has_matches': has_matches,
+            'tier_info': tier_info,
+            'error': error,
+            'start_date_val': start_date_val,
+            'num_rounds_val': num_rounds_val,
+            'title': f'Generate Schedule — {season.name}',
+        }
+        return render(request, 'leagues/generate_schedule.html', context)
 
     def generate_playoffs_view(self, request, season_id, tier):
         season = get_object_or_404(Season, pk=season_id)

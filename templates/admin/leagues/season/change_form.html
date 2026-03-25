@@ -2,6 +2,11 @@
 
 {% block object-tools-items %}
   {{ block.super }}
+  {% if generate_schedule_url %}
+  <li>
+    <a href="{{ generate_schedule_url }}" class="historylink">Generate Schedule</a>
+  </li>
+  {% endif %}
   {% for item in generate_playoff_urls %}
   <li>
     <a href="{{ item.url }}" class="historylink">

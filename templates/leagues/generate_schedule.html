@@ -1,0 +1,68 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div style="max-width: 640px;">
+  <h1>{{ title }}</h1>
+
+  {% if has_matches %}
+  <div class="alert alert-warning">
+    Regular-season matches already exist for this season.
+    Delete them from the admin before generating a new schedule.
+  </div>
+  <p style="margin-top: 1rem;"><a href="../">&lsaquo; Back to season</a></p>
+
+  {% else %}
+
+  {% if error %}
+  <div class="alert alert-error" style="margin-bottom: 1rem;">{{ error }}</div>
+  {% endif %}
+
+  <table class="table table-sm" style="max-width: 400px; margin-bottom: 1.5rem;">
+    <thead>
+      <tr><th>Tier</th><th>Active players</th><th>Max rounds</th></tr>
+    </thead>
+    <tbody>
+      {% for row in tier_info %}
+      <tr>
+        <td>{{ row.tier }}</td>
+        <td>{{ row.player_count }}</td>
+        <td>{{ row.max_rounds }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p>
+    Schedule type: <strong>{{ season.get_schedule_type_display }}</strong>
+  </p>
+
+  <form method="post" style="margin-top: 1.5rem;">
+    {% csrf_token %}
+    <div style="margin-bottom: 1rem;">
+      <label for="id_start_date" style="display: block; font-weight: bold; margin-bottom: 0.25rem;">
+        Start date
+      </label>
+      <input type="date" id="id_start_date" name="start_date"
+             value="{{ start_date_val }}" required
+             style="padding: 0.4rem 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
+    </div>
+    <div style="margin-bottom: 1.5rem;">
+      <label for="id_num_rounds" style="display: block; font-weight: bold; margin-bottom: 0.25rem;">
+        Number of rounds
+      </label>
+      <input type="number" id="id_num_rounds" name="num_rounds" min="1"
+             value="{{ num_rounds_val }}" required
+             style="width: 100px; padding: 0.4rem 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
+      <p class="help" style="margin-top: 0.25rem;">
+        Capped automatically at the maximum available rounds per tier.
+      </p>
+    </div>
+    <button type="submit" class="button default" onclick="this.disabled=true;this.form.submit();">
+      Generate Schedule
+    </button>
+    <a href="../" class="button cancel-link" style="margin-left: 0.75rem;">Cancel</a>
+  </form>
+
+  {% endif %}
+</div>
+{% endblock %}
