@@ -2,14 +2,14 @@ from datetime import timedelta
 
 from django.db import transaction
 
-from leagues.models import SeasonPlayer
+from leagues.models import Season, SeasonPlayer
 from .models import Match
 
 
 _ROUND_OFFSETS = {
-    'single_day': timedelta(days=0),
-    'consecutive_days': timedelta(days=1),
-    'weekly': timedelta(weeks=1),
+    Season.SCHEDULE_SINGLE_DAY: timedelta(days=0),
+    Season.SCHEDULE_CONSECUTIVE_DAYS: timedelta(days=1),
+    Season.SCHEDULE_WEEKLY: timedelta(weeks=1),
 }
 
 
@@ -62,8 +62,14 @@ def generate_schedule(season, start_date, num_rounds):
     num_rounds is capped per tier at the maximum number of unique-matchup
     rounds available for that tier's player count (N players → N-1 rounds max).
 
+    Raises ValueError if regular-season matches already exist for the season.
+
     Returns the list of created Match objects.
     """
+    if Match.objects.filter(season=season, round=Match.ROUND_REGULAR).exists():
+        raise ValueError(f'Regular-season matches already exist for {season}.')
+
+    is_single_day = season.schedule_type == Season.SCHEDULE_SINGLE_DAY
     offset = _ROUND_OFFSETS[season.schedule_type]
     to_create = []
 
@@ -77,10 +83,7 @@ def generate_schedule(season, start_date, num_rounds):
         scheduled_rounds = all_rounds[:num_rounds]
 
         for round_index, pairs in enumerate(scheduled_rounds):
-            if season.schedule_type == season.SCHEDULE_SINGLE_DAY:
-                scheduled_date = start_date
-            else:
-                scheduled_date = start_date + offset * round_index
+            scheduled_date = start_date if is_single_day else start_date + offset * round_index
 
             for player1_id, player2_id in pairs:
                 to_create.append(Match(

@@ -8,6 +8,7 @@ from django.urls import reverse
 from leagues.models import Season, SeasonPlayer
 from .models import Match, MatchSet
 from .forms import MatchScheduleForm, ResultEntryForm, WalkoverForm, PostponeForm
+from .scheduler import _round_robin_rounds, generate_schedule
 
 User = get_user_model()
 
@@ -1564,8 +1565,6 @@ class GracePeriodTest(TestCase):
 
 # ─── Scheduler tests ──────────────────────────────────────────────────────────
 
-from .scheduler import _round_robin_rounds, generate_schedule
-
 
 class RoundRobinRoundsTest(TestCase):
     def _all_pairs(self, rounds):
@@ -1624,6 +1623,11 @@ class RoundRobinRoundsTest(TestCase):
 
     def test_no_self_pairs(self):
         for pair in self._all_pairs(_round_robin_rounds([1, 2, 3, 4])):
+            p1, p2 = pair
+            self.assertNotEqual(p1, p2)
+
+    def test_no_self_pairs_six_players(self):
+        for pair in self._all_pairs(_round_robin_rounds([1, 2, 3, 4, 5, 6])):
             p1, p2 = pair
             self.assertNotEqual(p1, p2)
 
@@ -1761,6 +1765,13 @@ class GenerateScheduleTest(TestCase):
         matches = generate_schedule(season, self.START, 1)
         self.assertEqual(sum(1 for m in matches if m.tier == 1), 2)
         self.assertEqual(sum(1 for m in matches if m.tier == 2), 2)
+
+    def test_double_call_raises(self):
+        season = self._season()
+        self._add_players(season, 4)
+        generate_schedule(season, self.START, 3)
+        with self.assertRaises(ValueError):
+            generate_schedule(season, self.START, 3)
 
     def test_inactive_players_excluded(self):
         season = self._season()

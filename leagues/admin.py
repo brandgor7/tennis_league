@@ -18,16 +18,16 @@ class SeasonPlayerInline(admin.TabularInline):
 
 @admin.register(Season)
 class SeasonAdmin(admin.ModelAdmin):
-    list_display = ('name', 'year', 'status', 'num_tiers', 'sets_to_win', 'final_set_format', 'playoff_qualifiers_count')
+    list_display = ('name', 'year', 'status', 'schedule_type', 'num_tiers', 'sets_to_win', 'final_set_format', 'playoff_qualifiers_count')
     list_filter = ('status', 'year', 'final_set_format', 'walkover_rule')
     search_fields = ('name',)
     inlines = [SeasonPlayerInline]
     fieldsets = (
         (None, {'fields': ('name', 'year', 'status', 'num_tiers')}),
+        ('Schedule', {'fields': ('schedule_type',)}),
         ('Match Format', {'fields': ('sets_to_win', 'games_to_win_set', 'final_set_format')}),
         ('Playoffs', {'fields': ('playoff_qualifiers_count',)}),
         ('Points', {'fields': ('points_for_win', 'points_for_loss', 'points_for_walkover_loss')}),
-        ('Schedule', {'fields': ('schedule_type',)}),
         ('Rules', {'fields': ('walkover_rule', 'postponement_deadline', 'grace_period_days')}),
     )
 
