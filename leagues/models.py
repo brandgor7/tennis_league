@@ -32,6 +32,15 @@ class Season(models.Model):
         (WALKOVER_NONE, 'No points awarded'),
     ]
 
+    SCHEDULE_SINGLE_DAY = 'single_day'
+    SCHEDULE_CONSECUTIVE_DAYS = 'consecutive_days'
+    SCHEDULE_WEEKLY = 'weekly'
+    SCHEDULE_TYPE_CHOICES = [
+        (SCHEDULE_SINGLE_DAY, 'Single day'),
+        (SCHEDULE_CONSECUTIVE_DAYS, 'Consecutive days'),
+        (SCHEDULE_WEEKLY, 'Weekly'),
+    ]
+
     name = models.CharField(max_length=100)
     year = models.IntegerField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_UPCOMING)
@@ -41,6 +50,7 @@ class Season(models.Model):
     final_set_format = models.CharField(max_length=20, choices=FINAL_SET_CHOICES, default=FINAL_SET_FULL)
     playoff_qualifiers_count = models.IntegerField(default=8)
     walkover_rule = models.CharField(max_length=20, choices=WALKOVER_CHOICES, default=WALKOVER_WINNER)
+    schedule_type = models.CharField(max_length=20, choices=SCHEDULE_TYPE_CHOICES, default=SCHEDULE_WEEKLY)
     postponement_deadline = models.IntegerField(default=14, help_text='Days allowed to reschedule')
     grace_period_days = models.IntegerField(default=7, help_text='Days after the scheduled date a match can be played without a formal postponement')
     points_for_win = models.IntegerField(default=3)

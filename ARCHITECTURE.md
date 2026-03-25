@@ -255,6 +255,7 @@ num_tiers                 IntegerField    default 1; number of competitive tiers
 sets_to_win               IntegerField    2 = best of 3, 3 = best of 5
 final_set_format          CharField       full | tiebreak | super
 playoff_qualifiers_count  IntegerField    e.g. 8, 16, 32 — applies per tier
+schedule_type             CharField       single_day | consecutive_days | weekly
 walkover_rule             CharField       winner | split | none
 postponement_deadline     IntegerField    days allowed to reschedule
 grace_period_days         IntegerField    default 7; days after scheduled_date a match can be played without a formal postponement

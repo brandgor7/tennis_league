@@ -10,6 +10,7 @@ class SeasonForm(forms.ModelForm):
             'year',
             'status',
             'num_tiers',
+            'schedule_type',
             'sets_to_win',
             'final_set_format',
             'playoff_qualifiers_count',
