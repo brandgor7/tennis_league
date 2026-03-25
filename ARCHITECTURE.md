@@ -222,6 +222,7 @@ tennis-scores-app/
 ### `matches`
 - `Match` model — scheduling, status, players, result
 - `MatchSet` model — individual set scores (supports tiebreak scores)
+- `scheduler.py` — `generate_schedule(season, start_date, num_rounds)`: round-robin schedule generation across all tiers; respects `season.schedule_type` for date spacing
 - Result entry view (for a player in the match)
 - Result confirmation view (for the opponent)
 - Walkover and postponement views (admin or player)
