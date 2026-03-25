@@ -108,6 +108,7 @@ class SeasonFormTest(TestCase):
             'year': 2025,
             'status': Season.STATUS_UPCOMING,
             'num_tiers': 1,
+            'schedule_type': Season.SCHEDULE_WEEKLY,
             'sets_to_win': 2,
             'final_set_format': Season.FINAL_SET_FULL,
             'playoff_qualifiers_count': 8,

@@ -38,7 +38,7 @@ def _round_robin_rounds(player_ids):
             pairs.append((fixed, rotating[0]))
         for i in range(1, n // 2):
             p1 = rotating[i]
-            p2 = rotating[n - 2 - i]
+            p2 = rotating[n - 1 - i]
             if p1 is not None and p2 is not None:
                 pairs.append((p1, p2))
         rounds.append(pairs)

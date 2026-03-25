@@ -1560,3 +1560,216 @@ class GracePeriodTest(TestCase):
         match = self._match(datetime.date.today() + datetime.timedelta(days=5))
         response = self.client.get(self._get_url(match))
         self.assertEqual(response.status_code, 200)
+
+
+# ─── Scheduler tests ──────────────────────────────────────────────────────────
+
+from .scheduler import _round_robin_rounds, generate_schedule
+
+
+class RoundRobinRoundsTest(TestCase):
+    def _all_pairs(self, rounds):
+        return [frozenset(pair) for round_ in rounds for pair in round_]
+
+    def test_empty_list_returns_no_rounds(self):
+        self.assertEqual(_round_robin_rounds([]), [])
+
+    def test_single_player_returns_no_rounds(self):
+        self.assertEqual(_round_robin_rounds([1]), [])
+
+    def test_two_players_one_round_one_pair(self):
+        rounds = _round_robin_rounds([1, 2])
+        self.assertEqual(len(rounds), 1)
+        self.assertEqual(rounds[0], [(1, 2)])
+
+    def test_four_players_three_rounds(self):
+        rounds = _round_robin_rounds([1, 2, 3, 4])
+        self.assertEqual(len(rounds), 3)
+
+    def test_four_players_two_pairs_per_round(self):
+        for round_ in _round_robin_rounds([1, 2, 3, 4]):
+            self.assertEqual(len(round_), 2)
+
+    def test_three_players_three_rounds(self):
+        # 3 players + bye → 4 slots → 3 rounds; bye player omitted each round
+        rounds = _round_robin_rounds([1, 2, 3])
+        self.assertEqual(len(rounds), 3)
+
+    def test_three_players_one_pair_per_round(self):
+        for round_ in _round_robin_rounds([1, 2, 3]):
+            self.assertEqual(len(round_), 1)
+
+    def test_no_player_appears_twice_in_a_round(self):
+        for round_ in _round_robin_rounds([1, 2, 3, 4]):
+            players_in_round = [p for pair in round_ for p in pair]
+            self.assertEqual(len(players_in_round), len(set(players_in_round)))
+
+    def test_all_pairs_unique_four_players(self):
+        pairs = self._all_pairs(_round_robin_rounds([1, 2, 3, 4]))
+        self.assertEqual(len(pairs), len(set(pairs)))
+
+    def test_all_pairs_unique_five_players(self):
+        pairs = self._all_pairs(_round_robin_rounds([1, 2, 3, 4, 5]))
+        self.assertEqual(len(pairs), len(set(pairs)))
+
+    def test_covers_all_unique_pairs_four_players(self):
+        pairs = set(self._all_pairs(_round_robin_rounds([1, 2, 3, 4])))
+        expected = {frozenset(p) for p in [(1,2),(1,3),(1,4),(2,3),(2,4),(3,4)]}
+        self.assertEqual(pairs, expected)
+
+    def test_covers_all_unique_pairs_three_players(self):
+        pairs = set(self._all_pairs(_round_robin_rounds([1, 2, 3])))
+        expected = {frozenset([1,2]), frozenset([1,3]), frozenset([2,3])}
+        self.assertEqual(pairs, expected)
+
+    def test_no_self_pairs(self):
+        for pair in self._all_pairs(_round_robin_rounds([1, 2, 3, 4])):
+            p1, p2 = pair
+            self.assertNotEqual(p1, p2)
+
+
+class GenerateScheduleTest(TestCase):
+    START = datetime.date(2025, 3, 1)
+
+    def _season(self, schedule_type=Season.SCHEDULE_WEEKLY, num_tiers=1):
+        return Season.objects.create(
+            name='Spring', year=2025,
+            schedule_type=schedule_type,
+            num_tiers=num_tiers,
+        )
+
+    def _add_players(self, season, count, tier=1):
+        players = []
+        for i in range(count):
+            user = User.objects.create_user(username=f'tier{tier}_p{i}')
+            SeasonPlayer.objects.create(season=season, player=user, tier=tier)
+            players.append(user)
+        return players
+
+    def test_returns_match_objects(self):
+        season = self._season()
+        self._add_players(season, 4)
+        result = generate_schedule(season, self.START, 3)
+        self.assertTrue(all(isinstance(m, Match) for m in result))
+
+    def test_match_count_even_players_full_rounds(self):
+        # 4 players, 3 rounds → 2 pairs/round × 3 = 6
+        season = self._season()
+        self._add_players(season, 4)
+        self.assertEqual(len(generate_schedule(season, self.START, 3)), 6)
+
+    def test_match_count_odd_players(self):
+        # 3 players, 3 rounds → 1 pair/round × 3 = 3
+        season = self._season()
+        self._add_players(season, 3)
+        self.assertEqual(len(generate_schedule(season, self.START, 3)), 3)
+
+    def test_matches_persisted_to_database(self):
+        season = self._season()
+        self._add_players(season, 4)
+        generate_schedule(season, self.START, 3)
+        self.assertEqual(Match.objects.filter(season=season).count(), 6)
+
+    def test_weekly_date_progression(self):
+        season = self._season(schedule_type=Season.SCHEDULE_WEEKLY)
+        self._add_players(season, 4)
+        matches = generate_schedule(season, self.START, 3)
+        dates = sorted(set(m.scheduled_date for m in matches))
+        self.assertEqual(dates[0], self.START)
+        self.assertEqual(dates[1], self.START + datetime.timedelta(weeks=1))
+        self.assertEqual(dates[2], self.START + datetime.timedelta(weeks=2))
+
+    def test_consecutive_days_date_progression(self):
+        season = self._season(schedule_type=Season.SCHEDULE_CONSECUTIVE_DAYS)
+        self._add_players(season, 4)
+        matches = generate_schedule(season, self.START, 3)
+        dates = sorted(set(m.scheduled_date for m in matches))
+        self.assertEqual(dates[0], self.START)
+        self.assertEqual(dates[1], self.START + datetime.timedelta(days=1))
+        self.assertEqual(dates[2], self.START + datetime.timedelta(days=2))
+
+    def test_single_day_all_matches_on_start_date(self):
+        season = self._season(schedule_type=Season.SCHEDULE_SINGLE_DAY)
+        self._add_players(season, 4)
+        for match in generate_schedule(season, self.START, 3):
+            self.assertEqual(match.scheduled_date, self.START)
+
+    def test_num_rounds_capped_at_available(self):
+        # 4 players → max 3 unique rounds; requesting 99 still produces only 6 matches
+        season = self._season()
+        self._add_players(season, 4)
+        self.assertEqual(len(generate_schedule(season, self.START, 99)), 6)
+
+    def test_zero_rounds_produces_no_matches(self):
+        season = self._season()
+        self._add_players(season, 4)
+        self.assertEqual(len(generate_schedule(season, self.START, 0)), 0)
+
+    def test_single_player_tier_produces_no_matches(self):
+        season = self._season()
+        self._add_players(season, 1)
+        self.assertEqual(len(generate_schedule(season, self.START, 5)), 0)
+
+    def test_empty_tier_produces_no_matches(self):
+        season = self._season()
+        self.assertEqual(len(generate_schedule(season, self.START, 5)), 0)
+
+    def test_all_matches_have_scheduled_status(self):
+        season = self._season()
+        self._add_players(season, 4)
+        for match in generate_schedule(season, self.START, 2):
+            self.assertEqual(match.status, Match.STATUS_SCHEDULED)
+
+    def test_all_matches_have_regular_round(self):
+        season = self._season()
+        self._add_players(season, 4)
+        for match in generate_schedule(season, self.START, 2):
+            self.assertEqual(match.round, Match.ROUND_REGULAR)
+
+    def test_all_matches_reference_correct_season(self):
+        season = self._season()
+        self._add_players(season, 4)
+        for match in generate_schedule(season, self.START, 2):
+            self.assertEqual(match.season_id, season.pk)
+
+    def test_tier_set_on_matches(self):
+        season = self._season()
+        self._add_players(season, 4, tier=1)
+        for match in generate_schedule(season, self.START, 2):
+            self.assertEqual(match.tier, 1)
+
+    def test_no_duplicate_pairings(self):
+        season = self._season()
+        self._add_players(season, 4)
+        matches = generate_schedule(season, self.START, 99)
+        pairs = [frozenset([m.player1_id, m.player2_id]) for m in matches]
+        self.assertEqual(len(pairs), len(set(pairs)))
+
+    def test_players_only_matched_within_tier(self):
+        season = Season.objects.create(name='Spring', year=2025, num_tiers=2)
+        tier1_ids = {p.pk for p in self._add_players(season, 3, tier=1)}
+        tier2_ids = {p.pk for p in self._add_players(season, 3, tier=2)}
+        for match in generate_schedule(season, self.START, 10):
+            both_tier1 = match.player1_id in tier1_ids and match.player2_id in tier1_ids
+            both_tier2 = match.player1_id in tier2_ids and match.player2_id in tier2_ids
+            self.assertTrue(both_tier1 or both_tier2, msg='Cross-tier match detected')
+
+    def test_multi_tier_produces_matches_in_each_tier(self):
+        season = Season.objects.create(name='Spring', year=2025, num_tiers=2)
+        self._add_players(season, 4, tier=1)
+        self._add_players(season, 4, tier=2)
+        matches = generate_schedule(season, self.START, 1)
+        self.assertEqual(sum(1 for m in matches if m.tier == 1), 2)
+        self.assertEqual(sum(1 for m in matches if m.tier == 2), 2)
+
+    def test_inactive_players_excluded(self):
+        season = self._season()
+        active1 = User.objects.create_user(username='active1')
+        active2 = User.objects.create_user(username='active2')
+        inactive = User.objects.create_user(username='inactive')
+        SeasonPlayer.objects.create(season=season, player=active1, tier=1, is_active=True)
+        SeasonPlayer.objects.create(season=season, player=active2, tier=1, is_active=True)
+        SeasonPlayer.objects.create(season=season, player=inactive, tier=1, is_active=False)
+        matches = generate_schedule(season, self.START, 5)
+        involved = {m.player1_id for m in matches} | {m.player2_id for m in matches}
+        self.assertNotIn(inactive.pk, involved)
