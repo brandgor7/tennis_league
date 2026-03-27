@@ -10,6 +10,11 @@
   <p class="page-meta">{{ season.name }}</p>
 </div>
 
+<div class="mb-3">
+  <input type="search" id="player-filter" class="form-control"
+         placeholder="Filter by player…" autocomplete="off" aria-label="Filter by player">
+</div>
+
 {% if multi_tier %}
 {# ── Multi-tier: Bootstrap tabs, one per tier ─────────────────────────── #}
 <ul class="nav nav-tabs mb-3" id="tier-tabs" role="tablist">
@@ -46,4 +51,50 @@
 {% endfor %}
 {% endif %}
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const input = document.getElementById('player-filter');
+  if (!input) return;
+
+  function applyFilter() {
+    const q = input.value.trim().toLowerCase();
+
+    document.querySelectorAll('[data-player]').forEach(el => {
+      el.style.display = (!q || el.dataset.player.includes(q)) ? '' : 'none';
+    });
+
+    const tierPanes = document.querySelectorAll('.tab-pane[id^="tier-"]');
+    if (tierPanes.length === 0) return;
+
+    let firstVisibleTab = null;
+    const activeTab = document.querySelector('#tier-tabs .nav-link.active');
+    let activeVisible = false;
+
+    tierPanes.forEach(pane => {
+      const tierId = pane.id.replace('tier-', '').replace('-pane', '');
+      const tab = document.getElementById('tier-' + tierId + '-tab');
+      const tabItem = tab && tab.closest('.nav-item');
+      const allHidden = q && Array.from(pane.querySelectorAll('[data-player]'))
+        .every(el => el.style.display === 'none');
+
+      if (allHidden) {
+        if (tabItem) tabItem.style.display = 'none';
+      } else {
+        if (tabItem) tabItem.style.display = '';
+        if (!firstVisibleTab) firstVisibleTab = tab;
+        if (tab === activeTab) activeVisible = true;
+      }
+    });
+
+    if (!activeVisible && firstVisibleTab) {
+      bootstrap.Tab.getOrCreateInstance(firstVisibleTab).show();
+    }
+  }
+
+  input.addEventListener('input', applyFilter);
+})();
+</script>
 {% endblock %}
