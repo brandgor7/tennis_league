@@ -55,9 +55,12 @@ Bootstrap 5's `md` breakpoint (768px) is the single dividing line between **mobi
 - Mobile: Horizontal-scroll container (`overflow-x: auto`) wrapping the bracket; bracket rendered as a horizontal flow (rounds left to right); player names truncated with full name in tooltip
 - Desktop: Full bracket rendered in CSS grid, all rounds visible simultaneously without scrolling
 
-### Player Profile
-- Mobile: Match history as cards (opponent, result, date)
-- Desktop: Match history as a table
+### Player Profile (`/seasons/<id>/players/<player_id>/`)
+- Page shows the player's standing (rank, W/L, Pts, PD) for the season, followed by upcoming matches and completed results
+- Reuses `_match_list.html` and `_results_list.html` partials
+- Mobile: stat summary row, then matches as cards
+- Desktop: stat summary row, then matches as a table
+- Public — no login required
 
 ### Forms (login, walkover, postpone)
 - Mobile: Full-width inputs and buttons, stacked labels
@@ -127,6 +130,10 @@ Child templates mark a nav link active by emitting `nav-active` from the matchin
 
 Available blocks: `nav_standings`, `nav_matchups`, `nav_results`, `nav_playoffs`. CSS draws a clay underline on the active link.
 
+### Player Name Links
+
+Every player name rendered in the UI links to that player's profile page (`leagues:player_detail`). This applies to: `_match_list.html`, `_results_list.html`, `_standings_table.html`, `match_detail.html`, and `accounts/profile.html`. The link requires `season.pk` and `player.pk`; season context is always available via `current_season` from the context processor.
+
 ### Base Template Context
 
 `base.html` renders the season selector and primary nav links only when these context variables are present:
@@ -186,9 +193,6 @@ tennis-scores-app/
     ├── accounts/
     │   ├── login.html
     │   └── profile.html
-    ├── leagues/
-    │   ├── season_list.html
-    │   └── season_detail.html
     ├── matches/
     │   ├── matchups.html
     │   ├── results.html
@@ -200,6 +204,10 @@ tennis-scores-app/
     ├── standings/
     │   ├── standings.html
     │   └── _standings_table.html    # partial: mobile cards + desktop table
+    ├── leagues/
+    │   ├── season_list.html
+    │   ├── season_detail.html
+    │   └── player_detail.html       # player profile within a season
     └── playoffs/
         └── bracket.html
 ```
@@ -217,6 +225,7 @@ tennis-scores-app/
 - `Season` model — all per-season configuration
 - `SeasonPlayer` model — roster (which users are in which season)
 - Season list, detail views
+- `SeasonPlayerDetailView` — public player profile page showing standing, upcoming matches, and results for a player within a season
 - Admin: create/edit seasons, manage rosters
 
 ### `matches`
@@ -433,6 +442,7 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
 /seasons/<id>/results/                     Completed match results
 /seasons/<id>/playoffs/                    Playoff bracket list (redirects to tier 1 if single-tier)
 /seasons/<id>/playoffs/<tier>/             Playoff bracket for a specific tier
+/seasons/<id>/players/<player_id>/        Player profile — standing, upcoming matches, and results within that season
 
 /matches/<id>/                             Match detail (set scores, status)
 /matches/<id>/enter-result/                Enter score (player in match or admin)
