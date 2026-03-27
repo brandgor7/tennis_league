@@ -10,7 +10,7 @@
       </span>
       <div class="flex-grow-1">
         <div class="fw-600">
-          <a href="{% url 'leagues:player_detail' season.pk row.player.pk %}" class="text-reset text-decoration-none stretched-link-child">
+          <a href="{% url 'leagues:player_detail' season.pk row.player.pk %}" class="text-reset text-decoration-none">
             {{ row.player.get_full_name|default:row.player.username }}
           </a>
         </div>
@@ -48,7 +48,7 @@
             </span>
           </td>
           <td>
-            <a href="{% url 'leagues:player_detail' season.pk row.player.pk %}">
+            <a href="{% url 'leagues:player_detail' season.pk row.player.pk %}" class="text-reset text-decoration-none">
               {{ row.player.get_full_name|default:row.player.username }}
             </a>
           </td>
