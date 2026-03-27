@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Players — {{ season.name }} — TennisLeague{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Players</h1>
+  <p class="page-meta">{{ season.name }}</p>
+</div>
+{% for tier_num, players in tiers %}
+  Tier {{ tier_num }}
+  {% for sp in players %}
+    <div>{{ sp.player.get_full_name|default:sp.player.username }}</div>
+  {% empty %}
+    <p class="text-muted">No players in this tier.</p>
+  {% endfor %}
+{% endfor %}
+{% endblock %}

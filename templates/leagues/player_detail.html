@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}{{ player.get_full_name|default:player.username }} — {{ season.name }} — TennisLeague{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>{{ player.get_full_name|default:player.username }}</h1>
+  <p class="page-meta">{{ season.name }}</p>
+</div>
+{% if standing %}
+  <p>Rank: {{ rank }} | W: {{ standing.wins }} L: {{ standing.losses }} Pts: {{ standing.points }}</p>
+{% endif %}
+<h2>Upcoming Matches</h2>
+{% include 'matches/_match_list.html' with matches=upcoming show_tier=False %}
+<h2>Results</h2>
+{% include 'matches/_results_list.html' with matches=results %}
+{% endblock %}

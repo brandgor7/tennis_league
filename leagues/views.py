@@ -4,6 +4,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.generic import ListView, DetailView, View
 
 from .models import Season, SeasonPlayer
+
+User = get_user_model()
 from matches.models import Match
 from standings.calculator import calculate_standings
 
@@ -52,7 +54,6 @@ class SeasonPlayerListView(View):
 
 class SeasonPlayerDetailView(View):
     def get(self, request, pk, player_pk):
-        User = get_user_model()
         season = get_object_or_404(Season, pk=pk)
         player = get_object_or_404(User, pk=player_pk)
         season_player = get_object_or_404(SeasonPlayer, season=season, player=player, is_active=True)
@@ -67,6 +68,8 @@ class SeasonPlayerDetailView(View):
                 rank = i
                 break
 
+        # pending_confirmation matches are intentionally excluded from both
+        # sections, consistent with MatchupsView which also omits that status.
         upcoming = (
             Match.objects
             .filter(
