@@ -505,6 +505,13 @@ class SeasonPlayerDetailViewTest(TestCase):
         response = self.client.get(self.url)
         self.assertNotIn(unrelated, list(response.context['upcoming']))
 
+    def test_upcoming_contains_pending_confirmation_match(self):
+        opponent = make_player('opp')
+        enroll(self.season, opponent, tier=1)
+        m = self._make_match(self.player, opponent, Match.STATUS_PENDING)
+        response = self.client.get(self.url)
+        self.assertIn(m, list(response.context['upcoming']))
+
     def test_upcoming_excludes_completed_matches(self):
         opponent = make_player('opp')
         enroll(self.season, opponent, tier=1)

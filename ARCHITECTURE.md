@@ -34,7 +34,7 @@ Bootstrap 5's `md` breakpoint (768px) is the single dividing line between **mobi
 - Desktop: Table with columns: rank, player, Wins, Losses, Pts, PD (game differential)
 
 ### Matchups & Results
-- **Matchups** (scheduled/postponed):
+- **Matchups** (scheduled/postponed/pending_confirmation):
   - Mobile: cards with player names, scheduled date, status badge; entire card taps to match detail
   - Desktop: table rows with player1, player2, date, status, detail link
 - **Results** (completed/walkover): inline tennis scoreboard — no click-through required to see scores

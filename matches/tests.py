@@ -229,11 +229,11 @@ class MatchupsViewTest(TestCase):
         tier_num, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 0)
 
-    def test_excludes_pending_match(self):
+    def test_shows_pending_match(self):
         self._match(status=Match.STATUS_PENDING)
         response = self.client.get(self.url)
         tier_num, matches = response.context['tiers'][0]
-        self.assertEqual(matches.count(), 0)
+        self.assertEqual(matches.count(), 1)
 
     def test_excludes_cancelled_match(self):
         self._match(status=Match.STATUS_CANCELLED)

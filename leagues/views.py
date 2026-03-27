@@ -68,14 +68,12 @@ class SeasonPlayerDetailView(View):
                 rank = i
                 break
 
-        # pending_confirmation matches are intentionally excluded from both
-        # sections, consistent with MatchupsView which also omits that status.
         upcoming = (
             Match.objects
             .filter(
                 Q(player1=player) | Q(player2=player),
                 season=season,
-                status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED],
+                status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED, Match.STATUS_PENDING],
             )
             .select_related('player1', 'player2', 'winner', 'season')
             .order_by('scheduled_date')
