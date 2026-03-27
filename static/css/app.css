@@ -31,6 +31,13 @@
   --bs-card-border-color:   var(--border);
 }
 
+/* ─── Layout ─────────────────────────────────────────────── */
+@media (min-width: 992px) {
+  main .container {
+    max-width: 900px;
+  }
+}
+
 /* ─── Base ───────────────────────────────────────────────── */
 body {
   letter-spacing: -0.01em;
