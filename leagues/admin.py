@@ -174,20 +174,20 @@ class SeasonAdmin(admin.ModelAdmin):
                                 first_name = parts[0]
                                 last_name = parts[1] if len(parts) > 1 else ''
 
-                                user_qs = User.objects.filter(
+                                matched = list(User.objects.filter(
                                     first_name__iexact=first_name,
                                     last_name__iexact=last_name,
-                                )
-                                if user_qs.count() > 1:
+                                )[:2])
+                                if len(matched) > 1:
                                     results['errors'].append(
                                         f'"{name}" matches multiple users — skipped.'
                                     )
                                     continue
 
-                                user = user_qs.first()
+                                user = matched[0] if matched else None
                                 if user is None:
-                                    username = (first_name + last_name).lower()
-                                    base_username = username
+                                    base_username = (first_name + last_name).lower()
+                                    username = base_username
                                     n = 1
                                     while User.objects.filter(username=username).exists():
                                         username = f'{base_username}{n}'
@@ -226,7 +226,7 @@ class SeasonAdmin(admin.ModelAdmin):
                             f'{len(results["skipped"])} skipped, '
                             f'{len(results["errors"])} errors.',
                         )
-                except Exception as exc:
+                except (csv.Error, UnicodeDecodeError, ValueError) as exc:
                     error = f'Failed to parse CSV: {exc}'
 
         context = {
