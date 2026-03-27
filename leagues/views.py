@@ -30,19 +30,6 @@ class SeasonDetailView(DetailView):
     context_object_name = 'season'
 
 
-class SeasonPlayerListView(View):
-    def get(self, request, pk):
-        season = get_object_or_404(Season, pk=pk)
-        tiers = [
-            (tier_num, calculate_standings(season, tier_num))
-            for tier_num in range(1, season.num_tiers + 1)
-        ]
-        return render(request, 'leagues/player_list.html', {
-            'season': season,
-            'tiers': tiers,
-            'multi_tier': season.num_tiers > 1,
-        })
-
 
 class SeasonPlayerDetailView(View):
     def get(self, request, pk, player_pk):
