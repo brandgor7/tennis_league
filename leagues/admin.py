@@ -5,6 +5,7 @@ import re
 
 from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
@@ -164,60 +165,61 @@ class SeasonAdmin(admin.ModelAdmin):
                     if not tier_map:
                         error = 'No valid tier columns found. Headers must be a tier number (e.g. "1", "Tier 1", "tier1").'
                     else:
-                        for row in reader:
-                            for header, tier_num in tier_map.items():
-                                name = (row.get(header) or '').strip()
-                                if not name:
-                                    continue
+                        with transaction.atomic():
+                            for row in reader:
+                                for header, tier_num in tier_map.items():
+                                    name = (row.get(header) or '').strip()
+                                    if not name:
+                                        continue
 
-                                parts = name.split(None, 1)
-                                first_name = parts[0]
-                                last_name = parts[1] if len(parts) > 1 else ''
+                                    parts = name.split(None, 1)
+                                    first_name = parts[0]
+                                    last_name = parts[1] if len(parts) > 1 else ''
 
-                                matched = list(User.objects.filter(
-                                    first_name__iexact=first_name,
-                                    last_name__iexact=last_name,
-                                )[:2])
-                                if len(matched) > 1:
-                                    results['errors'].append(
-                                        f'"{name}" matches multiple users — skipped.'
-                                    )
-                                    continue
+                                    matched = list(User.objects.filter(
+                                        first_name__iexact=first_name,
+                                        last_name__iexact=last_name,
+                                    )[:2])
+                                    if len(matched) > 1:
+                                        results['errors'].append(
+                                            f'"{name}" matches multiple users — skipped.'
+                                        )
+                                        continue
 
-                                user = matched[0] if matched else None
-                                if user is None:
-                                    base_username = (first_name + last_name).lower()
-                                    username = base_username
-                                    n = 1
-                                    while User.objects.filter(username=username).exists():
-                                        username = f'{base_username}{n}'
-                                        n += 1
-                                    user = User.objects.create_user(
-                                        username=username,
-                                        first_name=first_name,
-                                        last_name=last_name,
-                                    )
-                                    sp = SeasonPlayer.objects.create(
-                                        season=season, player=user, tier=tier_num
-                                    )
-                                    results['created'].append(
-                                        f'{name} (Tier {tier_num}, username: {user.username})'
-                                    )
-                                else:
-                                    sp, created = SeasonPlayer.objects.get_or_create(
-                                        season=season, player=user,
-                                        defaults={'tier': tier_num},
-                                    )
-                                    if created:
-                                        results['created'].append(f'{name} (Tier {tier_num})')
-                                    elif sp.tier != tier_num:
-                                        sp.tier = tier_num
-                                        sp.save(update_fields=['tier'])
-                                        results['updated'].append(
-                                            f'{name} moved to Tier {tier_num}'
+                                    user = matched[0] if matched else None
+                                    if user is None:
+                                        base_username = (first_name + last_name).lower()
+                                        username = base_username
+                                        n = 1
+                                        while User.objects.filter(username=username).exists():
+                                            username = f'{base_username}{n}'
+                                            n += 1
+                                        user = User.objects.create_user(
+                                            username=username,
+                                            first_name=first_name,
+                                            last_name=last_name,
+                                        )
+                                        SeasonPlayer.objects.create(
+                                            season=season, player=user, tier=tier_num
+                                        )
+                                        results['created'].append(
+                                            f'{name} (Tier {tier_num}, username: {user.username})'
                                         )
                                     else:
-                                        results['skipped'].append(f'{name} (already in Tier {tier_num})')
+                                        sp, created = SeasonPlayer.objects.get_or_create(
+                                            season=season, player=user,
+                                            defaults={'tier': tier_num},
+                                        )
+                                        if created:
+                                            results['created'].append(f'{name} (Tier {tier_num})')
+                                        elif sp.tier != tier_num:
+                                            sp.tier = tier_num
+                                            sp.save(update_fields=['tier'])
+                                            results['updated'].append(
+                                                f'{name} moved to Tier {tier_num}'
+                                            )
+                                        else:
+                                            results['skipped'].append(f'{name} (already in Tier {tier_num})')
 
                         messages.success(
                             request,
