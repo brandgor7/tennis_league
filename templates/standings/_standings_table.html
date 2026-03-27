@@ -2,7 +2,7 @@
 
 <div class="d-block d-md-none">
   {% for row in rows %}
-  <div class="card mb-2">
+  <div class="card mb-2" data-player="{{ row.player.get_full_name|default:row.player.username|lower }}">
     <div class="card-body py-2 px-3 d-flex align-items-center gap-3">
       <span class="rank-number {% if forloop.counter <= 3 %}rank-top-3{% endif %}">
         {{ forloop.counter }}
@@ -35,7 +35,7 @@
       </thead>
       <tbody>
         {% for row in rows %}
-        <tr>
+        <tr data-player="{{ row.player.get_full_name|default:row.player.username|lower }}">
           <td class="text-center">
             <span class="rank-number {% if forloop.counter <= 3 %}rank-top-3{% endif %}">
               {{ forloop.counter }}

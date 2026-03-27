@@ -3,7 +3,7 @@
 {# ── Mobile cards ──────────────────────────────────────────────────────── #}
 <div class="d-block d-md-none">
   {% for match in matches %}
-  <div class="card mb-2 match-card" style="position:relative;">
+  <div class="card mb-2 match-card" style="position:relative;" data-players="{{ match.player1.get_full_name|default:match.player1.username|lower }} {{ match.player2.get_full_name|default:match.player2.username|lower }}">
     <div class="card-body py-3 px-3">
       <div class="fw-600 mb-1">
         {% if match.player1 %}<a href="{% url 'leagues:player_detail' current_season.pk match.player1.pk %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}
@@ -45,7 +45,7 @@
       </thead>
       <tbody>
         {% for match in matches %}
-        <tr>
+        <tr data-players="{{ match.player1.get_full_name|default:match.player1.username|lower }} {{ match.player2.get_full_name|default:match.player2.username|lower }}">
           <td>{% if match.player1 %}<a href="{% url 'leagues:player_detail' current_season.pk match.player1.pk %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}</td>
           <td>{% if match.player2 %}<a href="{% url 'leagues:player_detail' current_season.pk match.player2.pk %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}</td>
           <td class="text-muted">
