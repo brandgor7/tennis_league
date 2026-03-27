@@ -1,6 +1,10 @@
+import csv
 import datetime
+import io
+import re
 
 from django.contrib import admin, messages
+from django.contrib.auth import get_user_model
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
@@ -46,6 +50,11 @@ class SeasonAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.generate_schedule_view),
                 name='leagues_season_generate_schedule',
             ),
+            path(
+                '<int:season_id>/import-players/',
+                self.admin_site.admin_view(self.import_players_view),
+                name='leagues_season_import_players',
+            ),
         ]
         return custom + urls
 
@@ -61,6 +70,9 @@ class SeasonAdmin(admin.ModelAdmin):
         extra_context['generate_playoff_urls'] = generate_urls
         extra_context['generate_schedule_url'] = reverse(
             'admin:leagues_season_generate_schedule', args=[object_id]
+        )
+        extra_context['import_players_url'] = reverse(
+            'admin:leagues_season_import_players', args=[object_id]
         )
         return super().change_view(request, object_id, form_url, extra_context)
 
@@ -123,6 +135,108 @@ class SeasonAdmin(admin.ModelAdmin):
             'title': f'Generate Schedule — {season.name}',
         }
         return render(request, 'leagues/generate_schedule.html', context)
+
+    def import_players_view(self, request, season_id):
+        season = get_object_or_404(Season, pk=season_id)
+        User = get_user_model()
+        results = None
+        error = None
+
+        if request.method == 'POST':
+            csv_file = request.FILES.get('csv_file')
+            if not csv_file:
+                error = 'Please select a CSV file to upload.'
+            elif not csv_file.name.endswith('.csv'):
+                error = 'Uploaded file must be a .csv file.'
+            else:
+                try:
+                    text = csv_file.read().decode('utf-8-sig')
+                    reader = csv.DictReader(io.StringIO(text))
+                    results = {'created': [], 'updated': [], 'skipped': [], 'errors': []}
+
+                    tier_map = {}
+                    for header in reader.fieldnames or []:
+                        stripped = header.strip()
+                        match = re.fullmatch(r'(?:tier\s*)?(\d+)', stripped, re.IGNORECASE)
+                        if match:
+                            tier_map[header] = int(match.group(1))
+
+                    if not tier_map:
+                        error = 'No valid tier columns found. Headers must be a tier number (e.g. "1", "Tier 1", "tier1").'
+                    else:
+                        for row in reader:
+                            for header, tier_num in tier_map.items():
+                                name = (row.get(header) or '').strip()
+                                if not name:
+                                    continue
+
+                                parts = name.split(None, 1)
+                                first_name = parts[0]
+                                last_name = parts[1] if len(parts) > 1 else ''
+
+                                user_qs = User.objects.filter(
+                                    first_name__iexact=first_name,
+                                    last_name__iexact=last_name,
+                                )
+                                if user_qs.count() > 1:
+                                    results['errors'].append(
+                                        f'"{name}" matches multiple users — skipped.'
+                                    )
+                                    continue
+
+                                user = user_qs.first()
+                                if user is None:
+                                    username = (first_name + last_name).lower()
+                                    base_username = username
+                                    n = 1
+                                    while User.objects.filter(username=username).exists():
+                                        username = f'{base_username}{n}'
+                                        n += 1
+                                    user = User.objects.create_user(
+                                        username=username,
+                                        first_name=first_name,
+                                        last_name=last_name,
+                                    )
+                                    sp = SeasonPlayer.objects.create(
+                                        season=season, player=user, tier=tier_num
+                                    )
+                                    results['created'].append(
+                                        f'{name} (Tier {tier_num}, username: {user.username})'
+                                    )
+                                else:
+                                    sp, created = SeasonPlayer.objects.get_or_create(
+                                        season=season, player=user,
+                                        defaults={'tier': tier_num},
+                                    )
+                                    if created:
+                                        results['created'].append(f'{name} (Tier {tier_num})')
+                                    elif sp.tier != tier_num:
+                                        sp.tier = tier_num
+                                        sp.save(update_fields=['tier'])
+                                        results['updated'].append(
+                                            f'{name} moved to Tier {tier_num}'
+                                        )
+                                    else:
+                                        results['skipped'].append(f'{name} (already in Tier {tier_num})')
+
+                        messages.success(
+                            request,
+                            f'Import complete: {len(results["created"])} created, '
+                            f'{len(results["updated"])} updated, '
+                            f'{len(results["skipped"])} skipped, '
+                            f'{len(results["errors"])} errors.',
+                        )
+                except Exception as exc:
+                    error = f'Failed to parse CSV: {exc}'
+
+        context = {
+            **self.admin_site.each_context(request),
+            'season': season,
+            'error': error,
+            'results': results,
+            'title': f'Import Players — {season.name}',
+        }
+        return render(request, 'leagues/import_players.html', context)
 
     def generate_playoffs_view(self, request, season_id, tier):
         season = get_object_or_404(Season, pk=season_id)
