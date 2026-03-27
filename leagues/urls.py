@@ -15,4 +15,5 @@ urlpatterns = [
     path('seasons/<int:pk>/results/', ResultsView.as_view(), name='results'),
     path('seasons/<int:pk>/playoffs/', PlayoffListView.as_view(), name='playoffs'),
     path('seasons/<int:pk>/playoffs/<int:tier>/', PlayoffBracketView.as_view(), name='playoffs_tier'),
+    path('seasons/<int:pk>/players/<int:player_pk>/', views.SeasonPlayerDetailView.as_view(), name='player_detail'),
 ]

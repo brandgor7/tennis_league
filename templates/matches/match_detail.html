@@ -10,9 +10,9 @@
 {# ── Page header ───────────────────────────────────────────────────────── #}
 <div class="page-header">
   <h1>
-    {{ match.player1.get_full_name|default:match.player1.username }}
+    {% if match.player1 %}<a href="{% url 'leagues:player_detail' season.pk match.player1.pk %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}
     <span class="text-muted" style="font-size:0.7em; font-family:'DM Sans',sans-serif; font-weight:400;">vs</span>
-    {{ match.player2.get_full_name|default:match.player2.username }}
+    {% if match.player2 %}<a href="{% url 'leagues:player_detail' season.pk match.player2.pk %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}
   </h1>
   <p class="page-meta">
     {{ season.name }}
@@ -77,13 +77,13 @@
           </thead>
           <tbody>
             <tr>
-              <td class="ps-3 fw-500">{{ match.player1.get_full_name|default:match.player1.username }}</td>
+              <td class="ps-3 fw-500">{% if match.player1 %}<a href="{% url 'leagues:player_detail' season.pk match.player1.pk %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}</td>
               {% for s in sets %}
               <td class="text-center score-set">{{ s.player1_games }}</td>
               {% endfor %}
             </tr>
             <tr>
-              <td class="ps-3 fw-500">{{ match.player2.get_full_name|default:match.player2.username }}</td>
+              <td class="ps-3 fw-500">{% if match.player2 %}<a href="{% url 'leagues:player_detail' season.pk match.player2.pk %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}</td>
               {% for s in sets %}
               <td class="text-center score-set">{{ s.player2_games }}</td>
               {% endfor %}
@@ -162,7 +162,7 @@
             {% if match.winner %}
             <dt class="col-5 text-muted fw-500">Winner</dt>
             <dd class="col-7 fw-600 text-clay">
-              {{ match.winner.get_full_name|default:match.winner.username }}
+              <a href="{% url 'leagues:player_detail' season.pk match.winner.pk %}" class="text-reset text-decoration-none">{{ match.winner.get_full_name|default:match.winner.username }}</a>
             </dd>
             {% endif %}
             {% if match.round != 'regular' %}
@@ -198,13 +198,13 @@
               </thead>
               <tbody>
                 <tr>
-                  <td class="ps-3 fw-500">{{ match.player1.get_full_name|default:match.player1.username }}</td>
+                  <td class="ps-3 fw-500">{% if match.player1 %}<a href="{% url 'leagues:player_detail' season.pk match.player1.pk %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}</td>
                   {% for s in sets %}
                   <td class="text-center score-set">{{ s.player1_games }}</td>
                   {% endfor %}
                 </tr>
                 <tr>
-                  <td class="ps-3 fw-500">{{ match.player2.get_full_name|default:match.player2.username }}</td>
+                  <td class="ps-3 fw-500">{% if match.player2 %}<a href="{% url 'leagues:player_detail' season.pk match.player2.pk %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}</td>
                   {% for s in sets %}
                   <td class="text-center score-set">{{ s.player2_games }}</td>
                   {% endfor %}

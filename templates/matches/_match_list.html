@@ -6,9 +6,9 @@
   <div class="card mb-2 match-card" style="position:relative;">
     <div class="card-body py-3 px-3">
       <div class="fw-600 mb-1">
-        {{ match.player1.get_full_name|default:match.player1.username }}
+        {% if match.player1 %}<a href="{% url 'leagues:player_detail' current_season.pk match.player1.pk %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}
         <span class="text-muted fw-400">vs</span>
-        {{ match.player2.get_full_name|default:match.player2.username }}
+        {% if match.player2 %}<a href="{% url 'leagues:player_detail' current_season.pk match.player2.pk %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}
       </div>
       <div class="d-flex align-items-center gap-2 flex-wrap">
         {% if match.scheduled_date %}
@@ -19,7 +19,7 @@
         <span class="status-badge status-{{ match.status }}">{{ match.get_status_display }}</span>
         {% if match.winner %}
         <small class="text-muted">
-          Won: {{ match.winner.get_full_name|default:match.winner.username }}
+          Won: <a href="{% url 'leagues:player_detail' current_season.pk match.winner.pk %}" class="text-reset text-decoration-none">{{ match.winner.get_full_name|default:match.winner.username }}</a>
         </small>
         {% endif %}
       </div>
@@ -46,8 +46,8 @@
       <tbody>
         {% for match in matches %}
         <tr>
-          <td>{{ match.player1.get_full_name|default:match.player1.username }}</td>
-          <td>{{ match.player2.get_full_name|default:match.player2.username }}</td>
+          <td>{% if match.player1 %}<a href="{% url 'leagues:player_detail' current_season.pk match.player1.pk %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}</td>
+          <td>{% if match.player2 %}<a href="{% url 'leagues:player_detail' current_season.pk match.player2.pk %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}</td>
           <td class="text-muted">
             {% if match.scheduled_date %}{{ match.scheduled_date }}{% else %}TBD{% endif %}
           </td>
