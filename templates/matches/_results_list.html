@@ -4,7 +4,7 @@
 <div class="d-block d-md-none">
   {% for match in matches %}
   {% with sets=match.sets.all %}
-  <div class="card mb-2">
+  <div class="card mb-2" data-players="{{ match.player1.get_full_name|default:match.player1.username|lower }} {{ match.player2.get_full_name|default:match.player2.username|lower }}">
     <div class="card-body py-3 px-3">
 
       {# Score table — same structure as match_detail.html #}
@@ -68,7 +68,7 @@
       <tbody>
         {% for match in matches %}
         {% with sets=match.sets.all %}
-        <tr>
+        <tr data-players="{{ match.player1.get_full_name|default:match.player1.username|lower }} {{ match.player2.get_full_name|default:match.player2.username|lower }}">
           <td>
             <div class="result-score-row pb-1">
               {% if match.player1 %}<a href="{% url 'leagues:player_detail' current_season.pk match.player1.pk %}" class="result-name fw-bold text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}
