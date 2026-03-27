@@ -341,7 +341,7 @@ h1, h2, h3, .font-serif {
 }
 
 .result-score {
-  width: 2rem;
+  width: 2.75rem;
   text-align: center;
   flex-shrink: 0;
 }
