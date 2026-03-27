@@ -88,6 +88,10 @@
                href="{% url 'leagues:standings' current_season.pk %}">Standings</a>
           </li>
           <li class="nav-item">
+            <a class="nav-link {% block nav_players %}{% endblock %}"
+               href="{% url 'leagues:player_list' current_season.pk %}">Players</a>
+          </li>
+          <li class="nav-item">
             <a class="nav-link {% block nav_matchups %}{% endblock %}"
                href="{% url 'leagues:matchups' current_season.pk %}">Matchups</a>
           </li>
