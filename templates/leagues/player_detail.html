@@ -1,15 +1,58 @@
 {% extends 'base.html' %}
+
 {% block title %}{{ player.get_full_name|default:player.username }} — {{ season.name }} — TennisLeague{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <h1>{{ player.get_full_name|default:player.username }}</h1>
-  <p class="page-meta">{{ season.name }}</p>
+  <p class="page-meta">
+    {{ season.name }}{% if season.num_tiers > 1 %} &nbsp;·&nbsp; Tier {{ season_player.tier }}{% endif %}
+  </p>
 </div>
+
+{# ── Standing summary ──────────────────────────────────────────────────── #}
 {% if standing %}
-  <p>Rank: {{ rank }} | W: {{ standing.wins }} L: {{ standing.losses }} Pts: {{ standing.points }}</p>
+<div class="card mb-4">
+  <div class="card-body py-3">
+    <div class="d-flex flex-wrap gap-4 align-items-center">
+      <div class="text-center">
+        <div class="rank-number {% if rank <= 3 %}rank-top-3{% endif %}" style="font-size:1.6rem;">
+          {{ rank }}
+        </div>
+        <div class="text-muted" style="font-size:0.7rem; text-transform:uppercase; letter-spacing:.05em;">Rank</div>
+      </div>
+      <div class="vr d-none d-sm-block"></div>
+      <div class="d-flex gap-4 flex-wrap">
+        <div class="text-center">
+          <div class="stat-value fw-600" style="font-size:1.2rem;">{{ standing.wins }}</div>
+          <div class="text-muted" style="font-size:0.7rem; text-transform:uppercase; letter-spacing:.05em;">Wins</div>
+        </div>
+        <div class="text-center">
+          <div class="stat-value" style="font-size:1.2rem;">{{ standing.losses }}</div>
+          <div class="text-muted" style="font-size:0.7rem; text-transform:uppercase; letter-spacing:.05em;">Losses</div>
+        </div>
+        <div class="text-center">
+          <div class="stat-value fw-600 text-clay" style="font-size:1.2rem;">{{ standing.points }}</div>
+          <div class="text-muted" style="font-size:0.7rem; text-transform:uppercase; letter-spacing:.05em;">Pts</div>
+        </div>
+        <div class="text-center">
+          <div class="stat-value" style="font-size:1.2rem;">
+            {% if standing.pd > 0 %}+{% endif %}{{ standing.pd }}
+          </div>
+          <div class="text-muted" style="font-size:0.7rem; text-transform:uppercase; letter-spacing:.05em;">PD</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endif %}
-<h2>Upcoming Matches</h2>
+
+{# ── Upcoming matches ──────────────────────────────────────────────────── #}
+<h2 class="h5 mb-3">Upcoming Matches</h2>
 {% include 'matches/_match_list.html' with matches=upcoming show_tier=False %}
-<h2>Results</h2>
+
+{# ── Results ───────────────────────────────────────────────────────────── #}
+<h2 class="h5 mt-4 mb-3">Results</h2>
 {% include 'matches/_results_list.html' with matches=results %}
+
 {% endblock %}

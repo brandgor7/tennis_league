@@ -33,18 +33,10 @@ class SeasonDetailView(DetailView):
 class SeasonPlayerListView(View):
     def get(self, request, pk):
         season = get_object_or_404(Season, pk=pk)
-        season_players = (
-            SeasonPlayer.objects
-            .filter(season=season, is_active=True)
-            .select_related('player')
-            .order_by('tier', 'player__last_name', 'player__first_name')
-        )
-
-        tiers = []
-        for tier_num in range(1, season.num_tiers + 1):
-            players = [sp for sp in season_players if sp.tier == tier_num]
-            tiers.append((tier_num, players))
-
+        tiers = [
+            (tier_num, calculate_standings(season, tier_num))
+            for tier_num in range(1, season.num_tiers + 1)
+        ]
         return render(request, 'leagues/player_list.html', {
             'season': season,
             'tiers': tiers,

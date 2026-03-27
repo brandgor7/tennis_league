@@ -1,0 +1,68 @@
+{% if rows %}
+
+{# ── Mobile cards ──────────────────────────────────────────────────────────── #}
+<div class="d-block d-md-none">
+  {% for row in rows %}
+  <div class="card mb-2">
+    <div class="card-body py-2 px-3 d-flex align-items-center gap-3">
+      <span class="rank-number {% if forloop.counter <= 3 %}rank-top-3{% endif %}">
+        {{ forloop.counter }}
+      </span>
+      <div class="flex-grow-1">
+        <div class="fw-600">
+          <a href="{% url 'leagues:player_detail' season.pk row.player.pk %}" class="text-reset text-decoration-none stretched-link-child">
+            {{ row.player.get_full_name|default:row.player.username }}
+          </a>
+        </div>
+        <small class="text-muted">{{ row.wins }}W &ndash; {{ row.losses }}L</small>
+      </div>
+      <div class="text-end">
+        <span class="stat-value fw-600">{{ row.points }}</span>
+        <div class="text-muted" style="font-size:0.7rem;">pts</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{# ── Desktop table ─────────────────────────────────────────────────────────── #}
+<div class="d-none d-md-block">
+  <div class="table-responsive">
+    <table class="table table-striped table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th scope="col" class="text-center" style="width:3rem;">#</th>
+          <th scope="col">Player</th>
+          <th scope="col" class="text-center stat-value">Wins</th>
+          <th scope="col" class="text-center stat-value">Losses</th>
+          <th scope="col" class="text-center stat-value">Pts</th>
+          <th scope="col" class="text-center stat-value">PD</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td class="text-center">
+            <span class="rank-number {% if forloop.counter <= 3 %}rank-top-3{% endif %}">
+              {{ forloop.counter }}
+            </span>
+          </td>
+          <td>
+            <a href="{% url 'leagues:player_detail' season.pk row.player.pk %}">
+              {{ row.player.get_full_name|default:row.player.username }}
+            </a>
+          </td>
+          <td class="text-center stat-value">{{ row.wins }}</td>
+          <td class="text-center stat-value">{{ row.losses }}</td>
+          <td class="text-center stat-value fw-600">{{ row.points }}</td>
+          <td class="text-center stat-value">{{ row.pd }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% else %}
+<p class="text-muted py-3">No players registered for this tier yet.</p>
+{% endif %}

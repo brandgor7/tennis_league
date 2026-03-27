@@ -334,8 +334,8 @@ class SeasonPlayerListViewTest(TestCase):
         p1 = make_player('alice', first='Alice', last='Smith')
         enroll(self.season, p1, tier=1)
         response = self.client.get(self.url)
-        tier_num, players = response.context['tiers'][0]
-        player_objects = [sp.player for sp in players]
+        tier_num, rows = response.context['tiers'][0]
+        player_objects = [row['player'] for row in rows]
         self.assertIn(p1, player_objects)
 
     def test_inactive_players_excluded(self):
@@ -344,8 +344,8 @@ class SeasonPlayerListViewTest(TestCase):
         enroll(self.season, active, tier=1, is_active=True)
         enroll(self.season, inactive, tier=1, is_active=False)
         response = self.client.get(self.url)
-        tier_num, players = response.context['tiers'][0]
-        player_objects = [sp.player for sp in players]
+        tier_num, rows = response.context['tiers'][0]
+        player_objects = [row['player'] for row in rows]
         self.assertIn(active, player_objects)
         self.assertNotIn(inactive, player_objects)
 
@@ -358,8 +358,8 @@ class SeasonPlayerListViewTest(TestCase):
         url = reverse('leagues:player_list', kwargs={'pk': season.pk})
         response = self.client.get(url)
         tiers = response.context['tiers']
-        tier1_players = [sp.player for sp in tiers[0][1]]
-        tier2_players = [sp.player for sp in tiers[1][1]]
+        tier1_players = [row['player'] for row in tiers[0][1]]
+        tier2_players = [row['player'] for row in tiers[1][1]]
         self.assertIn(p1, tier1_players)
         self.assertNotIn(p1, tier2_players)
         self.assertIn(p2, tier2_players)
@@ -367,8 +367,8 @@ class SeasonPlayerListViewTest(TestCase):
 
     def test_empty_season_returns_empty_tier_lists(self):
         response = self.client.get(self.url)
-        tier_num, players = response.context['tiers'][0]
-        self.assertEqual(players, [])
+        tier_num, rows = response.context['tiers'][0]
+        self.assertEqual(rows, [])
 
     def test_season_name_in_response(self):
         response = self.client.get(self.url)
@@ -584,3 +584,136 @@ class SeasonPlayerDetailViewTest(TestCase):
     def test_player_name_in_response(self):
         response = self.client.get(self.url)
         self.assertContains(response, 'Alice Smith')
+
+
+# ─── SeasonPlayerListView template tests ─────────────────────────────────────
+
+class SeasonPlayerListTemplateTest(TestCase):
+    def setUp(self):
+        self.season = make_season(num_tiers=1)
+        self.url = reverse('leagues:player_list', kwargs={'pk': self.season.pk})
+
+    def test_empty_state_message(self):
+        response = self.client.get(self.url)
+        self.assertContains(response, 'No players registered')
+
+    def test_player_name_appears_in_list(self):
+        p = make_player('bob', first='Bob', last='Jones')
+        enroll(self.season, p, tier=1)
+        response = self.client.get(self.url)
+        self.assertContains(response, 'Bob Jones')
+
+    def test_player_name_is_a_link_to_player_detail(self):
+        p = make_player('bob', first='Bob', last='Jones')
+        enroll(self.season, p, tier=1)
+        expected_url = reverse('leagues:player_detail', kwargs={
+            'pk': self.season.pk, 'player_pk': p.pk,
+        })
+        response = self.client.get(self.url)
+        self.assertContains(response, f'href="{expected_url}"')
+
+    def test_stats_columns_present(self):
+        enroll(self.season, make_player('p1'), tier=1)
+        response = self.client.get(self.url)
+        self.assertContains(response, 'Wins')
+        self.assertContains(response, 'Losses')
+        self.assertContains(response, 'Pts')
+        self.assertContains(response, 'PD')
+
+    def test_multi_tier_shows_tier_tabs(self):
+        season = make_season(num_tiers=2, name='Multi', status=Season.STATUS_UPCOMING)
+        url = reverse('leagues:player_list', kwargs={'pk': season.pk})
+        response = self.client.get(url)
+        self.assertContains(response, 'Tier 1')
+        self.assertContains(response, 'Tier 2')
+
+    def test_single_tier_has_no_tier_tabs(self):
+        response = self.client.get(self.url)
+        self.assertNotContains(response, 'Tier 1')
+
+
+# ─── SeasonPlayerDetailView template tests ────────────────────────────────────
+
+class SeasonPlayerDetailTemplateTest(TestCase):
+    def setUp(self):
+        self.season = make_season(num_tiers=1)
+        self.player = make_player('alice', first='Alice', last='Smith')
+        enroll(self.season, self.player, tier=1)
+        self.url = reverse('leagues:player_detail', kwargs={
+            'pk': self.season.pk, 'player_pk': self.player.pk,
+        })
+
+    def _opponent(self, username='opp'):
+        p = make_player(username)
+        enroll(self.season, p, tier=1)
+        return p
+
+    def test_player_name_in_heading(self):
+        response = self.client.get(self.url)
+        self.assertContains(response, '<h1>Alice Smith</h1>')
+
+    def test_season_name_in_page_meta(self):
+        response = self.client.get(self.url)
+        self.assertContains(response, self.season.name)
+
+    def test_tier_label_shown_for_multi_tier_season(self):
+        season = make_season(num_tiers=2, name='Multi', status=Season.STATUS_UPCOMING)
+        p = make_player('bob', first='Bob', last='Jones')
+        enroll(season, p, tier=2)
+        url = reverse('leagues:player_detail', kwargs={'pk': season.pk, 'player_pk': p.pk})
+        response = self.client.get(url)
+        self.assertContains(response, 'Tier 2')
+
+    def test_tier_label_not_shown_for_single_tier_season(self):
+        response = self.client.get(self.url)
+        self.assertNotContains(response, 'Tier 1')
+
+    def test_standing_stats_rendered(self):
+        opp = self._opponent()
+        Match.objects.create(
+            season=self.season, player1=self.player, player2=opp,
+            tier=1, status=Match.STATUS_COMPLETED, winner=self.player,
+        )
+        response = self.client.get(self.url)
+        self.assertContains(response, 'Rank')
+        self.assertContains(response, 'Wins')
+        self.assertContains(response, 'Losses')
+        self.assertContains(response, 'Pts')
+        self.assertContains(response, 'PD')
+
+    def test_rank_top3_highlight_applied_for_rank_1(self):
+        response = self.client.get(self.url)
+        self.assertContains(response, 'rank-top-3')
+
+    def test_upcoming_section_heading_present(self):
+        response = self.client.get(self.url)
+        self.assertContains(response, 'Upcoming Matches')
+
+    def test_results_section_heading_present(self):
+        response = self.client.get(self.url)
+        self.assertContains(response, 'Results')
+
+    def test_upcoming_match_opponent_name_rendered(self):
+        opp = self._opponent('carol')
+        opp.first_name = 'Carol'
+        opp.last_name = 'White'
+        opp.save()
+        Match.objects.create(
+            season=self.season, player1=self.player, player2=opp,
+            tier=1, status=Match.STATUS_SCHEDULED,
+            scheduled_date=datetime.date(2025, 6, 1),
+        )
+        response = self.client.get(self.url)
+        self.assertContains(response, 'Carol White')
+
+    def test_completed_match_rendered_in_results(self):
+        opp = self._opponent('dave')
+        opp.first_name = 'Dave'
+        opp.last_name = 'Black'
+        opp.save()
+        Match.objects.create(
+            season=self.season, player1=self.player, player2=opp,
+            tier=1, status=Match.STATUS_COMPLETED, winner=self.player,
+        )
+        response = self.client.get(self.url)
+        self.assertContains(response, 'Dave Black')
