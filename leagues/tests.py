@@ -177,7 +177,7 @@ class HomeViewTest(TestCase):
     def test_home_redirects_to_active_season_standings(self):
         season = Season.objects.create(name='Spring', year=2025, status=Season.STATUS_ACTIVE)
         response = self.client.get(reverse('home'))
-        self.assertRedirects(response, reverse('leagues:standings', kwargs={'pk': season.pk}))
+        self.assertRedirects(response, reverse('leagues:standings', kwargs={'slug': season.slug}))
 
     def test_home_accessible_when_authenticated(self):
         user = User.objects.create_user(username='tester', password='pass')
@@ -225,22 +225,22 @@ class SeasonDetailViewTest(TestCase):
         )
 
     def test_detail_shows_season_name(self):
-        response = self.client.get(reverse('leagues:season_detail', kwargs={'pk': self.season.pk}))
+        response = self.client.get(reverse('leagues:season_detail', kwargs={'slug': self.season.slug}))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Spring 2025')
 
     def test_detail_404_for_missing_season(self):
-        response = self.client.get(reverse('leagues:season_detail', kwargs={'pk': 99999}))
+        response = self.client.get(reverse('leagues:season_detail', kwargs={'slug': 'nonexistent-season'}))
         self.assertEqual(response.status_code, 404)
 
     def test_detail_accessible_anonymously(self):
-        response = self.client.get(reverse('leagues:season_detail', kwargs={'pk': self.season.pk}))
+        response = self.client.get(reverse('leagues:season_detail', kwargs={'slug': self.season.slug}))
         self.assertEqual(response.status_code, 200)
 
     def test_detail_accessible_when_authenticated(self):
         user = User.objects.create_user(username='tester', password='pass')
         self.client.login(username='tester', password='pass')
-        response = self.client.get(reverse('leagues:season_detail', kwargs={'pk': self.season.pk}))
+        response = self.client.get(reverse('leagues:season_detail', kwargs={'slug': self.season.slug}))
         self.assertEqual(response.status_code, 200)
 
 
@@ -255,7 +255,7 @@ class SeasonContextProcessorTest(TestCase):
 
     def test_current_season_set_from_url(self):
         season = Season.objects.create(name='Spring', year=2025)
-        response = self.client.get(reverse('leagues:season_detail', kwargs={'pk': season.pk}))
+        response = self.client.get(reverse('leagues:season_detail', kwargs={'slug': season.slug}))
         self.assertEqual(response.context['current_season'], season)
 
     def test_current_season_defaults_to_active(self):
@@ -269,10 +269,10 @@ class SeasonContextProcessorTest(TestCase):
         response = self.client.get(reverse('leagues:season_list'))
         self.assertIsNone(response.context['current_season'])
 
-    def test_nonexistent_pk_in_url_falls_back_to_active(self):
+    def test_nonexistent_slug_in_url_falls_back_to_active(self):
         active = Season.objects.create(name='Active', year=2025, status=Season.STATUS_ACTIVE)
-        # /seasons/99999/ returns 404, but the context processor should not crash.
-        response = self.client.get(reverse('leagues:season_detail', kwargs={'pk': 99999}))
+        # /seasons/nonexistent-season/ returns 404, but the context processor should not crash.
+        response = self.client.get(reverse('leagues:season_detail', kwargs={'slug': 'nonexistent-season'}))
         self.assertEqual(response.status_code, 404)
 
 
@@ -284,8 +284,8 @@ class SeasonPlayerDetailViewTest(TestCase):
         self.player = make_player('alice', first='Alice', last='Smith')
         enroll(self.season, self.player, tier=1)
         self.url = reverse('leagues:player_detail', kwargs={
-            'pk': self.season.pk,
-            'player_pk': self.player.pk,
+            'slug': self.season.slug,
+            'username': self.player.username,
         })
 
     def _make_match(self, p1, p2, status, winner=None, tier=1):
@@ -300,25 +300,25 @@ class SeasonPlayerDetailViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_404_for_missing_season(self):
-        url = reverse('leagues:player_detail', kwargs={'pk': 99999, 'player_pk': self.player.pk})
+        url = reverse('leagues:player_detail', kwargs={'slug': 'nonexistent-season', 'username': self.player.username})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
 
     def test_404_for_missing_player(self):
-        url = reverse('leagues:player_detail', kwargs={'pk': self.season.pk, 'player_pk': 99999})
+        url = reverse('leagues:player_detail', kwargs={'slug': self.season.slug, 'username': 'nonexistent-user'})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
 
     def test_404_when_player_not_enrolled_in_season(self):
         other = make_player('outsider')
-        url = reverse('leagues:player_detail', kwargs={'pk': self.season.pk, 'player_pk': other.pk})
+        url = reverse('leagues:player_detail', kwargs={'slug': self.season.slug, 'username': other.username})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
 
     def test_404_when_player_is_inactive(self):
         inactive = make_player('inactive')
         enroll(self.season, inactive, tier=1, is_active=False)
-        url = reverse('leagues:player_detail', kwargs={'pk': self.season.pk, 'player_pk': inactive.pk})
+        url = reverse('leagues:player_detail', kwargs={'slug': self.season.slug, 'username': inactive.username})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
 
@@ -491,7 +491,7 @@ class SeasonPlayerDetailTemplateTest(TestCase):
         self.player = make_player('alice', first='Alice', last='Smith')
         enroll(self.season, self.player, tier=1)
         self.url = reverse('leagues:player_detail', kwargs={
-            'pk': self.season.pk, 'player_pk': self.player.pk,
+            'slug': self.season.slug, 'username': self.player.username,
         })
 
     def _opponent(self, username='opp'):
@@ -511,7 +511,7 @@ class SeasonPlayerDetailTemplateTest(TestCase):
         season = make_season(num_tiers=2, name='Multi', status=Season.STATUS_UPCOMING)
         p = make_player('bob', first='Bob', last='Jones')
         enroll(season, p, tier=2)
-        url = reverse('leagues:player_detail', kwargs={'pk': season.pk, 'player_pk': p.pk})
+        url = reverse('leagues:player_detail', kwargs={'slug': season.slug, 'username': p.username})
         response = self.client.get(url)
         self.assertContains(response, 'Tier 2')
 

@@ -190,7 +190,7 @@ class MatchupsViewTest(TestCase):
         self.season = Season.objects.create(name='Spring', year=2025)
         self.p1 = User.objects.create_user(username='player1')
         self.p2 = User.objects.create_user(username='player2')
-        self.url = reverse('leagues:matchups', kwargs={'pk': self.season.pk})
+        self.url = reverse('leagues:matchups', kwargs={'slug': self.season.slug})
 
     def _match(self, **kwargs):
         defaults = dict(season=self.season, player1=self.p1, player2=self.p2)
@@ -202,7 +202,7 @@ class MatchupsViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_404_for_invalid_season(self):
-        response = self.client.get(reverse('leagues:matchups', kwargs={'pk': 9999}))
+        response = self.client.get(reverse('leagues:matchups', kwargs={'slug': 'nonexistent-season'}))
         self.assertEqual(response.status_code, 404)
 
     def test_shows_scheduled_match(self):
@@ -303,7 +303,7 @@ class ResultsViewTest(TestCase):
         self.season = Season.objects.create(name='Spring', year=2025)
         self.p1 = User.objects.create_user(username='player1')
         self.p2 = User.objects.create_user(username='player2')
-        self.url = reverse('leagues:results', kwargs={'pk': self.season.pk})
+        self.url = reverse('leagues:results', kwargs={'slug': self.season.slug})
 
     def _match(self, **kwargs):
         defaults = dict(season=self.season, player1=self.p1, player2=self.p2)
@@ -315,7 +315,7 @@ class ResultsViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_404_for_invalid_season(self):
-        response = self.client.get(reverse('leagues:results', kwargs={'pk': 9999}))
+        response = self.client.get(reverse('leagues:results', kwargs={'slug': 'nonexistent-season'}))
         self.assertEqual(response.status_code, 404)
 
     def test_shows_completed_match(self):
@@ -472,7 +472,7 @@ class MatchDetailViewTest(TestCase):
 
     def test_completed_match_back_link_goes_to_results(self):
         response = self.client.get(self.url)
-        results_url = reverse('leagues:results', kwargs={'pk': self.season.pk})
+        results_url = reverse('leagues:results', kwargs={'slug': self.season.slug})
         self.assertContains(response, results_url)
 
     def test_scheduled_match_back_link_goes_to_matchups(self):
@@ -481,7 +481,7 @@ class MatchDetailViewTest(TestCase):
             status=Match.STATUS_SCHEDULED,
         )
         response = self.client.get(reverse('matches:match_detail', kwargs={'pk': scheduled.pk}))
-        matchups_url = reverse('leagues:matchups', kwargs={'pk': self.season.pk})
+        matchups_url = reverse('leagues:matchups', kwargs={'slug': self.season.slug})
         self.assertContains(response, matchups_url)
 
 

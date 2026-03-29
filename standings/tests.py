@@ -430,14 +430,14 @@ class CalculateStandingsScheduledMatchesIgnoredTest(TestCase):
 class StandingsViewTest(TestCase):
     def setUp(self):
         self.season = make_season(num_tiers=1)
-        self.url = reverse('leagues:standings', kwargs={'pk': self.season.pk})
+        self.url = reverse('leagues:standings', kwargs={'slug': self.season.slug})
 
     def test_standings_url_resolves(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
 
     def test_standings_404_for_missing_season(self):
-        response = self.client.get(reverse('leagues:standings', kwargs={'pk': 99999}))
+        response = self.client.get(reverse('leagues:standings', kwargs={'slug': 'nonexistent-season'}))
         self.assertEqual(response.status_code, 404)
 
     def test_standings_uses_correct_template(self):
@@ -458,13 +458,13 @@ class StandingsViewTest(TestCase):
 
     def test_multi_tier_context_has_correct_count(self):
         season = make_season(num_tiers=2, name='Multi', status=Season.STATUS_UPCOMING)
-        url = reverse('leagues:standings', kwargs={'pk': season.pk})
+        url = reverse('leagues:standings', kwargs={'slug': season.slug})
         response = self.client.get(url)
         self.assertEqual(len(response.context['tiers']), 2)
 
     def test_multi_tier_flag_true(self):
         season = make_season(num_tiers=2, name='Multi', status=Season.STATUS_UPCOMING)
-        url = reverse('leagues:standings', kwargs={'pk': season.pk})
+        url = reverse('leagues:standings', kwargs={'slug': season.slug})
         response = self.client.get(url)
         self.assertTrue(response.context['multi_tier'])
 
@@ -521,7 +521,7 @@ class StandingsViewTest(TestCase):
 
     def test_multi_tier_shows_tier_tabs(self):
         season = make_season(num_tiers=2, name='Multi', status=Season.STATUS_UPCOMING)
-        url = reverse('leagues:standings', kwargs={'pk': season.pk})
+        url = reverse('leagues:standings', kwargs={'slug': season.slug})
         response = self.client.get(url)
         self.assertContains(response, 'Tier 1')
         self.assertContains(response, 'Tier 2')
@@ -541,5 +541,5 @@ class HomeViewRedirectToStandingsTest(TestCase):
         response = self.client.get(reverse('home'))
         self.assertRedirects(
             response,
-            reverse('leagues:standings', kwargs={'pk': season.pk}),
+            reverse('leagues:standings', kwargs={'slug': season.slug}),
         )
