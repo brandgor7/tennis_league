@@ -15,7 +15,7 @@
     {% if match.player2 %}<a href="{% url 'leagues:player_detail' season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}
   </h1>
   <p class="page-meta">
-    {{ season.name }}
+    {{ season }}
     {% if multi_tier and match.tier %}
     &nbsp;·&nbsp; Tier {{ match.tier }}
     {% endif %}

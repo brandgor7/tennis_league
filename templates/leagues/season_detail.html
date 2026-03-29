@@ -1,13 +1,11 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ season.name }} — TennisLeague{% endblock %}
+{% block title %}{{ season }} — TennisLeague{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1>{{ season.name }}</h1>
+  <h1>{{ season }}</h1>
   <p class="page-meta">
-    {{ season.year }}
-    &nbsp;·&nbsp;
     <span class="status-badge status-{{ season.status }}">{{ season.get_status_display }}</span>
   </p>
 </div>

@@ -42,7 +42,7 @@ def enroll(season, player, tier=1, is_active=True):
 class SeasonModelTest(TestCase):
     def test_str_includes_year(self):
         season = Season(name='Spring League', year=2025)
-        self.assertEqual(str(season), 'Spring League (2025)')
+        self.assertEqual(str(season), 'Spring League 2025')
 
     def test_clean_raises_when_second_active_season(self):
         Season.objects.create(name='First', year=2024, status=Season.STATUS_ACTIVE)

@@ -61,14 +61,14 @@
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" role="button"
                data-bs-toggle="dropdown" aria-expanded="false">
-              {{ current_season.name }}
+              {{ current_season }}
             </a>
             <ul class="dropdown-menu">
               {% for season in all_seasons %}
               <li>
                 <a class="dropdown-item {% if season.pk == current_season.pk %}season-active{% endif %}"
                    href="/seasons/{{ season.slug }}/">
-                  {{ season.name }}
+                  {{ season }}
                   {% if season.status == 'active' %}
                   <span class="ms-1 text-muted" style="font-size:0.7rem;">●</span>
                   {% endif %}

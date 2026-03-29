@@ -97,7 +97,7 @@ class Season(models.Model):
                 )
 
     def __str__(self):
-        return f'{self.name} ({self.year})'
+        return f'{self.name} {self.year}'
 
 
 class SeasonPlayer(models.Model):
