@@ -76,8 +76,8 @@ class Season(models.Model):
         return self.final_set_format == self.FINAL_SET_TIEBREAK
 
     def save(self, *args, **kwargs):
-        if not self.slug:
-            base = slugify(f'{self.name}-{self.year}')
+        base = slugify(f'{self.name}-{self.year}')
+        if not self.slug or not self.slug.startswith(base):
             slug = base
             n = 1
             while Season.objects.filter(slug=slug).exclude(pk=self.pk).exists():

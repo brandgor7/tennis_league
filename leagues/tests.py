@@ -61,6 +61,31 @@ class SeasonModelTest(TestCase):
         new = Season(name='New', year=2025, status=Season.STATUS_UPCOMING)
         new.clean()  # must not raise
 
+    # ── Slug generation ──────────────────────────────────────────────────────
+
+    def test_slug_generated_on_create(self):
+        season = Season.objects.create(name='Spring', year=2025)
+        self.assertEqual(season.slug, 'spring-2025')
+
+    def test_slug_updates_when_name_changes(self):
+        season = Season.objects.create(name='Spring', year=2025)
+        season.name = 'Autumn'
+        season.save()
+        season.refresh_from_db()
+        self.assertEqual(season.slug, 'autumn-2025')
+
+    def test_slug_updates_when_year_changes(self):
+        season = Season.objects.create(name='Spring', year=2025)
+        season.year = 2026
+        season.save()
+        season.refresh_from_db()
+        self.assertEqual(season.slug, 'spring-2026')
+
+    def test_slug_uniqueness_on_collision(self):
+        Season.objects.create(name='Spring', year=2025)
+        season2 = Season.objects.create(name='Spring', year=2025, status=Season.STATUS_UPCOMING)
+        self.assertEqual(season2.slug, 'spring-2025-1')
+
     # ── Phase 5: num_tiers ───────────────────────────────────────────────────
 
     def test_num_tiers_defaults_to_1(self):
