@@ -10,9 +10,9 @@
 {# ── Page header ───────────────────────────────────────────────────────── #}
 <div class="page-header">
   <h1>
-    {% if match.player1 %}<a href="{% url 'leagues:player_detail' season.pk match.player1.pk %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}
+    {% if match.player1 %}<a href="{% url 'leagues:player_detail' season.slug match.player1.username %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}
     <span class="text-muted" style="font-size:0.7em; font-family:'DM Sans',sans-serif; font-weight:400;">vs</span>
-    {% if match.player2 %}<a href="{% url 'leagues:player_detail' season.pk match.player2.pk %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}
+    {% if match.player2 %}<a href="{% url 'leagues:player_detail' season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}
   </h1>
   <p class="page-meta">
     {{ season.name }}
@@ -77,13 +77,13 @@
           </thead>
           <tbody>
             <tr>
-              <td class="ps-3 fw-500">{% if match.player1 %}<a href="{% url 'leagues:player_detail' season.pk match.player1.pk %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}</td>
+              <td class="ps-3 fw-500">{% if match.player1 %}<a href="{% url 'leagues:player_detail' season.slug match.player1.username %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}</td>
               {% for s in sets %}
               <td class="text-center score-set">{{ s.player1_games }}</td>
               {% endfor %}
             </tr>
             <tr>
-              <td class="ps-3 fw-500">{% if match.player2 %}<a href="{% url 'leagues:player_detail' season.pk match.player2.pk %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}</td>
+              <td class="ps-3 fw-500">{% if match.player2 %}<a href="{% url 'leagues:player_detail' season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}</td>
               {% for s in sets %}
               <td class="text-center score-set">{{ s.player2_games }}</td>
               {% endfor %}
@@ -130,11 +130,11 @@
     {% endif %}
   {% endif %}
   {% if match.status == 'completed' or match.status == 'walkover' %}
-  <a href="{% url 'leagues:results' season.pk %}" class="btn btn-outline-primary w-100">
+  <a href="{% url 'leagues:results' season.slug %}" class="btn btn-outline-primary w-100">
     &larr; Back to Results
   </a>
   {% else %}
-  <a href="{% url 'leagues:matchups' season.pk %}" class="btn btn-outline-primary w-100">
+  <a href="{% url 'leagues:matchups' season.slug %}" class="btn btn-outline-primary w-100">
     &larr; Back to Matchups
   </a>
   {% endif %}
@@ -162,7 +162,7 @@
             {% if match.winner %}
             <dt class="col-5 text-muted fw-500">Winner</dt>
             <dd class="col-7 fw-600 text-clay">
-              <a href="{% url 'leagues:player_detail' season.pk match.winner.pk %}" class="text-reset text-decoration-none">{{ match.winner.get_full_name|default:match.winner.username }}</a>
+              <a href="{% url 'leagues:player_detail' season.slug match.winner.username %}" class="text-reset text-decoration-none">{{ match.winner.get_full_name|default:match.winner.username }}</a>
             </dd>
             {% endif %}
             {% if match.round != 'regular' %}
@@ -198,13 +198,13 @@
               </thead>
               <tbody>
                 <tr>
-                  <td class="ps-3 fw-500">{% if match.player1 %}<a href="{% url 'leagues:player_detail' season.pk match.player1.pk %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}</td>
+                  <td class="ps-3 fw-500">{% if match.player1 %}<a href="{% url 'leagues:player_detail' season.slug match.player1.username %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}</td>
                   {% for s in sets %}
                   <td class="text-center score-set">{{ s.player1_games }}</td>
                   {% endfor %}
                 </tr>
                 <tr>
-                  <td class="ps-3 fw-500">{% if match.player2 %}<a href="{% url 'leagues:player_detail' season.pk match.player2.pk %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}</td>
+                  <td class="ps-3 fw-500">{% if match.player2 %}<a href="{% url 'leagues:player_detail' season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}</td>
                   {% for s in sets %}
                   <td class="text-center score-set">{{ s.player2_games }}</td>
                   {% endfor %}
@@ -259,11 +259,11 @@
       {% endif %}
     {% endif %}
     {% if match.status == 'completed' or match.status == 'walkover' %}
-    <a href="{% url 'leagues:results' season.pk %}" class="btn btn-outline-primary">
+    <a href="{% url 'leagues:results' season.slug %}" class="btn btn-outline-primary">
       &larr; Back to Results
     </a>
     {% else %}
-    <a href="{% url 'leagues:matchups' season.pk %}" class="btn btn-outline-primary">
+    <a href="{% url 'leagues:matchups' season.slug %}" class="btn btn-outline-primary">
       &larr; Back to Matchups
     </a>
     {% endif %}

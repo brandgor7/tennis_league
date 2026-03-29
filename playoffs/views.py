@@ -64,10 +64,10 @@ def _bracket_context(bracket):
 class PlayoffListView(TemplateView):
     template_name = 'playoffs/bracket_list.html'
 
-    def get(self, request, pk):
-        season = get_object_or_404(Season, pk=pk)
+    def get(self, request, slug):
+        season = get_object_or_404(Season, slug=slug)
         if season.num_tiers == 1:
-            return redirect('leagues:playoffs_tier', pk=pk, tier=1)
+            return redirect('leagues:playoffs_tier', slug=slug, tier=1)
         brackets_by_tier = {
             b.tier: b
             for b in PlayoffBracket.objects.filter(season=season)
@@ -87,7 +87,7 @@ class PlayoffBracketView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        season = get_object_or_404(Season, pk=self.kwargs['pk'])
+        season = get_object_or_404(Season, slug=self.kwargs['slug'])
         tier = self.kwargs['tier']
         bracket = get_object_or_404(PlayoffBracket, season=season, tier=tier)
         rounds_data, bracket_size = _bracket_context(bracket)

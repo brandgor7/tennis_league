@@ -67,7 +67,7 @@
               {% for season in all_seasons %}
               <li>
                 <a class="dropdown-item {% if season.pk == current_season.pk %}season-active{% endif %}"
-                   href="/seasons/{{ season.pk }}/">
+                   href="/seasons/{{ season.slug }}/">
                   {{ season.name }}
                   {% if season.status == 'active' %}
                   <span class="ms-1 text-muted" style="font-size:0.7rem;">●</span>
@@ -85,19 +85,19 @@
           {% if current_season %}
           <li class="nav-item">
             <a class="nav-link {% block nav_standings %}{% endblock %}"
-               href="{% url 'leagues:standings' current_season.pk %}">Standings</a>
+               href="{% url 'leagues:standings' current_season.slug %}">Standings</a>
           </li>
           <li class="nav-item">
             <a class="nav-link {% block nav_matchups %}{% endblock %}"
-               href="{% url 'leagues:matchups' current_season.pk %}">Matchups</a>
+               href="{% url 'leagues:matchups' current_season.slug %}">Matchups</a>
           </li>
           <li class="nav-item">
             <a class="nav-link {% block nav_results %}{% endblock %}"
-               href="{% url 'leagues:results' current_season.pk %}">Results</a>
+               href="{% url 'leagues:results' current_season.slug %}">Results</a>
           </li>
           <li class="nav-item">
               <a class="nav-link {% block nav_playoffs %}{% endblock %}"
-               href="{% url 'leagues:playoffs' current_season.pk %}">Playoffs</a>
+               href="{% url 'leagues:playoffs' current_season.slug %}">Playoffs</a>
           </li>
           {% endif %}
 
@@ -183,9 +183,6 @@
   <footer class="site-footer">
     <div class="container d-flex justify-content-between align-items-center gap-3">
       <span>TennisLeague &copy; {% now "Y" %}</span>
-      {% if user.is_staff %}
-      <a href="/admin/">Admin</a>
-      {% endif %}
     </div>
   </footer>
 

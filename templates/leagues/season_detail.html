@@ -16,7 +16,7 @@
 <div class="row g-3 mb-4">
 
   <div class="col-6 col-md-3">
-    <a href="{% url 'leagues:standings' season.pk %}" class="text-decoration-none">
+    <a href="{% url 'leagues:standings' season.slug %}" class="text-decoration-none">
       <div class="card text-center py-3 h-100 match-card" style="position:relative;">
         <div class="card-body p-2">
           <i class="bi bi-trophy" aria-hidden="true" style="font-size:1.75rem; color:var(--clay);"></i>
@@ -27,7 +27,7 @@
   </div>
 
   <div class="col-6 col-md-3">
-    <a href="{% url 'leagues:matchups' season.pk %}" class="text-decoration-none">
+    <a href="{% url 'leagues:matchups' season.slug %}" class="text-decoration-none">
       <div class="card text-center py-3 h-100 match-card" style="position:relative;">
         <div class="card-body p-2">
           <i class="bi bi-calendar3" aria-hidden="true" style="font-size:1.75rem; color:var(--clay);"></i>
@@ -38,7 +38,7 @@
   </div>
 
   <div class="col-6 col-md-3">
-    <a href="{% url 'leagues:results' season.pk %}" class="text-decoration-none">
+    <a href="{% url 'leagues:results' season.slug %}" class="text-decoration-none">
       <div class="card text-center py-3 h-100 match-card" style="position:relative;">
         <div class="card-body p-2">
           <i class="bi bi-check2-circle" aria-hidden="true" style="font-size:1.75rem; color:var(--clay);"></i>
@@ -49,7 +49,7 @@
   </div>
 
   <div class="col-6 col-md-3">
-    <a href="/seasons/{{ season.pk }}/playoffs/" class="text-decoration-none">
+    <a href="{% url 'leagues:playoffs' season.slug %}" class="text-decoration-none">
       <div class="card text-center py-3 h-100 match-card" style="position:relative;">
         <div class="card-body p-2">
           <i class="bi bi-diagram-3" aria-hidden="true" style="font-size:1.75rem; color:var(--clay);"></i>

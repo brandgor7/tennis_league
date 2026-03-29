@@ -126,7 +126,7 @@
 {% if multi_tier %}
 <div class="d-flex gap-2 mb-4">
   {% for t in tier_range %}
-  <a href="{% url 'leagues:playoffs_tier' season.pk t %}"
+  <a href="{% url 'leagues:playoffs_tier' season.slug t %}"
      class="btn btn-sm {% if t == tier %}btn-primary{% else %}btn-outline-primary{% endif %}">
     Tier {{ t }}
   </a>

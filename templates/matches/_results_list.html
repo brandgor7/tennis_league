@@ -13,7 +13,7 @@
           <tbody>
             <tr>
               <td class="pe-3 pb-1 fw-bold" style="white-space:nowrap; font-size:0.9rem;">
-                {% if match.player1 %}<a href="{% url 'leagues:player_detail' current_season.pk match.player1.pk %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}
+                {% if match.player1 %}<a href="{% url 'leagues:player_detail' current_season.slug match.player1.username %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}
               </td>
               {% for s in sets %}
               <td class="text-center pb-1 {% if match.winner_id == match.player1_id %}score-set{% else %}text-muted{% endif %}" style="min-width:2rem;">
@@ -26,7 +26,7 @@
             </tr>
             <tr>
               <td class="pe-3 text-muted" style="white-space:nowrap; font-size:0.9rem;">
-                {% if match.player2 %}<a href="{% url 'leagues:player_detail' current_season.pk match.player2.pk %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}
+                {% if match.player2 %}<a href="{% url 'leagues:player_detail' current_season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}
               </td>
               {% for s in sets %}
               <td class="text-center {% if match.winner_id == match.player2_id %}score-set{% else %}text-muted{% endif %}" style="min-width:2rem;">
@@ -71,7 +71,7 @@
         <tr data-players="{{ match.player1.get_full_name|default:match.player1.username|lower }} {{ match.player2.get_full_name|default:match.player2.username|lower }}">
           <td>
             <div class="result-score-row pb-1">
-              {% if match.player1 %}<a href="{% url 'leagues:player_detail' current_season.pk match.player1.pk %}" class="result-name fw-bold text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}
+              {% if match.player1 %}<a href="{% url 'leagues:player_detail' current_season.slug match.player1.username %}" class="result-name fw-bold text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}
               {% for s in sets %}
               <span class="result-score {% if match.winner_id == match.player1_id %}score-set{% else %}text-muted{% endif %}">
                 {{ s.player1_games }}{% if s.tiebreak_player1_points is not None and s.player1_games > s.player2_games %}<sup style="font-size:0.55em; font-family:'DM Sans',sans-serif; font-weight:400; vertical-align:super;">{{ s.tiebreak_player2_points }}</sup>{% endif %}
@@ -80,7 +80,7 @@
               {% if not sets %}<span class="text-muted" style="font-size:0.8rem;">W/O</span>{% endif %}
             </div>
             <div class="result-score-row">
-              {% if match.player2 %}<a href="{% url 'leagues:player_detail' current_season.pk match.player2.pk %}" class="result-name text-muted text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}
+              {% if match.player2 %}<a href="{% url 'leagues:player_detail' current_season.slug match.player2.username %}" class="result-name text-muted text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}
               {% for s in sets %}
               <span class="result-score {% if match.winner_id == match.player2_id %}score-set{% else %}text-muted{% endif %}">
                 {{ s.player2_games }}{% if s.tiebreak_player2_points is not None and s.player2_games > s.player1_games %}<sup style="font-size:0.55em; font-family:'DM Sans',sans-serif; font-weight:400; vertical-align:super;">{{ s.tiebreak_player1_points }}</sup>{% endif %}

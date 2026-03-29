@@ -13,7 +13,7 @@ from standings.calculator import calculate_standings
 def home(request):
     active_season = Season.objects.filter(status=Season.STATUS_ACTIVE).first()
     if active_season:
-        return redirect('leagues:standings', pk=active_season.pk)
+        return redirect('leagues:standings', slug=active_season.slug)
     return redirect('leagues:season_list')
 
 
@@ -28,13 +28,15 @@ class SeasonDetailView(DetailView):
     model = Season
     template_name = 'leagues/season_detail.html'
     context_object_name = 'season'
+    slug_field = 'slug'
+    slug_url_kwarg = 'slug'
 
 
 
 class SeasonPlayerDetailView(View):
-    def get(self, request, pk, player_pk):
-        season = get_object_or_404(Season, pk=pk)
-        player = get_object_or_404(User, pk=player_pk)
+    def get(self, request, slug, username):
+        season = get_object_or_404(Season, slug=slug)
+        player = get_object_or_404(User, username=username)
         season_player = get_object_or_404(SeasonPlayer, season=season, player=player, is_active=True)
 
         tier = season_player.tier
