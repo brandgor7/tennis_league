@@ -28,10 +28,24 @@ jobs:
       - name: Run tests
         run: python manage.py test --settings=config.test_settings -v 2
 
-  deploy:
+  check-secrets:
     needs: test
     runs-on: ubuntu-latest
-    if: ${{ secrets.LIGHTSAIL_HOST != '' }}
+    outputs:
+      has-secrets: ${{ steps.check.outputs.has-secrets }}
+    steps:
+      - id: check
+        run: |
+          if [ -n "${{ secrets.LIGHTSAIL_HOST }}" ]; then
+            echo "has-secrets=true" >> $GITHUB_OUTPUT
+          else
+            echo "has-secrets=false" >> $GITHUB_OUTPUT
+          fi
+
+  deploy:
+    needs: [test, check-secrets]
+    runs-on: ubuntu-latest
+    if: needs.check-secrets.outputs.has-secrets == 'true'
 
     steps:
       - name: Deploy to Lightsail
