@@ -31,6 +31,7 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
+    if: ${{ secrets.LIGHTSAIL_HOST != '' }}
 
     steps:
       - name: Deploy to Lightsail
