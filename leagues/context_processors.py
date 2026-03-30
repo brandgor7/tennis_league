@@ -16,9 +16,9 @@ def season_context(request):
     # Only use the URL pk when we are inside the 'leagues' namespace, so a
     # match pk at /matches/42/ never accidentally selects Season 42.
     if resolver and resolver.namespace == 'leagues':
-        season_id = resolver.kwargs.get('pk')
-        if season_id:
-            current_season = next((s for s in all_seasons if s.pk == season_id), None)
+        season_slug = resolver.kwargs.get('slug')
+        if season_slug:
+            current_season = next((s for s in all_seasons if s.slug == season_slug), None)
 
     if current_season is None:
         current_season = next(

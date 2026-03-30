@@ -17,12 +17,10 @@
     <div class="match-card card h-100" style="position:relative;">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-start mb-2">
-          <h2 class="h5 mb-0">{{ season.name }}</h2>
+          <h2 class="h5 mb-0">{{ season }}</h2>
           <span class="status-badge status-{{ season.status }}">{{ season.get_status_display }}</span>
         </div>
         <p class="text-muted mb-3" style="font-size:0.85rem;">
-          {{ season.year }}
-          &nbsp;·&nbsp;
           First to {{ season.sets_to_win }} sets
           &nbsp;·&nbsp;
           {{ season.playoff_qualifiers_count }} qualifiers
@@ -36,7 +34,7 @@
         </div>
       </div>
       <div class="card-footer bg-transparent border-theme py-2">
-        <a href="{% url 'leagues:season_detail' season.pk %}" class="stretched-link text-clay fw-500" style="font-size:0.875rem;">
+        <a href="{% url 'leagues:season_detail' season.slug %}" class="stretched-link text-clay fw-500" style="font-size:0.875rem;">
           View season <i class="bi bi-arrow-right" aria-hidden="true"></i>
         </a>
       </div>

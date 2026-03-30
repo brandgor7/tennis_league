@@ -2,6 +2,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import F
 from django.conf import settings
+from django.utils.text import slugify
 
 
 class Season(models.Model):
@@ -42,6 +43,7 @@ class Season(models.Model):
     ]
 
     name = models.CharField(max_length=100)
+    slug = models.SlugField(max_length=120, unique=True)
     year = models.IntegerField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_UPCOMING)
     num_tiers = models.IntegerField(default=1, help_text='Number of competitive tiers in this season')
@@ -73,6 +75,17 @@ class Season(models.Model):
     def is_tiebreak_final_format(self):
         return self.final_set_format == self.FINAL_SET_TIEBREAK
 
+    def save(self, *args, **kwargs):
+        base = slugify(f'{self.name}-{self.year}')
+        if not self.slug or not self.slug.startswith(base):
+            slug = base
+            n = 1
+            while Season.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f'{base}-{n}'
+                n += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
+
     def clean(self):
         if self.status == self.STATUS_ACTIVE:
             qs = Season.objects.filter(status=self.STATUS_ACTIVE)
@@ -84,7 +97,7 @@ class Season(models.Model):
                 )
 
     def __str__(self):
-        return f'{self.name} ({self.year})'
+        return f'{self.name} {self.year}'
 
 
 class SeasonPlayer(models.Model):

@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ player.get_full_name|default:player.username }} — {{ season.name }} — TennisLeague{% endblock %}
+{% block title %}{{ player.get_full_name|default:player.username }} — {{ season }} — TennisLeague{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <h1>{{ player.get_full_name|default:player.username }}</h1>
   <p class="page-meta">
-    {{ season.name }}{% if season.num_tiers > 1 %} &nbsp;·&nbsp; Tier {{ season_player.tier }}{% endif %}
+    {{ season }}{% if season.num_tiers > 1 %} &nbsp;·&nbsp; Tier {{ season_player.tier }}{% endif %}
   </p>
 </div>
 

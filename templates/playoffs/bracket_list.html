@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Playoffs — {{ season.name }}{% endblock %}
+{% block title %}Playoffs — {{ season }}{% endblock %}
 {% block nav_playoffs %}nav-active{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <h1>Playoffs</h1>
-  <p class="page-meta">{{ season.name }}</p>
+  <p class="page-meta">{{ season }}</p>
 </div>
 
 <div class="row g-3">
@@ -18,7 +18,7 @@
         <p class="text-muted mb-3" style="font-size: 0.85rem;">
           Generated {{ bracket.generated_at|date:"N j, Y" }}
         </p>
-        <a href="{% url 'leagues:playoffs_tier' season.pk tier_num %}" class="btn btn-primary btn-sm align-self-start">
+        <a href="{% url 'leagues:playoffs_tier' season.slug tier_num %}" class="btn btn-primary btn-sm align-self-start">
           View Bracket
         </a>
         {% else %}
