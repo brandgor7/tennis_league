@@ -7,6 +7,11 @@
     <a href="{{ generate_schedule_url }}" class="historylink">Generate Schedule</a>
   </li>
   {% endif %}
+  {% if import_players_url %}
+  <li>
+    <a href="{{ import_players_url }}" class="historylink">Import Players</a>
+  </li>
+  {% endif %}
   {% for item in generate_playoff_urls %}
   <li>
     <a href="{{ item.url }}" class="historylink">
