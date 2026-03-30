@@ -13,7 +13,7 @@
     {{ match.player1.get_full_name|default:match.player1.username }}
     <span class="text-muted" style="font-size:0.85em;">vs</span>
     {{ match.player2.get_full_name|default:match.player2.username }}
-    &nbsp;·&nbsp; {{ season.name }}
+    &nbsp;·&nbsp; {{ season }}
     {% if multi_tier and match.tier %}
     &nbsp;·&nbsp; Tier {{ match.tier }}
     {% endif %}

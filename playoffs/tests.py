@@ -49,11 +49,11 @@ class PlayoffBracketModelTest(TestCase):
 
     def test_str_includes_tier(self):
         bracket = PlayoffBracket(season=self.season, tier=1)
-        self.assertEqual(str(bracket), 'Playoff Bracket — Spring (2025) (Tier 1)')
+        self.assertEqual(str(bracket), 'Playoff Bracket — Spring 2025 (Tier 1)')
 
     def test_str_tier_2(self):
         bracket = PlayoffBracket(season=self.season, tier=2)
-        self.assertEqual(str(bracket), 'Playoff Bracket — Spring (2025) (Tier 2)')
+        self.assertEqual(str(bracket), 'Playoff Bracket — Spring 2025 (Tier 2)')
 
     def test_unique_together_enforced(self):
         PlayoffBracket.objects.create(season=self.season, tier=1)

@@ -1,0 +1,139 @@
+/* ─────────────────────────────────────────────────────────────
+   Django Admin — Tennis League Theme
+   Overrides admin CSS variables to match the app design system.
+   ───────────────────────────────────────────────────────────── */
+
+html[data-theme="light"],
+:root {
+    --primary:              #C4522A;
+    --secondary:            #1B3D2B;
+    --accent:               #C4522A;
+    --primary-fg:           #FEFCF8;
+
+    --body-fg:              #1A1A18;
+    --body-bg:              #F7F3EB;
+    --body-quiet-color:     #6B6558;
+    --body-medium-color:    #3a3a36;
+    --body-loud-color:      #1A1A18;
+
+    --header-color:         #F7F3EB;
+    --header-branding-color: #EDCFBF;
+    --header-bg:            #1B3D2B;
+    --header-link-color:    #F7F3EB;
+
+    --breadcrumbs-fg:       #EDE5D3;
+    --breadcrumbs-link-fg:  #F7F3EB;
+    --breadcrumbs-bg:       #2D5C42;
+
+    --link-fg:              #C4522A;
+    --link-hover-color:     #A0421E;
+    --link-selected-fg:     #A0421E;
+
+    --hairline-color:       #D9CEBE;
+    --border-color:         #D9CEBE;
+
+    --darkened-bg:          #EDE5D3;
+    --selected-bg:          #EDE5D3;
+    --selected-row:         #EDCFBF;
+
+    --button-fg:            #FEFCF8;
+    --button-bg:            #1B3D2B;
+    --button-hover-bg:      #2D5C42;
+    --default-button-bg:    #C4522A;
+    --default-button-hover-bg: #A0421E;
+    --close-button-bg:      #6B6558;
+    --close-button-hover-bg: #3a3a36;
+    --delete-button-bg:     #ba2121;
+    --delete-button-hover-bg: #a41515;
+
+    --object-tools-fg:      #FEFCF8;
+    --object-tools-bg:      #C4522A;
+    --object-tools-hover-bg: #A0421E;
+
+    --font-family-primary:  'DM Sans', system-ui, sans-serif;
+}
+
+/* ─── Typography ──────────────────────────────────────────── */
+body,
+.module h2,
+.module caption,
+.inline-group h2 {
+    font-family: var(--font-family-primary);
+}
+
+h1, h2, h3 {
+    font-family: 'Lora', Georgia, serif;
+    letter-spacing: -0.02em;
+}
+
+/* Content h1 (page title) */
+#content h1 {
+    font-family: 'Lora', Georgia, serif;
+    font-size: 1.6rem;
+}
+
+/* ─── Header / Branding ───────────────────────────────────── */
+#header {
+    border-bottom: 3px solid #C4522A;
+}
+
+#branding h1, #branding h1 a {
+    font-family: 'Lora', Georgia, serif;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #F7F3EB;
+}
+
+/* ─── Nav sidebar ─────────────────────────────────────────── */
+#nav-sidebar .current-app .section:link,
+#nav-sidebar .current-app .section:visited {
+    color: #EDCFBF;
+}
+
+/* ─── Module headers (app/model group headings) ───────────── */
+.module > h2,
+.module > caption,
+.module > table > caption {
+    background: #1B3D2B;
+    color: #F7F3EB;
+}
+
+/* ─── Change-list table ───────────────────────────────────── */
+#changelist table thead th {
+    background: #2D5C42;
+    color: #F7F3EB;
+    white-space: nowrap;
+}
+
+#changelist table thead th a,
+#changelist table thead th a:visited {
+    color: #F7F3EB;
+}
+
+#changelist table thead th.sorted a {
+    color: #EDCFBF;
+}
+
+#changelist table tbody tr:nth-child(odd) {
+    background: #FEFCF8;
+}
+
+#changelist table tbody tr:nth-child(even) {
+    background: #F7F3EB;
+}
+
+#changelist table tbody tr:hover td,
+#changelist table tbody tr:hover th {
+    background: #EDE5D3;
+}
+
+/* ─── Dashboard modules ───────────────────────────────────── */
+.dashboard #content {
+    background: #F7F3EB;
+}
+
+/* ─── Submit row ──────────────────────────────────────────── */
+.submit-row {
+    background: #EDE5D3;
+    border-top: 1px solid #D9CEBE;
+}

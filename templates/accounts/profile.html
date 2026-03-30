@@ -24,7 +24,7 @@
   <div class="card mb-3">
     <div class="card-body py-3">
       <div class="d-flex justify-content-between align-items-start mb-1">
-        <a href="{% url 'leagues:player_detail' entry.match.season.pk entry.opponent.pk %}" class="fw-500 text-reset text-decoration-none">{{ entry.opponent.get_full_name|default:entry.opponent.username }}</a>
+        <a href="{% url 'leagues:player_detail' entry.match.season.slug entry.opponent.username %}" class="fw-500 text-reset text-decoration-none">{{ entry.opponent.get_full_name|default:entry.opponent.username }}</a>
         <span class="status-badge status-{{ entry.match.status }}">
           {{ entry.match.get_status_display }}
         </span>
@@ -61,7 +61,7 @@
         <tbody>
           {% for entry in history %}
           <tr>
-            <td><a href="{% url 'leagues:player_detail' entry.match.season.pk entry.opponent.pk %}" class="text-reset text-decoration-none">{{ entry.opponent.get_full_name|default:entry.opponent.username }}</a></td>
+            <td><a href="{% url 'leagues:player_detail' entry.match.season.slug entry.opponent.username %}" class="text-reset text-decoration-none">{{ entry.opponent.get_full_name|default:entry.opponent.username }}</a></td>
             <td>
               <span class="fw-600 {% if entry.result == 'W' %}text-clay{% else %}text-muted{% endif %}">
                 {{ entry.result }}

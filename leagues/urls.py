@@ -9,11 +9,11 @@ app_name = 'leagues'
 
 urlpatterns = [
     path('seasons/', views.SeasonListView.as_view(), name='season_list'),
-    path('seasons/<int:pk>/', views.SeasonDetailView.as_view(), name='season_detail'),
-    path('seasons/<int:pk>/standings/', StandingsView.as_view(), name='standings'),
-    path('seasons/<int:pk>/matchups/', MatchupsView.as_view(), name='matchups'),
-    path('seasons/<int:pk>/results/', ResultsView.as_view(), name='results'),
-    path('seasons/<int:pk>/playoffs/', PlayoffListView.as_view(), name='playoffs'),
-    path('seasons/<int:pk>/playoffs/<int:tier>/', PlayoffBracketView.as_view(), name='playoffs_tier'),
-    path('seasons/<int:pk>/players/<int:player_pk>/', views.SeasonPlayerDetailView.as_view(), name='player_detail'),
+    path('seasons/<slug:slug>/', views.SeasonDetailView.as_view(), name='season_detail'),
+    path('seasons/<slug:slug>/standings/', StandingsView.as_view(), name='standings'),
+    path('seasons/<slug:slug>/matchups/', MatchupsView.as_view(), name='matchups'),
+    path('seasons/<slug:slug>/results/', ResultsView.as_view(), name='results'),
+    path('seasons/<slug:slug>/playoffs/', PlayoffListView.as_view(), name='playoffs'),
+    path('seasons/<slug:slug>/playoffs/<int:tier>/', PlayoffBracketView.as_view(), name='playoffs_tier'),
+    path('seasons/<slug:slug>/players/<str:username>/', views.SeasonPlayerDetailView.as_view(), name='player_detail'),
 ]
