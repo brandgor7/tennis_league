@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 from django.views.generic import TemplateView, DetailView
@@ -37,6 +37,24 @@ class MatchupsView(TemplateView):
             .select_related('player1', 'player2', 'winner')
             .order_by(F('scheduled_date').asc(nulls_last=True), 'created_at')
         )
+
+        today = datetime.date.today()
+        mode = season.schedule_display_mode
+        if mode == Season.DISPLAY_CURRENT_WEEK:
+            week_end = today + datetime.timedelta(days=6 - today.weekday())
+            qs = qs.filter(
+                Q(status=Match.STATUS_PENDING) |
+                Q(scheduled_date__isnull=True) |
+                Q(scheduled_date__lte=week_end)
+            )
+        elif mode == Season.DISPLAY_NEXT_X_DAYS:
+            cutoff = today + datetime.timedelta(days=season.schedule_display_days)
+            qs = qs.filter(
+                Q(status=Match.STATUS_PENDING) |
+                Q(scheduled_date__isnull=True) |
+                Q(scheduled_date__lte=cutoff)
+            )
+
         multi_tier = season.num_tiers > 1
         tiers = [
             (tier_num, qs.filter(tier=tier_num))
