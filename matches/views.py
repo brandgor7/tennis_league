@@ -40,7 +40,13 @@ class MatchupsView(TemplateView):
 
         today = datetime.date.today()
         mode = season.schedule_display_mode
-        if mode == Season.DISPLAY_CURRENT_WEEK:
+        if mode == Season.DISPLAY_CURRENT_DAY:
+            qs = qs.filter(
+                Q(status=Match.STATUS_PENDING) |
+                Q(scheduled_date__isnull=True) |
+                Q(scheduled_date__lte=today)
+            )
+        elif mode == Season.DISPLAY_CURRENT_WEEK:
             week_end = today + datetime.timedelta(days=6 - today.weekday())
             qs = qs.filter(
                 Q(status=Match.STATUS_PENDING) |

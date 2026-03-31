@@ -272,7 +272,7 @@ grace_period_days         IntegerField    default 7; days after scheduled_date a
 points_for_win            IntegerField    default 3
 points_for_loss           IntegerField    default 0
 points_for_walkover_loss  IntegerField    default 0 (set to 1 if walkover_rule=split)
-schedule_display_mode     CharField       all | current_week | next_x_days — controls which upcoming matches appear on the matchups page
+schedule_display_mode     CharField       all | current_day | current_week | next_x_days — controls which upcoming matches appear on the matchups page
 schedule_display_days     IntegerField    default 7; days ahead to show when schedule_display_mode=next_x_days
 created_at                DateTimeField
 ```

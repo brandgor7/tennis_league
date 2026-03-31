@@ -43,10 +43,12 @@ class Season(models.Model):
     ]
 
     DISPLAY_ALL = 'all'
+    DISPLAY_CURRENT_DAY = 'current_day'
     DISPLAY_CURRENT_WEEK = 'current_week'
     DISPLAY_NEXT_X_DAYS = 'next_x_days'
     DISPLAY_MODE_CHOICES = [
         (DISPLAY_ALL, 'All upcoming matches'),
+        (DISPLAY_CURRENT_DAY, 'Current day (+ overdue unplayed)'),
         (DISPLAY_CURRENT_WEEK, 'Current week (+ overdue unplayed)'),
         (DISPLAY_NEXT_X_DAYS, 'Next X days (+ overdue unplayed)'),
     ]
