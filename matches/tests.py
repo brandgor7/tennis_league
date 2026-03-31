@@ -296,6 +296,144 @@ class MatchupsViewTest(TestCase):
         self.assertTemplateUsed(response, 'matches/matchups.html')
 
 
+class MatchupsDisplayFilterTest(TestCase):
+    """Tests for Season.schedule_display_mode filtering in MatchupsView."""
+
+    def setUp(self):
+        self.season = Season.objects.create(name='Filter', year=2025)
+        self.p1 = User.objects.create_user(username='df_p1')
+        self.p2 = User.objects.create_user(username='df_p2')
+        self.url = reverse('leagues:matchups', kwargs={'slug': self.season.slug})
+        self.today = datetime.date.today()
+
+    def _match(self, **kwargs):
+        defaults = dict(season=self.season, player1=self.p1, player2=self.p2, status=Match.STATUS_SCHEDULED)
+        defaults.update(kwargs)
+        return Match.objects.create(**defaults)
+
+    def _count(self):
+        _, matches = self.client.get(self.url).context['tiers'][0]
+        return matches.count()
+
+    def _set_mode(self, mode, days=None):
+        self.season.schedule_display_mode = mode
+        if days is not None:
+            self.season.schedule_display_days = days
+        self.season.save()
+
+    # ── Default values ────────────────────────────────────────────────────────
+
+    def test_display_mode_defaults_to_all(self):
+        self.assertEqual(self.season.schedule_display_mode, Season.DISPLAY_ALL)
+
+    def test_display_days_defaults_to_7(self):
+        self.assertEqual(self.season.schedule_display_days, 7)
+
+    # ── DISPLAY_ALL ───────────────────────────────────────────────────────────
+
+    def test_all_shows_far_future_match(self):
+        self._match(scheduled_date=self.today + datetime.timedelta(days=60))
+        self.assertEqual(self._count(), 1)
+
+    def test_all_shows_past_unplayed_match(self):
+        self._match(scheduled_date=self.today - datetime.timedelta(days=30))
+        self.assertEqual(self._count(), 1)
+
+    # ── DISPLAY_CURRENT_DAY ───────────────────────────────────────────────────
+
+    def test_current_day_shows_todays_match(self):
+        self._set_mode(Season.DISPLAY_CURRENT_DAY)
+        self._match(scheduled_date=self.today)
+        self.assertEqual(self._count(), 1)
+
+    def test_current_day_shows_past_unplayed_match(self):
+        self._set_mode(Season.DISPLAY_CURRENT_DAY)
+        self._match(scheduled_date=self.today - datetime.timedelta(days=5))
+        self.assertEqual(self._count(), 1)
+
+    def test_current_day_hides_tomorrows_match(self):
+        self._set_mode(Season.DISPLAY_CURRENT_DAY)
+        self._match(scheduled_date=self.today + datetime.timedelta(days=1))
+        self.assertEqual(self._count(), 0)
+
+    def test_current_day_shows_undated_match(self):
+        self._set_mode(Season.DISPLAY_CURRENT_DAY)
+        self._match(scheduled_date=None)
+        self.assertEqual(self._count(), 1)
+
+    def test_current_day_applies_to_postponed_status(self):
+        self._set_mode(Season.DISPLAY_CURRENT_DAY)
+        self._match(status=Match.STATUS_POSTPONED, scheduled_date=self.today - datetime.timedelta(days=1))
+        self.assertEqual(self._count(), 1)
+
+    def test_current_day_applies_to_pending_status_within_day(self):
+        self._set_mode(Season.DISPLAY_CURRENT_DAY)
+        self._match(status=Match.STATUS_PENDING, scheduled_date=self.today)
+        self.assertEqual(self._count(), 1)
+
+    def test_current_day_hides_pending_match_scheduled_tomorrow(self):
+        self._set_mode(Season.DISPLAY_CURRENT_DAY)
+        self._match(status=Match.STATUS_PENDING, scheduled_date=self.today + datetime.timedelta(days=1))
+        self.assertEqual(self._count(), 0)
+
+    # ── DISPLAY_CURRENT_WEEK ──────────────────────────────────────────────────
+
+    def test_current_week_shows_todays_match(self):
+        self._set_mode(Season.DISPLAY_CURRENT_WEEK)
+        self._match(scheduled_date=self.today)
+        self.assertEqual(self._count(), 1)
+
+    def test_current_week_shows_match_on_sunday(self):
+        self._set_mode(Season.DISPLAY_CURRENT_WEEK)
+        week_end = self.today + datetime.timedelta(days=6 - self.today.weekday())
+        self._match(scheduled_date=week_end)
+        self.assertEqual(self._count(), 1)
+
+    def test_current_week_shows_past_unplayed_match(self):
+        self._set_mode(Season.DISPLAY_CURRENT_WEEK)
+        self._match(scheduled_date=self.today - datetime.timedelta(days=10))
+        self.assertEqual(self._count(), 1)
+
+    def test_current_week_hides_next_week_match(self):
+        self._set_mode(Season.DISPLAY_CURRENT_WEEK)
+        days_to_next_monday = 7 - self.today.weekday()
+        self._match(scheduled_date=self.today + datetime.timedelta(days=days_to_next_monday))
+        self.assertEqual(self._count(), 0)
+
+    def test_current_week_shows_undated_match(self):
+        self._set_mode(Season.DISPLAY_CURRENT_WEEK)
+        self._match(scheduled_date=None)
+        self.assertEqual(self._count(), 1)
+
+    # ── DISPLAY_NEXT_X_DAYS ───────────────────────────────────────────────────
+
+    def test_next_x_days_shows_match_on_cutoff_date(self):
+        self._set_mode(Season.DISPLAY_NEXT_X_DAYS, days=7)
+        self._match(scheduled_date=self.today + datetime.timedelta(days=7))
+        self.assertEqual(self._count(), 1)
+
+    def test_next_x_days_hides_match_beyond_cutoff(self):
+        self._set_mode(Season.DISPLAY_NEXT_X_DAYS, days=7)
+        self._match(scheduled_date=self.today + datetime.timedelta(days=8))
+        self.assertEqual(self._count(), 0)
+
+    def test_next_x_days_shows_past_unplayed_match(self):
+        self._set_mode(Season.DISPLAY_NEXT_X_DAYS, days=7)
+        self._match(scheduled_date=self.today - datetime.timedelta(days=30))
+        self.assertEqual(self._count(), 1)
+
+    def test_next_x_days_respects_custom_window(self):
+        self._set_mode(Season.DISPLAY_NEXT_X_DAYS, days=14)
+        self._match(scheduled_date=self.today + datetime.timedelta(days=14))
+        self._match(scheduled_date=self.today + datetime.timedelta(days=15))
+        self.assertEqual(self._count(), 1)
+
+    def test_next_x_days_shows_undated_match(self):
+        self._set_mode(Season.DISPLAY_NEXT_X_DAYS, days=7)
+        self._match(scheduled_date=None)
+        self.assertEqual(self._count(), 1)
+
+
 class ResultsViewTest(TestCase):
     """Phase 7: ResultsView — completed/walkover matches for a season."""
 

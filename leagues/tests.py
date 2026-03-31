@@ -101,6 +101,31 @@ class SeasonModelTest(TestCase):
         season.refresh_from_db()
         self.assertEqual(season.num_tiers, 3)
 
+    # ── schedule_display_mode / schedule_display_days ────────────────────────
+
+    def test_schedule_display_mode_defaults_to_all(self):
+        season = Season.objects.create(name='Spring', year=2025)
+        self.assertEqual(season.schedule_display_mode, Season.DISPLAY_ALL)
+
+    def test_schedule_display_days_defaults_to_7(self):
+        season = Season.objects.create(name='Spring', year=2025)
+        self.assertEqual(season.schedule_display_days, 7)
+
+    def test_schedule_display_mode_choices_are_valid(self):
+        valid_modes = {Season.DISPLAY_ALL, Season.DISPLAY_CURRENT_DAY, Season.DISPLAY_CURRENT_WEEK, Season.DISPLAY_NEXT_X_DAYS}
+        model_choices = {v for v, _ in Season.DISPLAY_MODE_CHOICES}
+        self.assertEqual(valid_modes, model_choices)
+
+    def test_schedule_display_mode_persists(self):
+        season = Season.objects.create(name='Spring', year=2025, schedule_display_mode=Season.DISPLAY_NEXT_X_DAYS)
+        season.refresh_from_db()
+        self.assertEqual(season.schedule_display_mode, Season.DISPLAY_NEXT_X_DAYS)
+
+    def test_schedule_display_days_persists(self):
+        season = Season.objects.create(name='Spring', year=2025, schedule_display_days=14)
+        season.refresh_from_db()
+        self.assertEqual(season.schedule_display_days, 14)
+
 
 class SeasonPlayerModelTest(TestCase):
     def setUp(self):
