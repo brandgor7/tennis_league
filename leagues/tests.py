@@ -126,6 +126,17 @@ class SeasonModelTest(TestCase):
         season.refresh_from_db()
         self.assertEqual(season.schedule_display_days, 14)
 
+    # ── display flag ─────────────────────────────────────────────────────────
+
+    def test_display_defaults_to_true(self):
+        season = Season.objects.create(name='Spring', year=2025)
+        self.assertTrue(season.display)
+
+    def test_display_false_persists(self):
+        season = Season.objects.create(name='Spring', year=2025, display=False)
+        season.refresh_from_db()
+        self.assertFalse(season.display)
+
 
 class SeasonPlayerModelTest(TestCase):
     def setUp(self):
@@ -324,6 +335,49 @@ class SeasonContextProcessorTest(TestCase):
         # /seasons/nonexistent-season/ returns 404, but the context processor should not crash.
         response = self.client.get(reverse('leagues:season_detail', kwargs={'slug': 'nonexistent-season'}))
         self.assertEqual(response.status_code, 404)
+
+    # ── display flag filtering ────────────────────────────────────────────────
+
+    def test_hidden_season_not_shown_to_anonymous(self):
+        Season.objects.create(name='Hidden', year=2025, display=False)
+        response = self.client.get(reverse('leagues:season_list'))
+        self.assertEqual(len(response.context['all_seasons']), 0)
+
+    def test_hidden_season_not_shown_to_regular_user(self):
+        Season.objects.create(name='Hidden', year=2025, display=False)
+        user = User.objects.create_user(username='regular', password='pass')
+        self.client.login(username='regular', password='pass')
+        response = self.client.get(reverse('leagues:season_list'))
+        self.assertEqual(len(response.context['all_seasons']), 0)
+
+    def test_hidden_season_shown_to_staff(self):
+        Season.objects.create(name='Hidden', year=2025, display=False)
+        staff = User.objects.create_user(username='admin', password='pass', is_staff=True)
+        self.client.login(username='admin', password='pass')
+        response = self.client.get(reverse('leagues:season_list'))
+        self.assertEqual(len(response.context['all_seasons']), 1)
+
+    def test_hidden_season_shown_to_enrolled_player(self):
+        hidden = Season.objects.create(name='Hidden', year=2025, display=False)
+        player = User.objects.create_user(username='enrolled', password='pass')
+        SeasonPlayer.objects.create(season=hidden, player=player, tier=1, is_active=True)
+        self.client.login(username='enrolled', password='pass')
+        response = self.client.get(reverse('leagues:season_list'))
+        self.assertEqual(len(response.context['all_seasons']), 1)
+
+    def test_hidden_season_not_shown_to_inactive_enrolled_player(self):
+        hidden = Season.objects.create(name='Hidden', year=2025, display=False)
+        player = User.objects.create_user(username='inactive', password='pass')
+        SeasonPlayer.objects.create(season=hidden, player=player, tier=1, is_active=False)
+        self.client.login(username='inactive', password='pass')
+        response = self.client.get(reverse('leagues:season_list'))
+        self.assertEqual(len(response.context['all_seasons']), 0)
+
+    def test_hidden_season_current_season_resolves_via_direct_url(self):
+        hidden = Season.objects.create(name='Hidden', year=2025, display=False)
+        response = self.client.get(reverse('leagues:season_detail', kwargs={'slug': hidden.slug}))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['current_season'], hidden)
 
 
 # ─── SeasonPlayerDetailView tests ────────────────────────────────────────────

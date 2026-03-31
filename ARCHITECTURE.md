@@ -141,7 +141,7 @@ Every player name rendered in the UI links to that player's profile page (`leagu
 | Variable | Type | Notes |
 |----------|------|-------|
 | `current_season` | `Season` or `None` | Absent → season nav hidden, no error |
-| `all_seasons` | QuerySet of `Season` | Populates the season dropdown |
+| `all_seasons` | QuerySet of `Season` | Populates the season dropdown; filtered by `display` flag for non-staff users (staff see all; enrolled players always see their seasons) |
 
 These are supplied by a context processor added in **Phase 4**. Until then, season nav is simply hidden.
 
@@ -274,6 +274,7 @@ points_for_loss           IntegerField    default 0
 points_for_walkover_loss  IntegerField    default 0 (set to 1 if walkover_rule=split)
 schedule_display_mode     CharField       all | current_day | current_week | next_x_days — controls which upcoming matches appear on the matchups page
 schedule_display_days     IntegerField    default 7; days ahead to show when schedule_display_mode=next_x_days
+display                   BooleanField    default True; if False, season is hidden from the dropdown for non-staff users not enrolled in it (direct URL access still works for anyone)
 created_at                DateTimeField
 ```
 

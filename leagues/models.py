@@ -79,6 +79,10 @@ class Season(models.Model):
         default=7,
         help_text='Days ahead to show when display mode is "Next X days"',
     )
+    display = models.BooleanField(
+        default=True,
+        help_text='Show this season in the dropdown for non-admin users who are not part of this season',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
