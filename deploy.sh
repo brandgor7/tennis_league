@@ -115,7 +115,7 @@ sudo systemctl restart gunicorn
 # www-data (nginx) needs execute on /home/ubuntu to reach the unix socket inside it.
 sudo chmod o+x /home/ubuntu
 
-echo "ubuntu ALL=(ALL) NOPASSWD: /bin/systemctl restart gunicorn" \
+printf 'ubuntu ALL=(ALL) NOPASSWD: /bin/systemctl restart gunicorn, /bin/systemctl reload nginx\n' \
     | sudo tee /etc/sudoers.d/gunicorn > /dev/null
 
 echo "==> Gunicorn status:"
@@ -124,16 +124,16 @@ sudo systemctl status gunicorn --no-pager
 # ─── 7. Nginx + TLS ───────────────────────────────────────────────────────────
 echo "==> Configuring Nginx (initial HTTP config for ACME challenge)..."
 
-# Write a minimal port-80 config so certbot can complete the ACME challenge.
-# The certbot --nginx plugin will rewrite this file to add the HTTPS server block
-# and a 301 redirect from port 80 to 443.
+# Write a minimal port-80 config that serves the ACME challenge webroot.
+# After certbot issues the cert we install the full HTTPS config from the repo.
+sudo mkdir -p /var/www/certbot
 sudo tee /etc/nginx/sites-available/tennis-league > /dev/null <<EOF
 server {
     listen 80;
     server_name $SERVER_NAME;
 
-    location /static/ {
-        alias $APP_DIR/staticfiles/;
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
     }
 
     location / {
@@ -146,21 +146,27 @@ server {
 EOF
 
 sudo ln -sf /etc/nginx/sites-available/tennis-league /etc/nginx/sites-enabled/tennis-league
-sudo rm /etc/nginx/sites-enabled/default
+sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
 sudo systemctl reload nginx
 
 echo "==> Obtaining Let's Encrypt certificate for $DOMAIN..."
-# --nginx        — uses and rewrites the existing nginx config
-# --redirect     — adds a 301 HTTP→HTTPS redirect block
+# --webroot — serves the ACME challenge via /var/www/certbot; does not modify nginx config
 # --no-eff-email — skip the EFF mailing list prompt
-sudo certbot --nginx \
+sudo certbot certonly --webroot \
+    -w /var/www/certbot \
     -d "$DOMAIN" \
     --non-interactive \
     --agree-tos \
     --email "$CERTBOT_EMAIL" \
-    --redirect \
     --no-eff-email
+
+echo "==> Installing HTTPS nginx config from repo..."
+sed -e "s|__DOMAIN__|$SERVER_NAME|g" -e "s|__APP_DIR__|$APP_DIR|g" \
+    "$APP_DIR/nginx/tennis-league.conf" \
+    | sudo tee /etc/nginx/sites-available/tennis-league > /dev/null
+sudo nginx -t
+sudo systemctl reload nginx
 
 echo "==> Verifying auto-renewal timer..."
 sudo systemctl is-enabled certbot.timer || sudo systemctl enable certbot.timer
