@@ -31,10 +31,17 @@ PLAYER_FIELDS = ['username', 'first_name', 'last_name', 'email']
 
 SEASON_PLAYER_FIELDS = ['player_username', 'tier', 'seed', 'is_active']
 
+# Human-readable columns come first; _username / _code columns follow for re-import.
+# Import logic reads only the _username and _code fields; _name and _label columns are ignored.
 MATCH_FIELDS = [
-    'id', 'player1_username', 'player2_username', 'tier', 'round',
-    'scheduled_date', 'played_date', 'status',
-    'winner_username', 'entered_by_username', 'confirmed_by_username',
+    'id',
+    'player1_name', 'player1_username',
+    'player2_name', 'player2_username',
+    'tier', 'round_label', 'round',
+    'scheduled_date', 'played_date',
+    'status_label', 'status',
+    'winner_name', 'winner_username',
+    'entered_by_username', 'confirmed_by_username',
     'walkover_reason', 'notes',
 ]
 
@@ -50,6 +57,24 @@ _MATCH_USER_FIELDS = (
     'winner_username', 'entered_by_username', 'confirmed_by_username',
 )
 
+_ROUND_LABELS = {
+    'regular': 'Regular Season',
+    'r32': 'Round of 32',
+    'r16': 'Round of 16',
+    'qf': 'Quarterfinal',
+    'sf': 'Semifinal',
+    'f': 'Final',
+}
+
+_STATUS_LABELS = {
+    'scheduled': 'Scheduled',
+    'pending_confirmation': 'Pending Confirmation',
+    'completed': 'Completed',
+    'walkover': 'Walkover',
+    'postponed': 'Postponed',
+    'cancelled': 'Cancelled',
+}
+
 
 # ---------------------------------------------------------------------------
 # Serializers (model instance → dict)
@@ -57,6 +82,10 @@ _MATCH_USER_FIELDS = (
 
 def _username(user):
     return user.username if user else ''
+
+
+def _fullname(user):
+    return user.get_full_name() if user else ''
 
 
 def _serialize_season(season):
@@ -79,13 +108,18 @@ def _serialize_season_player(sp):
 def _serialize_match(match):
     return {
         'id': match.pk,
+        'player1_name': _fullname(match.player1),
         'player1_username': _username(match.player1),
+        'player2_name': _fullname(match.player2),
         'player2_username': _username(match.player2),
         'tier': match.tier if match.tier is not None else '',
+        'round_label': _ROUND_LABELS.get(match.round, match.round),
         'round': match.round,
         'scheduled_date': str(match.scheduled_date) if match.scheduled_date else '',
         'played_date': str(match.played_date) if match.played_date else '',
+        'status_label': _STATUS_LABELS.get(match.status, match.status),
         'status': match.status,
+        'winner_name': _fullname(match.winner),
         'winner_username': _username(match.winner),
         'entered_by_username': _username(match.entered_by),
         'confirmed_by_username': _username(match.confirmed_by),
