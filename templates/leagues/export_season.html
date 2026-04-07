@@ -1,0 +1,41 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div style="max-width: 640px;">
+  <h1>{{ title }}</h1>
+
+  <p>
+    Export all data for <strong>{{ season }}</strong>: season config, players, roster,
+    matches, and set scores.
+  </p>
+
+  <ul style="margin-bottom: 1.5rem; line-height: 2;">
+    <li>
+      <strong>JSON</strong> — single file; sets are nested inside each match record.
+      Best for scripting or full restores.
+    </li>
+    <li>
+      <strong>CSV (zip)</strong> — one CSV per entity type
+      (<code>season.csv</code>, <code>players.csv</code>, <code>season_players.csv</code>,
+      <code>matches.csv</code>, <code>match_sets.csv</code>).
+      Best for viewing or editing in a spreadsheet before re-importing.
+    </li>
+  </ul>
+
+  <form method="post" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+    {% csrf_token %}
+    <input type="hidden" name="format" value="json">
+    <button type="submit" class="button default">Download JSON</button>
+  </form>
+
+  <form method="post" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-top: 0.75rem;">
+    {% csrf_token %}
+    <input type="hidden" name="format" value="csv">
+    <button type="submit" class="button">Download CSV Zip</button>
+  </form>
+
+  <p style="margin-top: 1.5rem;">
+    <a href="../">← Back to season</a>
+  </p>
+</div>
+{% endblock %}

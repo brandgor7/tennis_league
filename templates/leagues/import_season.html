@@ -1,0 +1,76 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div style="max-width: 640px;">
+  <h1>{{ title }}</h1>
+
+  {% if error %}
+  <div class="errornote" style="margin-bottom: 1rem;">{{ error }}</div>
+  {% endif %}
+
+  {% if summary %}
+  <div style="margin-bottom: 1.5rem;">
+    <h3 style="margin-bottom: 0.5rem;">Import summary</h3>
+    <table style="border-collapse: collapse; width: 100%;">
+      <thead>
+        <tr>
+          <th style="text-align: left; padding: 0.25rem 0.75rem 0.25rem 0; border-bottom: 1px solid #ccc;">Entity</th>
+          <th style="text-align: right; padding: 0.25rem 0.75rem; border-bottom: 1px solid #ccc;">Created</th>
+          <th style="text-align: right; padding: 0.25rem 0; border-bottom: 1px solid #ccc;">Updated</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding: 0.2rem 0.75rem 0.2rem 0;">Players</td>
+          <td style="text-align: right; padding: 0.2rem 0.75rem;">{{ summary.players.created }}</td>
+          <td style="text-align: right; padding: 0.2rem 0;">{{ summary.players.updated }}</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.2rem 0.75rem 0.2rem 0;">Roster entries</td>
+          <td style="text-align: right; padding: 0.2rem 0.75rem;">{{ summary.season_players.created }}</td>
+          <td style="text-align: right; padding: 0.2rem 0;">{{ summary.season_players.updated }}</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.2rem 0.75rem 0.2rem 0;">Matches</td>
+          <td style="text-align: right; padding: 0.2rem 0.75rem;">{{ summary.matches.created }}</td>
+          <td style="text-align: right; padding: 0.2rem 0;">{{ summary.matches.updated }}</td>
+        </tr>
+        <tr>
+          <td style="padding: 0.2rem 0.75rem 0.2rem 0;">Set scores</td>
+          <td style="text-align: right; padding: 0.2rem 0.75rem;">{{ summary.match_sets.created }}</td>
+          <td style="text-align: right; padding: 0.2rem 0;">{{ summary.match_sets.updated }}</td>
+        </tr>
+      </tbody>
+    </table>
+    {% if summary.errors %}
+    <h3 style="margin-top: 1rem; margin-bottom: 0.5rem;">Non-fatal errors</h3>
+    <ul>{% for e in summary.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <p>
+    Upload a <strong>.json</strong> or <strong>.zip</strong> file previously exported from this app.
+    Records are matched by natural key (username for players; match id for matches) and updated in
+    place, so re-importing a backup is safe to repeat. New records are created; existing records are
+    overwritten with the imported values.
+  </p>
+  <p>
+    Matches are matched by their exported <code>id</code>. If you are restoring from a different
+    database (where ids may differ), all matches will be created as new records.
+  </p>
+
+  <form method="post" enctype="multipart/form-data" style="margin-top: 1.5rem;">
+    {% csrf_token %}
+    <div style="margin-bottom: 1.5rem;">
+      <label for="id_data_file" style="display: block; font-weight: bold; margin-bottom: 0.25rem;">
+        Export file (.json or .zip)
+      </label>
+      <input type="file" id="id_data_file" name="data_file" accept=".json,.zip" required
+             style="padding: 0.25rem 0;">
+    </div>
+    <button type="submit" class="button default">Import</button>
+    <a href="../" class="button cancel-link" style="margin-left: 0.75rem;">Cancel</a>
+  </form>
+</div>
+{% endblock %}

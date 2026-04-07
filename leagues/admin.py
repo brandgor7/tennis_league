@@ -6,11 +6,15 @@ import re
 from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.http import HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
 
 from .models import Season, SeasonPlayer
+from .io import (
+    export_season_data, from_csv_zip, from_json, import_season_data,
+    to_csv_zip, to_json,
+)
 from playoffs.generator import bracket_size_for, generate_bracket
 from playoffs.models import PlayoffBracket
 from standings.calculator import calculate_standings
@@ -56,6 +60,16 @@ class SeasonAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.import_players_view),
                 name='leagues_season_import_players',
             ),
+            path(
+                '<int:season_id>/export/',
+                self.admin_site.admin_view(self.export_season_view),
+                name='leagues_season_export',
+            ),
+            path(
+                '<int:season_id>/import/',
+                self.admin_site.admin_view(self.import_season_view),
+                name='leagues_season_import',
+            ),
         ]
         return custom + urls
 
@@ -74,6 +88,12 @@ class SeasonAdmin(admin.ModelAdmin):
         )
         extra_context['import_players_url'] = reverse(
             'admin:leagues_season_import_players', args=[object_id]
+        )
+        extra_context['export_url'] = reverse(
+            'admin:leagues_season_export', args=[object_id]
+        )
+        extra_context['import_url'] = reverse(
+            'admin:leagues_season_import', args=[object_id]
         )
         return super().change_view(request, object_id, form_url, extra_context)
 
@@ -239,6 +259,69 @@ class SeasonAdmin(admin.ModelAdmin):
             'title': f'Import Players — {season.name}',
         }
         return render(request, 'leagues/import_players.html', context)
+
+    def export_season_view(self, request, season_id):
+        season = get_object_or_404(Season, pk=season_id)
+
+        if request.method == 'POST':
+            fmt = request.POST.get('format', 'json')
+            data = export_season_data(season)
+            slug = season.slug
+
+            if fmt == 'csv':
+                response = HttpResponse(to_csv_zip(data), content_type='application/zip')
+                response['Content-Disposition'] = f'attachment; filename="{slug}.zip"'
+            else:
+                response = HttpResponse(to_json(data), content_type='application/json')
+                response['Content-Disposition'] = f'attachment; filename="{slug}.json"'
+            return response
+
+        context = {
+            **self.admin_site.each_context(request),
+            'season': season,
+            'title': f'Export Season Data — {season.name}',
+        }
+        return render(request, 'leagues/export_season.html', context)
+
+    def import_season_view(self, request, season_id):
+        season = get_object_or_404(Season, pk=season_id)
+        summary = None
+        error = None
+
+        if request.method == 'POST':
+            upload = request.FILES.get('data_file')
+            if not upload:
+                error = 'Please select a file to upload.'
+            else:
+                name = upload.name.lower()
+                try:
+                    raw = upload.read()
+                    if name.endswith('.json'):
+                        data = from_json(raw.decode('utf-8-sig'))
+                    elif name.endswith('.zip'):
+                        data = from_csv_zip(raw)
+                    else:
+                        raise ValueError('File must be a .json or .zip file.')
+                    summary = import_season_data(data, season)
+                    messages.success(
+                        request,
+                        f'Import complete: '
+                        f'{summary["players"]["created"]} players created, '
+                        f'{summary["players"]["updated"]} updated; '
+                        f'{summary["matches"]["created"]} matches created, '
+                        f'{summary["matches"]["updated"]} updated.',
+                    )
+                except Exception as exc:
+                    error = f'Import failed: {exc}'
+
+        context = {
+            **self.admin_site.each_context(request),
+            'season': season,
+            'summary': summary,
+            'error': error,
+            'title': f'Import Season Data — {season.name}',
+        }
+        return render(request, 'leagues/import_season.html', context)
 
     def generate_playoffs_view(self, request, season_id, tier):
         season = get_object_or_404(Season, pk=season_id)
