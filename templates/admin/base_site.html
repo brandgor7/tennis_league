@@ -17,8 +17,8 @@
 {% get_site_config as config %}
 <h1 id="site-name">
   <a href="{% url 'admin:index' %}">
-    {% if config.logo %}
-    <img src="{{ config.logo }}" class="admin-brand-logo" alt="">
+    {% if config.logo_url %}
+    <img src="{{ config.logo_url }}" class="admin-brand-logo" alt="">
     {% endif %}
     {{ config.site_name }}
   </a>

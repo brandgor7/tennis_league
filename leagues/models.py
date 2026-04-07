@@ -27,6 +27,11 @@ class SiteConfig(models.Model):
         self.pk = 1
         super().save(*args, **kwargs)
 
+    @property
+    def logo_url(self):
+        """Return logo only when it is a data URL with an image MIME type."""
+        return self.logo if self.logo.startswith('data:image/') else None
+
     @classmethod
     def get(cls):
         obj, _ = cls.objects.get_or_create(pk=1)

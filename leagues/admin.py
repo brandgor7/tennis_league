@@ -12,7 +12,6 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
 from django.utils.html import format_html
-from django.utils.safestring import mark_safe
 
 from .models import Season, SeasonPlayer, SiteConfig
 from playoffs.generator import bracket_size_for, generate_bracket

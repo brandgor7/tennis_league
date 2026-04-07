@@ -10,7 +10,7 @@ def season_context(request):
 
     config = SiteConfig.get()
     site_name = config.site_name
-    logo_data_url = config.logo or None
+    logo_data_url = config.logo_url
 
     user = request.user
 

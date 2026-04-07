@@ -945,6 +945,32 @@ class SiteConfigModelTest(TestCase):
         config = SiteConfig.objects.get(pk=1)
         self.assertEqual(config.logo, data_url)
 
+    # ── logo_url property ─────────────────────────────────────
+
+    def test_logo_url_returns_logo_for_valid_data_url(self):
+        config = SiteConfig(logo='data:image/png;base64,abc123')
+        self.assertEqual(config.logo_url, 'data:image/png;base64,abc123')
+
+    def test_logo_url_returns_logo_for_jpeg(self):
+        config = SiteConfig(logo='data:image/jpeg;base64,abc123')
+        self.assertEqual(config.logo_url, 'data:image/jpeg;base64,abc123')
+
+    def test_logo_url_returns_none_for_blank(self):
+        config = SiteConfig(logo='')
+        self.assertIsNone(config.logo_url)
+
+    def test_logo_url_returns_none_for_javascript_scheme(self):
+        config = SiteConfig(logo='javascript:evil()')
+        self.assertIsNone(config.logo_url)
+
+    def test_logo_url_returns_none_for_http_url(self):
+        config = SiteConfig(logo='http://example.com/logo.png')
+        self.assertIsNone(config.logo_url)
+
+    def test_logo_url_returns_none_for_arbitrary_string(self):
+        config = SiteConfig(logo='not-a-data-url')
+        self.assertIsNone(config.logo_url)
+
 
 # ─── SiteConfigForm tests ─────────────────────────────────────────────────────
 
@@ -1116,6 +1142,11 @@ class SiteConfigContextProcessorTest(TestCase):
         SiteConfig.objects.create(pk=1, logo=data_url)
         response = self._get()
         self.assertEqual(response.context['logo_data_url'], data_url)
+
+    def test_logo_data_url_none_for_invalid_scheme(self):
+        SiteConfig.objects.create(pk=1, logo='javascript:evil()')
+        response = self._get()
+        self.assertIsNone(response.context['logo_data_url'])
 
     def test_context_processor_skipped_on_admin_pages(self):
         admin = User.objects.create_user(
