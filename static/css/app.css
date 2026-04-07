@@ -86,9 +86,10 @@ h1, h2, h3, .font-serif {
 
 .brand-logo {
   height: 32px;
-  width: auto;
+  width: 32px;
   flex-shrink: 0;
-  object-fit: contain;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 .navbar .nav-link {

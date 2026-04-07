@@ -82,6 +82,17 @@ h1, h2, h3 {
     font-weight: 800;
     letter-spacing: -0.03em;
     color: #F7F3EB;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.admin-brand-logo {
+    height: 32px;
+    width: 32px;
+    object-fit: cover;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
 
 /* ─── Nav sidebar ─────────────────────────────────────────── */

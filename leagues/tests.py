@@ -11,6 +11,7 @@ from django.urls import reverse
 from .models import Season, SeasonPlayer, SiteConfig
 from .forms import SeasonForm
 from .admin import SiteConfigForm
+from .templatetags.site_branding import get_site_config
 from matches.models import Match
 
 User = get_user_model()
@@ -1267,3 +1268,52 @@ class SiteConfigAdminTest(TestCase):
         })
         config = SiteConfig.objects.get(pk=1)
         self.assertEqual(config.logo, 'data:image/png;base64,original')
+
+    # ── Admin branding ────────────────────────────────────────
+
+    def test_admin_branding_shows_custom_site_name(self):
+        SiteConfig.objects.create(pk=1, site_name='Serve & Volley')
+        response = self.client.get(reverse('admin:index'))
+        self.assertContains(response, 'Serve &amp; Volley')
+
+    def test_admin_branding_shows_logo_img_when_set(self):
+        data_url = 'data:image/png;base64,abc123'
+        SiteConfig.objects.create(pk=1, logo=data_url)
+        response = self.client.get(reverse('admin:index'))
+        self.assertContains(response, 'admin-brand-logo')
+        self.assertContains(response, data_url)
+
+    def test_admin_branding_no_logo_img_when_blank(self):
+        SiteConfig.objects.create(pk=1, logo='')
+        response = self.client.get(reverse('admin:index'))
+        self.assertNotContains(response, 'admin-brand-logo')
+
+    def test_admin_title_uses_site_name(self):
+        SiteConfig.objects.create(pk=1, site_name='Club Ace')
+        response = self.client.get(reverse('admin:index'))
+        self.assertContains(response, 'Club Ace')
+
+
+# ─── site_branding template tag tests ────────────────────────────────────────
+
+class SiteBrandingTagTest(TestCase):
+    def test_returns_default_config_when_none_exists(self):
+        config = get_site_config()
+        self.assertEqual(config.site_name, 'TennisLeague')
+        self.assertEqual(config.logo, '')
+
+    def test_returns_existing_config(self):
+        SiteConfig.objects.create(pk=1, site_name='My League', logo='data:image/png;base64,x')
+        config = get_site_config()
+        self.assertEqual(config.site_name, 'My League')
+        self.assertEqual(config.logo, 'data:image/png;base64,x')
+
+    def test_creates_singleton_on_first_call(self):
+        self.assertEqual(SiteConfig.objects.count(), 0)
+        get_site_config()
+        self.assertEqual(SiteConfig.objects.count(), 1)
+
+    def test_subsequent_calls_do_not_duplicate(self):
+        get_site_config()
+        get_site_config()
+        self.assertEqual(SiteConfig.objects.count(), 1)
