@@ -1,5 +1,5 @@
 {% extends "admin/base.html" %}
-{% load static %}
+{% load static site_branding %}
 
 {% block extrahead %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,6 +11,16 @@
 <link rel="stylesheet" href="{% static 'css/admin_theme.css' %}">
 {% endblock %}
 
+{% block site_title %}{% get_site_config as config %}{{ config.site_name }}{% endblock %}
+
 {% block branding %}
-<h1 id="site-name"><a href="{% url 'admin:index' %}">Tennis League Admin</a></h1>
+{% get_site_config as config %}
+<h1 id="site-name">
+  <a href="{% url 'admin:index' %}">
+    {% if config.logo_url %}
+    <img src="{{ config.logo_url }}" class="admin-brand-logo" alt="">
+    {% endif %}
+    {{ config.site_name }}
+  </a>
+</h1>
 {% endblock %}

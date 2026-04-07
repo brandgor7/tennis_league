@@ -1,12 +1,16 @@
 from django.db.models import Q
 
-from .models import Season
+from .models import Season, SiteConfig
 
 
 def season_context(request):
     # Skip on admin pages — avoid DB queries on every admin response.
     if request.path.startswith('/admin/'):
         return {}
+
+    config = SiteConfig.get()
+    site_name = config.site_name
+    logo_data_url = config.logo_url
 
     user = request.user
 
@@ -46,4 +50,6 @@ def season_context(request):
     return {
         'current_season': current_season,
         'all_seasons': all_seasons,
+        'site_name': site_name,
+        'logo_data_url': logo_data_url,
     }

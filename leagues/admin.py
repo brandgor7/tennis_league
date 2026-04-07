@@ -1,19 +1,26 @@
+import base64
 import csv
 import datetime
 import io
 import re
 
+from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
+from django.utils.html import format_html
 
-from .models import Season, SeasonPlayer
+from .models import Season, SeasonPlayer, SiteConfig
 from playoffs.generator import bracket_size_for, generate_bracket
 from playoffs.models import PlayoffBracket
 from standings.calculator import calculate_standings
+
+_PNG_MAGIC = b'\x89PNG\r\n\x1a\n'
+_JPEG_MAGIC = b'\xff\xd8\xff'
+_MAX_LOGO_BYTES = 2 * 1024 * 1024  # 2 MB
 
 
 class SeasonPlayerInline(admin.TabularInline):
@@ -276,3 +283,79 @@ class SeasonPlayerAdmin(admin.ModelAdmin):
     list_filter = ('season', 'tier', 'is_active')
     search_fields = ('player__username', 'player__first_name', 'player__last_name', 'season__name')
     autocomplete_fields = ('player', 'season')
+
+
+class SiteConfigForm(forms.ModelForm):
+    logo_upload = forms.FileField(
+        required=False,
+        label='Upload logo (PNG or JPEG)',
+        help_text='Max 2 MB. Replaces the current logo.',
+    )
+    clear_logo = forms.BooleanField(
+        required=False,
+        label='Remove current logo',
+        help_text='Tick to revert to the default tennis-ball icon.',
+    )
+
+    class Meta:
+        model = SiteConfig
+        fields = ('site_name',)
+
+    def clean_logo_upload(self):
+        f = self.cleaned_data.get('logo_upload')
+        if not f:
+            return None
+        if f.size > _MAX_LOGO_BYTES:
+            raise forms.ValidationError('Logo must be under 2 MB.')
+        header = f.read(8)
+        f.seek(0)
+        if header[:8] == _PNG_MAGIC:
+            mime = 'image/png'
+        elif header[:3] == _JPEG_MAGIC:
+            mime = 'image/jpeg'
+        else:
+            raise forms.ValidationError('File must be a PNG or JPEG image.')
+        return (mime, f.read())
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if self.cleaned_data.get('clear_logo'):
+            instance.logo = ''
+        elif self.cleaned_data.get('logo_upload'):
+            mime, data = self.cleaned_data['logo_upload']
+            instance.logo = f'data:{mime};base64,{base64.b64encode(data).decode()}'
+        if commit:
+            instance.save()
+        return instance
+
+
+@admin.register(SiteConfig)
+class SiteConfigAdmin(admin.ModelAdmin):
+    form = SiteConfigForm
+    fieldsets = (
+        (None, {'fields': ('site_name',)}),
+        ('Logo', {'fields': ('logo_preview', 'logo_upload', 'clear_logo')}),
+    )
+    readonly_fields = ('logo_preview',)
+
+    def logo_preview(self, obj):
+        if not obj or not obj.logo:
+            return '(none — default tennis-ball icon will be shown)'
+        return format_html(
+            '<img src="{}" alt="Current logo"'
+            ' style="max-height:80px;background:#1B3D2B;padding:8px;border-radius:4px;">',
+            obj.logo,
+        )
+    logo_preview.short_description = 'Current logo'
+
+    def has_add_permission(self, request):
+        return not SiteConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        obj, _ = SiteConfig.objects.get_or_create(pk=1)
+        return HttpResponseRedirect(
+            reverse('admin:leagues_siteconfig_change', args=[obj.pk])
+        )

@@ -5,6 +5,39 @@ from django.conf import settings
 from django.utils.text import slugify
 
 
+class SiteConfig(models.Model):
+    site_name = models.CharField(
+        max_length=100,
+        default='TennisLeague',
+        help_text='Displayed in the navbar and page footer.',
+    )
+    logo = models.TextField(
+        blank=True,
+        help_text='Base64-encoded data URL of the logo image (set via the admin upload field).',
+    )
+
+    class Meta:
+        verbose_name = 'Site Configuration'
+        verbose_name_plural = 'Site Configuration'
+
+    def __str__(self):
+        return 'Site Configuration'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @property
+    def logo_url(self):
+        """Return logo only when it is a data URL with an image MIME type."""
+        return self.logo if self.logo.startswith('data:image/') else None
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class Season(models.Model):
     STATUS_UPCOMING = 'upcoming'
     STATUS_ACTIVE = 'active'

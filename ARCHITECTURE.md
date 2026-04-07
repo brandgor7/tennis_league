@@ -224,9 +224,10 @@ tennis-scores-app/
 ### `leagues`
 - `Season` model — all per-season configuration
 - `SeasonPlayer` model — roster (which users are in which season)
+- `SiteConfig` model — singleton; stores `site_name` and `logo_svg` (sanitized SVG text); configurable in admin
 - Season list, detail views
 - `SeasonPlayerDetailView` — public player profile page showing standing, upcoming matches, and results for a player within a season
-- Admin: create/edit seasons, manage rosters
+- Admin: create/edit seasons, manage rosters, edit site name and logo
 
 ### `matches`
 - `Match` model — scheduling, status, players, result
@@ -250,6 +251,14 @@ tennis-scores-app/
 ---
 
 ## Data Models
+
+### `leagues.SiteConfig`
+```
+site_name   CharField(100)   Navbar brand name and page footer; default "TennisLeague"
+logo        TextField        Base64 data URL (data:image/png;base64,… or data:image/jpeg;base64,…); blank = default icon shown
+pk          always 1         Singleton — enforced by model.save() and admin
+```
+Logo uploads are validated in the admin form: magic bytes are checked (PNG `\x89PNG\r\n\x1a\n`, JPEG `\xff\xd8\xff`) to confirm the file type regardless of extension, and size is capped at 2 MB. The data URL is stored in the database — no file system writes, no MEDIA configuration needed.
 
 ### `accounts.User`
 ```

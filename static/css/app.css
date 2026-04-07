@@ -84,6 +84,14 @@ h1, h2, h3, .font-serif {
   flex-shrink: 0;
 }
 
+.brand-logo {
+  height: 32px;
+  width: 32px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
 .navbar .nav-link {
   color: rgba(247, 243, 235, 0.7) !important;
   font-size: 0.78rem;
