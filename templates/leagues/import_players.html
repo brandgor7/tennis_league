@@ -1,0 +1,52 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div style="max-width: 640px;">
+  <h1>{{ title }}</h1>
+
+  {% if error %}
+  <div class="alert alert-error" style="margin-bottom: 1rem;">{{ error }}</div>
+  {% endif %}
+
+  {% if results %}
+  <div style="margin-bottom: 1.5rem;">
+    {% if results.created %}
+    <h3 style="margin-bottom: 0.5rem;">Created ({{ results.created|length }})</h3>
+    <ul>{% for item in results.created %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if results.updated %}
+    <h3 style="margin-bottom: 0.5rem;">Updated ({{ results.updated|length }})</h3>
+    <ul>{% for item in results.updated %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if results.skipped %}
+    <h3 style="margin-bottom: 0.5rem;">Skipped ({{ results.skipped|length }})</h3>
+    <ul>{% for item in results.skipped %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if results.errors %}
+    <h3 style="margin-bottom: 0.5rem;">Errors ({{ results.errors|length }})</h3>
+    <ul>{% for item in results.errors %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <p>
+    Upload a CSV where each column represents a tier. The column header can be formatted as
+    <code>1</code>, <code>Tier 1</code>, or <code>tier1</code>.
+    Each row value should be a player's full name (<em>First Last</em>).
+    Existing players will be matched by name; new players will be created.
+  </p>
+
+  <form method="post" enctype="multipart/form-data" style="margin-top: 1.5rem;">
+    {% csrf_token %}
+    <div style="margin-bottom: 1.5rem;">
+      <label for="id_csv_file" style="display: block; font-weight: bold; margin-bottom: 0.25rem;">
+        CSV file
+      </label>
+      <input type="file" id="id_csv_file" name="csv_file" accept=".csv" required
+             style="padding: 0.25rem 0;">
+    </div>
+    <button type="submit" class="button default">Import Players</button>
+    <a href="../" class="button cancel-link" style="margin-left: 0.75rem;">Cancel</a>
+  </form>
+</div>
+{% endblock %}

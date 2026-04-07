@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Down for Maintenance — TennisLeague</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@700&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --clay:    #C4522A;
+      --forest:  #1B3D2B;
+      --cream:   #F7F3EB;
+      --sand:    #EDE5D3;
+      --charcoal:#1A1A18;
+      --muted:   #6B6558;
+      --border:  #D9CEBE;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--cream);
+      color: var(--charcoal);
+      letter-spacing: -0.01em;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ── Navbar ── */
+    nav {
+      background: var(--forest);
+      border-bottom: 3px solid var(--clay);
+      padding: 0.6rem 1.5rem;
+      display: flex;
+      align-items: center;
+    }
+
+    .brand {
+      font-family: 'Lora', Georgia, serif;
+      font-weight: 800;
+      font-size: 1.35rem;
+      color: var(--cream);
+      letter-spacing: -0.03em;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    /* ── Main ── */
+    main {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 1.5rem;
+    }
+
+    .card {
+      background: #FEFCF8;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3rem 2.5rem;
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .icon {
+      width: 52px;
+      height: 52px;
+      margin: 0 auto 1.5rem;
+    }
+
+    h1 {
+      font-family: 'Lora', Georgia, serif;
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--charcoal);
+      margin-bottom: 0.75rem;
+    }
+
+    p {
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1.75rem 0;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--clay);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    /* ── Footer ── */
+    footer {
+      background: var(--forest);
+      color: rgba(247, 243, 235, 0.55);
+      font-size: 0.8rem;
+      padding: 1rem 1.5rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a class="brand" href="/">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="13" cy="13" r="12" fill="#C4522A"/>
+        <path d="M4 8 C6 11, 6 15, 4 18"  stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        <path d="M22 8 C20 11, 20 15, 22 18" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        <path d="M7 4 C10 6, 16 6, 19 4"  stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        <path d="M7 22 C10 20, 16 20, 19 22" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      </svg>
+      TennisLeague
+    </a>
+  </nav>
+
+  <main>
+    <div class="card">
+      <svg class="icon" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="26" cy="26" r="24" stroke="#D9CEBE" stroke-width="2"/>
+        <path d="M26 16v12" stroke="#C4522A" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="26" cy="34" r="1.5" fill="#C4522A"/>
+      </svg>
+
+      <h1>Back shortly</h1>
+      <p>We're doing some maintenance and will be back up very soon.<br>Thanks for your patience.</p>
+
+      <hr class="divider">
+
+      <span class="status">
+        <span class="status-dot"></span>
+        Maintenance in progress
+      </span>
+    </div>
+  </main>
+
+  <footer>
+    TennisLeague
+  </footer>
+
+</body>
+</html>

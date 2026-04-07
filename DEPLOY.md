@@ -181,6 +181,7 @@ Two GitHub Actions workflows live in `.github/workflows/`:
    - `python manage.py migrate`
    - `python manage.py collectstatic`
    - `sudo systemctl restart gunicorn`
+   - `sudo systemctl reload nginx`
 
 The deploy job uses `appleboy/ssh-action` and the four `LIGHTSAIL_*` secrets above.
 
