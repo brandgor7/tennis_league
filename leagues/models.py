@@ -42,6 +42,17 @@ class Season(models.Model):
         (SCHEDULE_WEEKLY, 'Weekly'),
     ]
 
+    DISPLAY_ALL = 'all'
+    DISPLAY_CURRENT_DAY = 'current_day'
+    DISPLAY_CURRENT_WEEK = 'current_week'
+    DISPLAY_NEXT_X_DAYS = 'next_x_days'
+    DISPLAY_MODE_CHOICES = [
+        (DISPLAY_ALL, 'All upcoming matches'),
+        (DISPLAY_CURRENT_DAY, 'Current day (+ overdue unplayed)'),
+        (DISPLAY_CURRENT_WEEK, 'Current week (+ overdue unplayed)'),
+        (DISPLAY_NEXT_X_DAYS, 'Next X days (+ overdue unplayed)'),
+    ]
+
     name = models.CharField(max_length=100)
     slug = models.SlugField(max_length=120, unique=True)
     year = models.IntegerField()
@@ -58,6 +69,20 @@ class Season(models.Model):
     points_for_win = models.IntegerField(default=3)
     points_for_loss = models.IntegerField(default=0)
     points_for_walkover_loss = models.IntegerField(default=0)
+    schedule_display_mode = models.CharField(
+        max_length=20,
+        choices=DISPLAY_MODE_CHOICES,
+        default=DISPLAY_ALL,
+        help_text='Which upcoming matches to show on the matchups page',
+    )
+    schedule_display_days = models.IntegerField(
+        default=7,
+        help_text='Days ahead to show when display mode is "Next X days"',
+    )
+    display = models.BooleanField(
+        default=True,
+        help_text='Show this season in the dropdown for non-admin users who are not part of this season',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

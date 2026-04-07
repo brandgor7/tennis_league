@@ -30,8 +30,8 @@ class SeasonAdmin(admin.ModelAdmin):
     search_fields = ('name',)
     inlines = [SeasonPlayerInline]
     fieldsets = (
-        (None, {'fields': ('name', 'year', 'status', 'num_tiers')}),
-        ('Schedule', {'fields': ('schedule_type',)}),
+        (None, {'fields': ('name', 'year', 'status', 'display', 'num_tiers')}),
+        ('Schedule', {'fields': ('schedule_type', 'schedule_display_mode', 'schedule_display_days')}),
         ('Match Format', {'fields': ('sets_to_win', 'games_to_win_set', 'final_set_format')}),
         ('Playoffs', {'fields': ('playoff_qualifiers_count',)}),
         ('Points', {'fields': ('points_for_win', 'points_for_loss', 'points_for_walkover_loss')}),
