@@ -175,6 +175,7 @@ tennis-scores-app/
 │   ├── views.py
 │   ├── urls.py
 │   ├── forms.py
+│   ├── io.py                    # Season data export/import (JSON + CSV); schema field definitions
 │   └── admin.py
 ├── matches/                     # Match + MatchSet models; result entry & confirmation
 │   ├── models.py
@@ -207,7 +208,9 @@ tennis-scores-app/
     ├── leagues/
     │   ├── season_list.html
     │   ├── season_detail.html
-    │   └── player_detail.html       # player profile within a season
+    │   ├── player_detail.html       # player profile within a season
+    │   ├── export_season.html       # admin: export season data (JSON / CSV)
+    │   └── import_season.html       # admin: import season data from export file
     └── playoffs/
         └── bracket.html
 ```
@@ -227,6 +230,7 @@ tennis-scores-app/
 - Season list, detail views
 - `SeasonPlayerDetailView` — public player profile page showing standing, upcoming matches, and results for a player within a season
 - Admin: create/edit seasons, manage rosters
+- `io.py` — season data export/import; `SEASON_FIELDS`, `PLAYER_FIELDS`, `MATCH_FIELDS`, `MATCHSET_FIELDS` are the single source of truth for field names used in both formats; `export_season_data(season)` → dict; `import_season_data(data, season)` → summary; `to_json`/`from_json` and `to_csv`/`from_csv` handle serialisation
 
 ### `matches`
 - `Match` model — scheduling, status, players, result
@@ -455,6 +459,8 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
 
 /admin/                                    Django admin
 /admin/seasons/<id>/generate-playoffs/<tier>/  Custom admin action: generate bracket for one tier
+/admin/seasons/<id>/export/                    Export season data as JSON or CSV (admin only)
+/admin/seasons/<id>/import/                    Import season data from JSON or CSV (admin only)
 ```
 
 ---
