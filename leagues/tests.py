@@ -871,3 +871,690 @@ class ImportPlayersViewTest(TestCase):
             self.url, {'csv_file': _csv('1\nAlice Smith')}, follow=True
         )
         self.assertContains(response, 'Import complete')
+
+
+# ─── io.py: export tests ──────────────────────────────────────────────────────
+
+class ExportSeasonDataTest(TestCase):
+    def setUp(self):
+        self.season = make_season(name='Spring', year=2025)
+        self.alice = make_player('asmith', first='Alice', last='Smith')
+        self.bob = make_player('bjones', first='Bob', last='Jones')
+        enroll(self.season, self.alice, tier=1)
+        enroll(self.season, self.bob, tier=1)
+        self.match = Match.objects.create(
+            season=self.season, player1=self.alice, player2=self.bob,
+            tier=1, round=Match.ROUND_REGULAR,
+            status=Match.STATUS_COMPLETED, winner=self.alice,
+            scheduled_date=datetime.date(2025, 3, 1),
+            played_date=datetime.date(2025, 3, 2),
+            entered_by=self.alice, confirmed_by=self.bob,
+        )
+        from matches.models import MatchSet
+        MatchSet.objects.create(match=self.match, set_number=1, player1_games=6, player2_games=3)
+        MatchSet.objects.create(
+            match=self.match, set_number=2,
+            player1_games=7, player2_games=6,
+            tiebreak_player1_points=7, tiebreak_player2_points=4,
+        )
+
+    def _export(self):
+        from leagues.io import export_season_data
+        return export_season_data(self.season)
+
+    def test_top_level_keys(self):
+        data = self._export()
+        self.assertEqual(set(data.keys()), {'season', 'players', 'season_players', 'matches'})
+
+    def test_season_fields_present(self):
+        from leagues.io import SEASON_FIELDS
+        data = self._export()
+        for field in SEASON_FIELDS:
+            self.assertIn(field, data['season'], f'Missing season field: {field}')
+
+    def test_season_name_correct(self):
+        self.assertEqual(self._export()['season']['name'], 'Spring')
+
+    def test_players_count(self):
+        self.assertEqual(len(self._export()['players']), 2)
+
+    def test_player_full_name_in_export(self):
+        usernames = {p['username'] for p in self._export()['players']}
+        self.assertIn('asmith', usernames)
+        self.assertIn('bjones', usernames)
+
+    def test_season_players_count(self):
+        self.assertEqual(len(self._export()['season_players']), 2)
+
+    def test_match_count(self):
+        self.assertEqual(len(self._export()['matches']), 1)
+
+    def test_match_player_names(self):
+        m = self._export()['matches'][0]
+        self.assertEqual(m['player1_name'], 'Alice Smith')
+        self.assertEqual(m['player2_name'], 'Bob Jones')
+
+    def test_match_player_usernames(self):
+        m = self._export()['matches'][0]
+        self.assertEqual(m['player1_username'], 'asmith')
+        self.assertEqual(m['player2_username'], 'bjones')
+
+    def test_match_round_label(self):
+        m = self._export()['matches'][0]
+        self.assertEqual(m['round_label'], 'Regular Season')
+        self.assertEqual(m['round'], 'regular')
+
+    def test_match_status_label(self):
+        m = self._export()['matches'][0]
+        self.assertEqual(m['status_label'], 'Completed')
+        self.assertEqual(m['status'], 'completed')
+
+    def test_match_winner_name_and_username(self):
+        m = self._export()['matches'][0]
+        self.assertEqual(m['winner_name'], 'Alice Smith')
+        self.assertEqual(m['winner_username'], 'asmith')
+
+    def test_sets_count(self):
+        self.assertEqual(len(self._export()['matches'][0]['sets']), 2)
+
+    def test_set_player_names(self):
+        s = self._export()['matches'][0]['sets'][0]
+        self.assertEqual(s['player1_name'], 'Alice Smith')
+        self.assertEqual(s['player2_name'], 'Bob Jones')
+
+    def test_set_score_no_tiebreak(self):
+        sets = self._export()['matches'][0]['sets']
+        self.assertEqual(sets[0]['score'], '6-3')
+
+    def test_set_score_with_tiebreak(self):
+        sets = self._export()['matches'][0]['sets']
+        self.assertEqual(sets[1]['score'], '7-6 (7-4)')
+
+    def test_set_raw_game_counts(self):
+        s = self._export()['matches'][0]['sets'][0]
+        self.assertEqual(s['player1_games'], 6)
+        self.assertEqual(s['player2_games'], 3)
+
+    def test_null_optional_fields_exported_as_empty_string(self):
+        match_no_winner = Match.objects.create(
+            season=self.season, player1=self.alice, player2=self.bob,
+            tier=1, status=Match.STATUS_SCHEDULED,
+        )
+        from leagues.io import export_season_data
+        data = export_season_data(self.season)
+        m = next(x for x in data['matches'] if x['id'] == match_no_winner.pk)
+        self.assertEqual(m['winner_name'], '')
+        self.assertEqual(m['winner_username'], '')
+        self.assertEqual(m['played_date'], '')
+
+
+# ─── io.py: CSV format tests ──────────────────────────────────────────────────
+
+class CsvRoundTripTest(TestCase):
+    def setUp(self):
+        from leagues.io import export_season_data, to_csv, from_csv
+        self.season = make_season(name='Spring', year=2025)
+        self.alice = make_player('asmith', first='Alice', last='Smith')
+        self.bob = make_player('bjones', first='Bob', last='Jones')
+        enroll(self.season, self.alice, tier=1)
+        enroll(self.season, self.bob, tier=1)
+        self.match = Match.objects.create(
+            season=self.season, player1=self.alice, player2=self.bob,
+            tier=1, round=Match.ROUND_REGULAR, status=Match.STATUS_COMPLETED,
+            winner=self.alice, played_date=datetime.date(2025, 3, 2),
+            entered_by=self.alice, confirmed_by=self.bob,
+        )
+        from matches.models import MatchSet
+        MatchSet.objects.create(match=self.match, set_number=1, player1_games=6, player2_games=3)
+        self.csv_text = to_csv(export_season_data(self.season))
+        self.data = from_csv(self.csv_text)
+
+    def test_all_sections_present(self):
+        for section in ('season', 'players', 'season_players', 'matches', 'match_sets'):
+            self.assertIn(f'#section:{section}', self.csv_text)
+
+    def test_match_player_names_in_csv(self):
+        self.assertIn('Alice Smith', self.csv_text)
+        self.assertIn('Bob Jones', self.csv_text)
+
+    def test_match_round_label_in_csv(self):
+        self.assertIn('Regular Season', self.csv_text)
+
+    def test_match_status_label_in_csv(self):
+        self.assertIn('Completed', self.csv_text)
+
+    def test_set_score_in_csv(self):
+        self.assertIn('6-3', self.csv_text)
+
+    def test_round_trip_preserves_season_name(self):
+        self.assertEqual(self.data['season']['name'], 'Spring')
+
+    def test_round_trip_preserves_player_username(self):
+        usernames = {p['username'] for p in self.data['players']}
+        self.assertIn('asmith', usernames)
+
+    def test_round_trip_preserves_match_username(self):
+        self.assertEqual(self.data['matches'][0]['player1_username'], 'asmith')
+
+    def test_round_trip_preserves_match_round_code(self):
+        self.assertEqual(self.data['matches'][0]['round'], 'regular')
+
+    def test_round_trip_preserves_match_status_code(self):
+        self.assertEqual(self.data['matches'][0]['status'], 'completed')
+
+    def test_round_trip_sets_nested_under_match(self):
+        self.assertEqual(len(self.data['matches'][0]['sets']), 1)
+
+    def test_round_trip_set_game_counts(self):
+        s = self.data['matches'][0]['sets'][0]
+        self.assertEqual(s['player1_games'], '6')
+        self.assertEqual(s['player2_games'], '3')
+
+
+# ─── io.py: JSON format tests ─────────────────────────────────────────────────
+
+class JsonRoundTripTest(TestCase):
+    def setUp(self):
+        from leagues.io import export_season_data, to_json, from_json
+        self.season = make_season(name='Spring', year=2025)
+        self.alice = make_player('asmith', first='Alice', last='Smith')
+        self.bob = make_player('bjones', first='Bob', last='Jones')
+        enroll(self.season, self.alice, tier=1)
+        enroll(self.season, self.bob, tier=1)
+        self.match = Match.objects.create(
+            season=self.season, player1=self.alice, player2=self.bob,
+            tier=1, round=Match.ROUND_QF, status=Match.STATUS_COMPLETED,
+            winner=self.bob,
+        )
+        from matches.models import MatchSet
+        MatchSet.objects.create(
+            match=self.match, set_number=1,
+            player1_games=7, player2_games=6,
+            tiebreak_player1_points=5, tiebreak_player2_points=7,
+        )
+        self.data = from_json(to_json(export_season_data(self.season)))
+
+    def test_round_trip_season_name(self):
+        self.assertEqual(self.data['season']['name'], 'Spring')
+
+    def test_round_trip_match_round_label(self):
+        self.assertEqual(self.data['matches'][0]['round_label'], 'Quarterfinal')
+
+    def test_round_trip_match_round_code(self):
+        self.assertEqual(self.data['matches'][0]['round'], 'qf')
+
+    def test_round_trip_set_score(self):
+        self.assertEqual(self.data['matches'][0]['sets'][0]['score'], '7-6 (5-7)')
+
+    def test_round_trip_set_tiebreak_points(self):
+        s = self.data['matches'][0]['sets'][0]
+        self.assertEqual(s['tiebreak_player1_points'], 5)
+        self.assertEqual(s['tiebreak_player2_points'], 7)
+
+
+# ─── io.py: import tests ──────────────────────────────────────────────────────
+
+class ImportSeasonDataTest(TestCase):
+    def setUp(self):
+        self.season = make_season(name='Spring', year=2025)
+
+    def _import(self, data):
+        from leagues.io import import_season_data
+        return import_season_data(data, self.season)
+
+    def _minimal_data(self, **overrides):
+        base = {
+            'season': {
+                'name': 'Spring', 'year': 2025, 'status': 'active',
+                'num_tiers': 1, 'sets_to_win': 2, 'games_to_win_set': 6,
+                'final_set_format': 'full', 'playoff_qualifiers_count': 8,
+                'walkover_rule': 'winner', 'schedule_type': 'weekly',
+                'postponement_deadline': 14, 'grace_period_days': 7,
+                'points_for_win': 3, 'points_for_loss': 0,
+                'points_for_walkover_loss': 0, 'schedule_display_mode': 'all',
+                'schedule_display_days': 7, 'display': True,
+            },
+            'players': [],
+            'season_players': [],
+            'matches': [],
+        }
+        base.update(overrides)
+        return base
+
+    # ── Season config ──────────────────────────────────────────────
+
+    def test_season_config_updated(self):
+        data = self._minimal_data()
+        data['season']['points_for_win'] = 5
+        self._import(data)
+        self.season.refresh_from_db()
+        self.assertEqual(self.season.points_for_win, 5)
+
+    def test_season_bool_field_coerced_from_string(self):
+        data = self._minimal_data()
+        data['season']['display'] = 'False'
+        self._import(data)
+        self.season.refresh_from_db()
+        self.assertFalse(self.season.display)
+
+    def test_season_int_field_coerced_from_string(self):
+        data = self._minimal_data()
+        data['season']['num_tiers'] = '3'
+        self._import(data)
+        self.season.refresh_from_db()
+        self.assertEqual(self.season.num_tiers, 3)
+
+    # ── Players ────────────────────────────────────────────────────
+
+    def test_new_player_created(self):
+        data = self._minimal_data(players=[
+            {'username': 'asmith', 'first_name': 'Alice', 'last_name': 'Smith', 'email': ''},
+        ])
+        self._import(data)
+        self.assertTrue(User.objects.filter(username='asmith').exists())
+
+    def test_existing_player_name_updated(self):
+        make_player('asmith', first='Al', last='Smith')
+        data = self._minimal_data(players=[
+            {'username': 'asmith', 'first_name': 'Alice', 'last_name': 'Smith', 'email': ''},
+        ])
+        self._import(data)
+        self.assertEqual(User.objects.get(username='asmith').first_name, 'Alice')
+
+    def test_player_not_duplicated(self):
+        make_player('asmith', first='Alice', last='Smith')
+        data = self._minimal_data(players=[
+            {'username': 'asmith', 'first_name': 'Alice', 'last_name': 'Smith', 'email': ''},
+        ])
+        self._import(data)
+        self.assertEqual(User.objects.filter(username='asmith').count(), 1)
+
+    def test_summary_counts_created_players(self):
+        data = self._minimal_data(players=[
+            {'username': 'asmith', 'first_name': 'Alice', 'last_name': 'Smith', 'email': ''},
+        ])
+        summary = self._import(data)
+        self.assertEqual(summary['players']['created'], 1)
+        self.assertEqual(summary['players']['updated'], 0)
+
+    def test_summary_counts_updated_players(self):
+        make_player('asmith', first='Al', last='Smith')
+        data = self._minimal_data(players=[
+            {'username': 'asmith', 'first_name': 'Alice', 'last_name': 'Smith', 'email': ''},
+        ])
+        summary = self._import(data)
+        self.assertEqual(summary['players']['updated'], 1)
+        self.assertEqual(summary['players']['created'], 0)
+
+    # ── Season players ─────────────────────────────────────────────
+
+    def test_season_player_created(self):
+        make_player('asmith', first='Alice', last='Smith')
+        data = self._minimal_data(
+            players=[{'username': 'asmith', 'first_name': 'Alice', 'last_name': 'Smith', 'email': ''}],
+            season_players=[{'player_username': 'asmith', 'tier': 2, 'seed': '', 'is_active': True}],
+        )
+        self._import(data)
+        self.assertTrue(SeasonPlayer.objects.filter(season=self.season, player__username='asmith', tier=2).exists())
+
+    def test_season_player_tier_updated(self):
+        alice = make_player('asmith', first='Alice', last='Smith')
+        enroll(self.season, alice, tier=1)
+        data = self._minimal_data(
+            players=[{'username': 'asmith', 'first_name': 'Alice', 'last_name': 'Smith', 'email': ''}],
+            season_players=[{'player_username': 'asmith', 'tier': 2, 'seed': '', 'is_active': True}],
+        )
+        self._import(data)
+        self.assertEqual(SeasonPlayer.objects.get(season=self.season, player=alice).tier, 2)
+
+    def test_missing_player_in_roster_adds_error(self):
+        data = self._minimal_data(
+            season_players=[{'player_username': 'nobody', 'tier': 1, 'seed': '', 'is_active': True}],
+        )
+        summary = self._import(data)
+        self.assertTrue(any('nobody' in e for e in summary['errors']))
+
+    def test_season_player_tier_coerced_from_string(self):
+        make_player('asmith')
+        data = self._minimal_data(
+            players=[{'username': 'asmith', 'first_name': '', 'last_name': '', 'email': ''}],
+            season_players=[{'player_username': 'asmith', 'tier': '2', 'seed': '', 'is_active': 'True'}],
+        )
+        self._import(data)
+        self.assertEqual(SeasonPlayer.objects.get(season=self.season, player__username='asmith').tier, 2)
+
+    # ── Matches ────────────────────────────────────────────────────
+
+    def test_match_created(self):
+        alice = make_player('asmith')
+        bob = make_player('bjones')
+        data = self._minimal_data(
+            players=[
+                {'username': 'asmith', 'first_name': '', 'last_name': '', 'email': ''},
+                {'username': 'bjones', 'first_name': '', 'last_name': '', 'email': ''},
+            ],
+            matches=[{
+                'id': '', 'player1_name': '', 'player1_username': 'asmith',
+                'player2_name': '', 'player2_username': 'bjones',
+                'tier': 1, 'round_label': '', 'round': 'regular',
+                'scheduled_date': '2025-03-01', 'played_date': '',
+                'status_label': '', 'status': 'scheduled',
+                'winner_name': '', 'winner_username': '',
+                'entered_by_username': '', 'confirmed_by_username': '',
+                'walkover_reason': '', 'notes': '',
+                'sets': [],
+            }],
+        )
+        self._import(data)
+        self.assertEqual(Match.objects.filter(season=self.season).count(), 1)
+
+    def test_existing_match_updated_by_id(self):
+        alice = make_player('asmith')
+        bob = make_player('bjones')
+        match = Match.objects.create(
+            season=self.season, player1=alice, player2=bob,
+            tier=1, status=Match.STATUS_SCHEDULED,
+        )
+        data = self._minimal_data(
+            players=[
+                {'username': 'asmith', 'first_name': '', 'last_name': '', 'email': ''},
+                {'username': 'bjones', 'first_name': '', 'last_name': '', 'email': ''},
+            ],
+            matches=[{
+                'id': match.pk, 'player1_name': '', 'player1_username': 'asmith',
+                'player2_name': '', 'player2_username': 'bjones',
+                'tier': 1, 'round_label': '', 'round': 'regular',
+                'scheduled_date': '', 'played_date': '2025-03-02',
+                'status_label': '', 'status': 'completed',
+                'winner_name': '', 'winner_username': 'asmith',
+                'entered_by_username': '', 'confirmed_by_username': '',
+                'walkover_reason': '', 'notes': '',
+                'sets': [],
+            }],
+        )
+        self._import(data)
+        match.refresh_from_db()
+        self.assertEqual(match.status, Match.STATUS_COMPLETED)
+        self.assertEqual(Match.objects.filter(season=self.season).count(), 1)
+
+    def test_unknown_match_id_creates_new_match(self):
+        alice = make_player('asmith')
+        bob = make_player('bjones')
+        data = self._minimal_data(
+            players=[
+                {'username': 'asmith', 'first_name': '', 'last_name': '', 'email': ''},
+                {'username': 'bjones', 'first_name': '', 'last_name': '', 'email': ''},
+            ],
+            matches=[{
+                'id': 99999, 'player1_name': '', 'player1_username': 'asmith',
+                'player2_name': '', 'player2_username': 'bjones',
+                'tier': 1, 'round_label': '', 'round': 'regular',
+                'scheduled_date': '', 'played_date': '',
+                'status_label': '', 'status': 'scheduled',
+                'winner_name': '', 'winner_username': '',
+                'entered_by_username': '', 'confirmed_by_username': '',
+                'walkover_reason': '', 'notes': '',
+                'sets': [],
+            }],
+        )
+        self._import(data)
+        self.assertEqual(Match.objects.filter(season=self.season).count(), 1)
+
+    def test_display_only_fields_ignored_on_import(self):
+        """player1_name, round_label, status_label, score are for display; import ignores them."""
+        alice = make_player('asmith')
+        bob = make_player('bjones')
+        data = self._minimal_data(
+            players=[
+                {'username': 'asmith', 'first_name': '', 'last_name': '', 'email': ''},
+                {'username': 'bjones', 'first_name': '', 'last_name': '', 'email': ''},
+            ],
+            matches=[{
+                'id': '', 'player1_name': 'IGNORED', 'player1_username': 'asmith',
+                'player2_name': 'IGNORED', 'player2_username': 'bjones',
+                'tier': 1, 'round_label': 'IGNORED', 'round': 'regular',
+                'scheduled_date': '', 'played_date': '',
+                'status_label': 'IGNORED', 'status': 'scheduled',
+                'winner_name': 'IGNORED', 'winner_username': '',
+                'entered_by_username': '', 'confirmed_by_username': '',
+                'walkover_reason': '', 'notes': '',
+                'sets': [],
+            }],
+        )
+        self._import(data)
+        match = Match.objects.get(season=self.season)
+        self.assertEqual(match.round, 'regular')
+        self.assertEqual(match.status, 'scheduled')
+
+    # ── Sets ───────────────────────────────────────────────────────
+
+    def test_sets_created_with_match(self):
+        from matches.models import MatchSet
+        alice = make_player('asmith')
+        bob = make_player('bjones')
+        data = self._minimal_data(
+            players=[
+                {'username': 'asmith', 'first_name': '', 'last_name': '', 'email': ''},
+                {'username': 'bjones', 'first_name': '', 'last_name': '', 'email': ''},
+            ],
+            matches=[{
+                'id': '', 'player1_name': '', 'player1_username': 'asmith',
+                'player2_name': '', 'player2_username': 'bjones',
+                'tier': 1, 'round_label': '', 'round': 'regular',
+                'scheduled_date': '', 'played_date': '',
+                'status_label': '', 'status': 'completed',
+                'winner_name': '', 'winner_username': 'asmith',
+                'entered_by_username': '', 'confirmed_by_username': '',
+                'walkover_reason': '', 'notes': '',
+                'sets': [
+                    {'player1_name': '', 'player2_name': '', 'set_number': '1',
+                     'score': '', 'player1_games': '6', 'player2_games': '3',
+                     'tiebreak_player1_points': '', 'tiebreak_player2_points': ''},
+                    {'player1_name': '', 'player2_name': '', 'set_number': '2',
+                     'score': '', 'player1_games': '7', 'player2_games': '6',
+                     'tiebreak_player1_points': '7', 'tiebreak_player2_points': '4'},
+                ],
+            }],
+        )
+        self._import(data)
+        match = Match.objects.get(season=self.season)
+        self.assertEqual(match.sets.count(), 2)
+        s2 = match.sets.get(set_number=2)
+        self.assertEqual(s2.player1_games, 7)
+        self.assertEqual(s2.tiebreak_player1_points, 7)
+        self.assertEqual(s2.tiebreak_player2_points, 4)
+
+    def test_set_score_and_name_fields_ignored_on_import(self):
+        """score, player1_name, player2_name on sets are display-only."""
+        from matches.models import MatchSet
+        make_player('asmith')
+        make_player('bjones')
+        data = self._minimal_data(
+            players=[
+                {'username': 'asmith', 'first_name': '', 'last_name': '', 'email': ''},
+                {'username': 'bjones', 'first_name': '', 'last_name': '', 'email': ''},
+            ],
+            matches=[{
+                'id': '', 'player1_name': '', 'player1_username': 'asmith',
+                'player2_name': '', 'player2_username': 'bjones',
+                'tier': 1, 'round_label': '', 'round': 'regular',
+                'scheduled_date': '', 'played_date': '',
+                'status_label': '', 'status': 'completed',
+                'winner_name': '', 'winner_username': 'asmith',
+                'entered_by_username': '', 'confirmed_by_username': '',
+                'walkover_reason': '', 'notes': '',
+                'sets': [
+                    {'player1_name': 'IGNORED', 'player2_name': 'IGNORED',
+                     'set_number': '1', 'score': 'IGNORED',
+                     'player1_games': '6', 'player2_games': '3',
+                     'tiebreak_player1_points': '', 'tiebreak_player2_points': ''},
+                ],
+            }],
+        )
+        self._import(data)
+        s = Match.objects.get(season=self.season).sets.get(set_number=1)
+        self.assertEqual(s.player1_games, 6)
+        self.assertEqual(s.player2_games, 3)
+
+    # ── Full round-trip ────────────────────────────────────────────
+
+    def test_csv_full_round_trip(self):
+        """Export to CSV, import back, verify DB state matches original."""
+        from leagues.io import export_season_data, to_csv, from_csv, import_season_data
+        from matches.models import MatchSet
+
+        alice = make_player('asmith', first='Alice', last='Smith')
+        bob = make_player('bjones', first='Bob', last='Jones')
+        enroll(self.season, alice, tier=1)
+        enroll(self.season, bob, tier=1)
+        match = Match.objects.create(
+            season=self.season, player1=alice, player2=bob,
+            tier=1, status=Match.STATUS_COMPLETED, winner=alice,
+            played_date=datetime.date(2025, 3, 1),
+        )
+        MatchSet.objects.create(match=match, set_number=1, player1_games=6, player2_games=4)
+
+        csv_text = to_csv(export_season_data(self.season))
+
+        # Wipe and re-import into a fresh season
+        second_season = make_season(name='Copy', year=2026, status=Season.STATUS_UPCOMING)
+        data = from_csv(csv_text)
+        import_season_data(data, second_season)
+
+        imported_match = Match.objects.get(season=second_season)
+        self.assertEqual(imported_match.player1.username, 'asmith')
+        self.assertEqual(imported_match.player2.username, 'bjones')
+        self.assertEqual(imported_match.status, Match.STATUS_COMPLETED)
+        self.assertEqual(imported_match.sets.count(), 1)
+        self.assertEqual(imported_match.sets.first().player1_games, 6)
+
+    def test_json_full_round_trip(self):
+        """Export to JSON, import back, verify DB state matches original."""
+        from leagues.io import export_season_data, to_json, from_json, import_season_data
+        from matches.models import MatchSet
+
+        alice = make_player('asmith', first='Alice', last='Smith')
+        bob = make_player('bjones', first='Bob', last='Jones')
+        enroll(self.season, alice, tier=1)
+        enroll(self.season, bob, tier=1)
+        match = Match.objects.create(
+            season=self.season, player1=alice, player2=bob,
+            tier=1, status=Match.STATUS_COMPLETED, winner=bob,
+        )
+        MatchSet.objects.create(match=match, set_number=1, player1_games=3, player2_games=6)
+
+        data = from_json(to_json(export_season_data(self.season)))
+
+        second_season = make_season(name='Copy', year=2026, status=Season.STATUS_UPCOMING)
+        import_season_data(data, second_season)
+
+        imported_match = Match.objects.get(season=second_season)
+        self.assertEqual(imported_match.winner.username, 'bjones')
+        self.assertEqual(imported_match.sets.first().player2_games, 6)
+
+
+# ─── Export/Import admin view tests ──────────────────────────────────────────
+
+class ExportSeasonViewTest(TestCase):
+    def setUp(self):
+        self.season = make_season()
+        self.admin = User.objects.create_user(
+            username='admin', password='pass', is_staff=True, is_superuser=True,
+        )
+        self.client.login(username='admin', password='pass')
+        self.url = reverse('admin:leagues_season_export', args=[self.season.pk])
+
+    def test_get_renders_export_page(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Download JSON')
+        self.assertContains(response, 'Download CSV')
+
+    def test_requires_staff(self):
+        self.client.logout()
+        User.objects.create_user(username='regular', password='pass')
+        self.client.login(username='regular', password='pass')
+        self.assertNotEqual(self.client.get(self.url).status_code, 200)
+
+    def test_404_for_missing_season(self):
+        response = self.client.get(reverse('admin:leagues_season_export', args=[99999]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_post_json_returns_json_file(self):
+        response = self.client.post(self.url, {'format': 'json'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/json')
+        self.assertIn('.json', response['Content-Disposition'])
+
+    def test_post_csv_returns_csv_file(self):
+        response = self.client.post(self.url, {'format': 'csv'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'text/csv')
+        self.assertIn('.csv', response['Content-Disposition'])
+
+    def test_json_export_contains_season_name(self):
+        response = self.client.post(self.url, {'format': 'json'})
+        import json
+        data = json.loads(response.content)
+        self.assertEqual(data['season']['name'], self.season.name)
+
+    def test_csv_export_contains_section_markers(self):
+        response = self.client.post(self.url, {'format': 'csv'})
+        content = response.content.decode()
+        self.assertIn('#section:season', content)
+        self.assertIn('#section:matches', content)
+
+
+class ImportSeasonViewTest(TestCase):
+    def setUp(self):
+        self.season = make_season()
+        self.admin = User.objects.create_user(
+            username='admin', password='pass', is_staff=True, is_superuser=True,
+        )
+        self.client.login(username='admin', password='pass')
+        self.url = reverse('admin:leagues_season_import', args=[self.season.pk])
+
+    def _export_file(self, fmt='json'):
+        from leagues.io import export_season_data, to_json, to_csv
+        data = export_season_data(self.season)
+        if fmt == 'json':
+            content = to_json(data).encode()
+            return SimpleUploadedFile('season.json', content, content_type='application/json')
+        content = to_csv(data).encode()
+        return SimpleUploadedFile('season.csv', content, content_type='text/csv')
+
+    def test_get_renders_import_form(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Import')
+
+    def test_requires_staff(self):
+        self.client.logout()
+        User.objects.create_user(username='regular', password='pass')
+        self.client.login(username='regular', password='pass')
+        self.assertNotEqual(self.client.get(self.url).status_code, 200)
+
+    def test_404_for_missing_season(self):
+        response = self.client.get(reverse('admin:leagues_season_import', args=[99999]))
+        self.assertEqual(response.status_code, 404)
+
+    def test_no_file_shows_error(self):
+        response = self.client.post(self.url, {})
+        self.assertContains(response, 'Please select a file')
+
+    def test_wrong_extension_shows_error(self):
+        f = SimpleUploadedFile('data.txt', b'hello', content_type='text/plain')
+        response = self.client.post(self.url, {'data_file': f})
+        self.assertContains(response, 'Import failed')
+
+    def test_post_json_shows_success_message(self):
+        response = self.client.post(self.url, {'data_file': self._export_file('json')}, follow=True)
+        self.assertContains(response, 'Import complete')
+
+    def test_post_csv_shows_success_message(self):
+        response = self.client.post(self.url, {'data_file': self._export_file('csv')}, follow=True)
+        self.assertContains(response, 'Import complete')
+
+    def test_post_json_shows_summary_table(self):
+        response = self.client.post(self.url, {'data_file': self._export_file('json')})
+        self.assertContains(response, 'Import summary')
