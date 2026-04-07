@@ -1,7 +1,10 @@
 import csv
 import datetime
 import io
+import logging
 import re
+
+logger = logging.getLogger(__name__)
 
 from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
@@ -312,6 +315,7 @@ class SeasonAdmin(admin.ModelAdmin):
                         f'{summary["matches"]["updated"]} updated.',
                     )
                 except Exception as exc:
+                    logger.exception('Season import failed for season_id=%s', season_id)
                     error = f'Import failed: {exc}'
 
         context = {

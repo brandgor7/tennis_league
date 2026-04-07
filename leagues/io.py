@@ -8,9 +8,12 @@ updates both CSV headers and JSON keys simultaneously.
 import csv
 import io
 import json
+import logging
 
 from django.contrib.auth import get_user_model
 from django.db import models, transaction
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -41,10 +44,20 @@ MATCHSET_FIELDS = [
     'tiebreak_player1_points', 'tiebreak_player2_points',
 ]
 
+# All username fields in a match record that reference a User
+_MATCH_USER_FIELDS = (
+    'player1_username', 'player2_username',
+    'winner_username', 'entered_by_username', 'confirmed_by_username',
+)
+
 
 # ---------------------------------------------------------------------------
 # Serializers (model instance → dict)
 # ---------------------------------------------------------------------------
+
+def _username(user):
+    return user.username if user else ''
+
 
 def _serialize_season(season):
     return {f: getattr(season, f) for f in SEASON_FIELDS}
@@ -64,9 +77,6 @@ def _serialize_season_player(sp):
 
 
 def _serialize_match(match):
-    def _username(user):
-        return user.username if user else ''
-
     return {
         'id': match.pk,
         'player1_username': _username(match.player1),
@@ -102,10 +112,9 @@ def export_season_data(season):
     """Return a structured dict of all season data, ready for JSON or CSV serialisation."""
     from matches.models import Match
 
-    players = {
-        sp.player
-        for sp in season.season_players.select_related('player').all()
-    }
+    season_players = list(
+        season.season_players.select_related('player').order_by('player__username')
+    )
     matches = (
         Match.objects
         .filter(season=season)
@@ -119,15 +128,11 @@ def export_season_data(season):
         m['sets'] = [_serialize_matchset(ms) for ms in match.sets.all()]
         match_list.append(m)
 
+    players = sorted({sp.player for sp in season_players}, key=lambda u: u.username)
     return {
         'season': _serialize_season(season),
-        'players': [
-            _serialize_player(p) for p in sorted(players, key=lambda u: u.username)
-        ],
-        'season_players': [
-            _serialize_season_player(sp)
-            for sp in season.season_players.select_related('player').order_by('player__username')
-        ],
+        'players': [_serialize_player(p) for p in players],
+        'season_players': [_serialize_season_player(sp) for sp in season_players],
         'matches': match_list,
     }
 
@@ -245,7 +250,6 @@ def import_season_data(data, season):
     }
 
     with transaction.atomic():
-        # 1. Update season config fields
         season_data = data.get('season', {})
         for field in SEASON_FIELDS:
             raw = season_data.get(field)
@@ -254,7 +258,6 @@ def import_season_data(data, season):
             setattr(season, field, _coerce_model_field(season, field, raw))
         season.save()
 
-        # 2. Upsert players
         user_map = {}
         for pd in data.get('players', []):
             username = (pd.get('username') or '').strip()
@@ -267,12 +270,19 @@ def import_season_data(data, season):
             user_map[username] = user
             summary['players']['created' if created else 'updated'] += 1
 
-        def _resolve_user(username):
-            if not username:
-                return None
-            return user_map.get(username) or User.objects.filter(username=username).first()
+        # Pre-fetch any users referenced in matches that weren't in the players section
+        # (e.g. winner/entered_by/confirmed_by from seasons not in this export)
+        referenced = {
+            md.get(f, '')
+            for md in data.get('matches', [])
+            for f in _MATCH_USER_FIELDS
+        } - set(user_map) - {'', None}
+        for user in User.objects.filter(username__in=referenced):
+            user_map[user.username] = user
 
-        # 3. Upsert season players
+        def _resolve_user(username):
+            return user_map.get(username) if username else None
+
         for spd in data.get('season_players', []):
             username = (spd.get('player_username') or '').strip()
             user = _resolve_user(username)
@@ -281,7 +291,7 @@ def import_season_data(data, season):
                 continue
             seed_raw = spd.get('seed')
             seed = int(seed_raw) if seed_raw not in ('', None) else None
-            sp, created = SeasonPlayer.objects.update_or_create(
+            _, created = SeasonPlayer.objects.update_or_create(
                 season=season,
                 player=user,
                 defaults={
@@ -292,7 +302,6 @@ def import_season_data(data, season):
             )
             summary['season_players']['created' if created else 'updated'] += 1
 
-        # 4. Upsert matches and their sets
         existing_match_ids = set(
             Match.objects.filter(season=season).values_list('pk', flat=True)
         )
@@ -321,7 +330,7 @@ def import_season_data(data, season):
 
             if match_id and match_id in existing_match_ids:
                 Match.objects.filter(pk=match_id).update(**match_fields)
-                match = Match.objects.get(pk=match_id)
+                match = Match(pk=match_id, season=season, **match_fields)
                 summary['matches']['updated'] += 1
             else:
                 match = Match.objects.create(season=season, **match_fields)
