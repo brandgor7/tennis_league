@@ -8,7 +8,6 @@ updates both CSV headers and JSON keys simultaneously.
 import csv
 import io
 import json
-import zipfile
 
 from django.contrib.auth import get_user_model
 from django.db import models, transaction
@@ -137,30 +136,38 @@ def to_json(data):
     return json.dumps(data, indent=2, default=str)
 
 
-def to_csv_zip(data):
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr('season.csv', _dicts_to_csv([data['season']], SEASON_FIELDS))
-        zf.writestr('players.csv', _dicts_to_csv(data['players'], PLAYER_FIELDS))
-        zf.writestr('season_players.csv', _dicts_to_csv(data['season_players'], SEASON_PLAYER_FIELDS))
+def to_csv(data):
+    """
+    Serialise *data* to a single CSV string with section markers.
 
-        match_rows = [{k: v for k, v in m.items() if k != 'sets'} for m in data['matches']]
-        zf.writestr('matches.csv', _dicts_to_csv(match_rows, MATCH_FIELDS))
-
-        set_rows = [
-            {'match_id': m['id'], **s}
-            for m in data['matches']
-            for s in m.get('sets', [])
-        ]
-        zf.writestr('match_sets.csv', _dicts_to_csv(set_rows, ['match_id'] + MATCHSET_FIELDS))
-    return buf.getvalue()
-
-
-def _dicts_to_csv(rows, fieldnames):
+    Each section starts with a ``#section:<name>`` row, followed by a header
+    row and data rows.  Blank lines separate sections for readability.
+    Sections: season, players, season_players, matches, match_sets.
+    """
     buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction='ignore')
-    writer.writeheader()
-    writer.writerows(rows)
+
+    match_rows = [{k: v for k, v in m.items() if k != 'sets'} for m in data['matches']]
+    set_rows = [
+        {'match_id': m['id'], **s}
+        for m in data['matches']
+        for s in m.get('sets', [])
+    ]
+
+    sections = [
+        ('season', SEASON_FIELDS, [data['season']]),
+        ('players', PLAYER_FIELDS, data['players']),
+        ('season_players', SEASON_PLAYER_FIELDS, data['season_players']),
+        ('matches', MATCH_FIELDS, match_rows),
+        ('match_sets', ['match_id'] + MATCHSET_FIELDS, set_rows),
+    ]
+
+    for name, fieldnames, rows in sections:
+        buf.write(f'#section:{name}\n')
+        writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction='ignore', lineterminator='\n')
+        writer.writeheader()
+        writer.writerows(rows)
+        buf.write('\n')
+
     return buf.getvalue()
 
 
@@ -172,32 +179,42 @@ def from_json(text):
     return json.loads(text)
 
 
-def from_csv_zip(file_bytes):
-    with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
-        season_row = _csv_to_dicts(zf.read('season.csv').decode('utf-8-sig'))[0]
-        players = _csv_to_dicts(zf.read('players.csv').decode('utf-8-sig'))
-        season_players = _csv_to_dicts(zf.read('season_players.csv').decode('utf-8-sig'))
+def from_csv(text):
+    """Parse a section-marker CSV (as produced by ``to_csv``) back to a data dict."""
+    sections = {}
+    current_name = None
+    current_lines = []
 
-        matches_by_id = {
-            m['id']: {**m, 'sets': []}
-            for m in _csv_to_dicts(zf.read('matches.csv').decode('utf-8-sig'))
-        }
-        for row in _csv_to_dicts(zf.read('match_sets.csv').decode('utf-8-sig')):
-            row = dict(row)
-            match_id = row.pop('match_id')
-            if match_id in matches_by_id:
-                matches_by_id[match_id]['sets'].append(row)
+    for line in text.splitlines():
+        if line.startswith('#section:'):
+            if current_name is not None:
+                sections[current_name] = _csv_to_dicts('\n'.join(current_lines))
+            current_name = line[len('#section:'):]
+            current_lines = []
+        elif current_name is not None:
+            current_lines.append(line)
 
+    if current_name is not None:
+        sections[current_name] = _csv_to_dicts('\n'.join(current_lines))
+
+    matches_by_id = {m['id']: {**m, 'sets': []} for m in sections.get('matches', [])}
+    for row in sections.get('match_sets', []):
+        row = dict(row)
+        match_id = row.pop('match_id')
+        if match_id in matches_by_id:
+            matches_by_id[match_id]['sets'].append(row)
+
+    season_rows = sections.get('season', [])
     return {
-        'season': season_row,
-        'players': players,
-        'season_players': season_players,
+        'season': season_rows[0] if season_rows else {},
+        'players': sections.get('players', []),
+        'season_players': sections.get('season_players', []),
         'matches': list(matches_by_id.values()),
     }
 
 
 def _csv_to_dicts(text):
-    return list(csv.DictReader(io.StringIO(text)))
+    return [r for r in csv.DictReader(io.StringIO(text)) if any(r.values())]
 
 
 # ---------------------------------------------------------------------------

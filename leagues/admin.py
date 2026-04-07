@@ -12,8 +12,8 @@ from django.urls import path, reverse
 
 from .models import Season, SeasonPlayer
 from .io import (
-    export_season_data, from_csv_zip, from_json, import_season_data,
-    to_csv_zip, to_json,
+    export_season_data, from_csv, from_json, import_season_data,
+    to_csv, to_json,
 )
 from playoffs.generator import bracket_size_for, generate_bracket
 from playoffs.models import PlayoffBracket
@@ -269,8 +269,8 @@ class SeasonAdmin(admin.ModelAdmin):
             slug = season.slug
 
             if fmt == 'csv':
-                response = HttpResponse(to_csv_zip(data), content_type='application/zip')
-                response['Content-Disposition'] = f'attachment; filename="{slug}.zip"'
+                response = HttpResponse(to_csv(data), content_type='text/csv')
+                response['Content-Disposition'] = f'attachment; filename="{slug}.csv"'
             else:
                 response = HttpResponse(to_json(data), content_type='application/json')
                 response['Content-Disposition'] = f'attachment; filename="{slug}.json"'
@@ -298,10 +298,10 @@ class SeasonAdmin(admin.ModelAdmin):
                     raw = upload.read()
                     if name.endswith('.json'):
                         data = from_json(raw.decode('utf-8-sig'))
-                    elif name.endswith('.zip'):
-                        data = from_csv_zip(raw)
+                    elif name.endswith('.csv'):
+                        data = from_csv(raw.decode('utf-8-sig'))
                     else:
-                        raise ValueError('File must be a .json or .zip file.')
+                        raise ValueError('File must be a .json or .csv file.')
                     summary = import_season_data(data, season)
                     messages.success(
                         request,

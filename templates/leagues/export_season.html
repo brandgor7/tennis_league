@@ -15,10 +15,9 @@
       Best for scripting or full restores.
     </li>
     <li>
-      <strong>CSV (zip)</strong> — one CSV per entity type
-      (<code>season.csv</code>, <code>players.csv</code>, <code>season_players.csv</code>,
-      <code>matches.csv</code>, <code>match_sets.csv</code>).
-      Best for viewing or editing in a spreadsheet before re-importing.
+      <strong>CSV</strong> — single file with labelled sections
+      (<code>#section:season</code>, <code>#section:players</code>, etc.).
+      Best for viewing or editing in a text editor or spreadsheet before re-importing.
     </li>
   </ul>
 
@@ -31,7 +30,7 @@
   <form method="post" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-top: 0.75rem;">
     {% csrf_token %}
     <input type="hidden" name="format" value="csv">
-    <button type="submit" class="button">Download CSV Zip</button>
+    <button type="submit" class="button">Download CSV</button>
   </form>
 
   <p style="margin-top: 1.5rem;">

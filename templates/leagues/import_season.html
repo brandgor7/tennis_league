@@ -50,7 +50,7 @@
   {% endif %}
 
   <p>
-    Upload a <strong>.json</strong> or <strong>.zip</strong> file previously exported from this app.
+    Upload a <strong>.json</strong> or <strong>.csv</strong> file previously exported from this app.
     Records are matched by natural key (username for players; match id for matches) and updated in
     place, so re-importing a backup is safe to repeat. New records are created; existing records are
     overwritten with the imported values.
@@ -66,7 +66,7 @@
       <label for="id_data_file" style="display: block; font-weight: bold; margin-bottom: 0.25rem;">
         Export file (.json or .zip)
       </label>
-      <input type="file" id="id_data_file" name="data_file" accept=".json,.zip" required
+      <input type="file" id="id_data_file" name="data_file" accept=".json,.csv" required
              style="padding: 0.25rem 0;">
     </div>
     <button type="submit" class="button default">Import</button>
