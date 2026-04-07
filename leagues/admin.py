@@ -3,14 +3,17 @@ import datetime
 import io
 import re
 
+from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
+from django.utils.safestring import mark_safe
 
-from .models import Season, SeasonPlayer
+from .models import Season, SeasonPlayer, SiteConfig
+from .svg_sanitizer import sanitize_svg
 from playoffs.generator import bracket_size_for, generate_bracket
 from playoffs.models import PlayoffBracket
 from standings.calculator import calculate_standings
@@ -276,3 +279,60 @@ class SeasonPlayerAdmin(admin.ModelAdmin):
     list_filter = ('season', 'tier', 'is_active')
     search_fields = ('player__username', 'player__first_name', 'player__last_name', 'season__name')
     autocomplete_fields = ('player', 'season')
+
+
+class SiteConfigForm(forms.ModelForm):
+    class Meta:
+        model = SiteConfig
+        fields = ('site_name', 'logo_svg')
+        widgets = {
+            'logo_svg': forms.Textarea(attrs={'rows': 12, 'style': 'font-family:monospace;font-size:0.85em;'}),
+        }
+
+    def clean_logo_svg(self):
+        raw = self.cleaned_data.get('logo_svg', '').strip()
+        if not raw:
+            return ''
+        try:
+            return sanitize_svg(raw)
+        except ValueError as exc:
+            raise forms.ValidationError(str(exc))
+
+
+@admin.register(SiteConfig)
+class SiteConfigAdmin(admin.ModelAdmin):
+    form = SiteConfigForm
+    fieldsets = (
+        (None, {'fields': ('site_name',)}),
+        ('Logo', {
+            'fields': ('logo_svg', 'logo_preview'),
+            'description': (
+                'Paste the full SVG markup for your logo. '
+                'Scripts, event handlers, and external resource references are stripped automatically. '
+                'Leave blank to show the default tennis-ball icon.'
+            ),
+        }),
+    )
+    readonly_fields = ('logo_preview',)
+
+    def logo_preview(self, obj):
+        if not obj or not obj.logo_svg:
+            return '(no logo — default icon will be used)'
+        return mark_safe(
+            f'<div style="background:#1B3D2B;padding:12px;display:inline-block;border-radius:4px;">'
+            f'{obj.logo_svg}'
+            f'</div>'
+        )
+    logo_preview.short_description = 'Preview'
+
+    def has_add_permission(self, request):
+        return not SiteConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        obj, _ = SiteConfig.objects.get_or_create(pk=1)
+        return HttpResponseRedirect(
+            reverse('admin:leagues_siteconfig_change', args=[obj.pk])
+        )

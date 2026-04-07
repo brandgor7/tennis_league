@@ -5,6 +5,38 @@ from django.conf import settings
 from django.utils.text import slugify
 
 
+class SiteConfig(models.Model):
+    site_name = models.CharField(
+        max_length=100,
+        default='TennisLeague',
+        help_text='Displayed in the navbar and page footer.',
+    )
+    logo_svg = models.TextField(
+        blank=True,
+        help_text=(
+            'Paste SVG markup here. The SVG is sanitized before saving — '
+            'scripts, event handlers, and external resource references are stripped. '
+            'Leave blank to use the default tennis-ball icon.'
+        ),
+    )
+
+    class Meta:
+        verbose_name = 'Site Configuration'
+        verbose_name_plural = 'Site Configuration'
+
+    def __str__(self):
+        return 'Site Configuration'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class Season(models.Model):
     STATUS_UPCOMING = 'upcoming'
     STATUS_ACTIVE = 'active'

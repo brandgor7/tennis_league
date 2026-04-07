@@ -224,9 +224,10 @@ tennis-scores-app/
 ### `leagues`
 - `Season` model — all per-season configuration
 - `SeasonPlayer` model — roster (which users are in which season)
+- `SiteConfig` model — singleton; stores `site_name` and `logo_svg` (sanitized SVG text); configurable in admin
 - Season list, detail views
 - `SeasonPlayerDetailView` — public player profile page showing standing, upcoming matches, and results for a player within a season
-- Admin: create/edit seasons, manage rosters
+- Admin: create/edit seasons, manage rosters, edit site name and logo
 
 ### `matches`
 - `Match` model — scheduling, status, players, result
@@ -250,6 +251,14 @@ tennis-scores-app/
 ---
 
 ## Data Models
+
+### `leagues.SiteConfig`
+```
+site_name   CharField(100)   Navbar brand name and page footer; default "TennisLeague"
+logo_svg    TextField        Sanitized SVG markup stored verbatim; blank = default icon shown
+pk          always 1         Singleton — enforced by model.save() and admin
+```
+SVG is sanitized by `leagues/svg_sanitizer.py` on save via the admin form: parsed as XML (to defeat encoding tricks), element allowlist applied, event handlers and unsafe URI schemes stripped, href/src restricted to fragment references.
 
 ### `accounts.User`
 ```
