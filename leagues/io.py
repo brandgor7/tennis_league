@@ -45,9 +45,12 @@ MATCH_FIELDS = [
     'walkover_reason', 'notes',
 ]
 
-# Used for both CSV (as columns, with match_id prepended) and JSON (nested under match)
+# Used for both CSV (as columns, with match_id prepended) and JSON (nested under match).
+# player1_name, player2_name, and score are display-only; import ignores them.
 MATCHSET_FIELDS = [
-    'set_number', 'player1_games', 'player2_games',
+    'player1_name', 'player2_name',
+    'set_number', 'score',
+    'player1_games', 'player2_games',
     'tiebreak_player1_points', 'tiebreak_player2_points',
 ]
 
@@ -86,6 +89,13 @@ def _username(user):
 
 def _fullname(user):
     return user.get_full_name() if user else ''
+
+
+def _format_set_score(ms):
+    score = f'{ms.player1_games}-{ms.player2_games}'
+    if ms.tiebreak_player1_points is not None:
+        score += f' ({ms.tiebreak_player1_points}-{ms.tiebreak_player2_points})'
+    return score
 
 
 def _serialize_season(season):
@@ -128,9 +138,12 @@ def _serialize_match(match):
     }
 
 
-def _serialize_matchset(ms):
+def _serialize_matchset(ms, match=None):
     return {
+        'player1_name': _fullname(match.player1) if match else '',
+        'player2_name': _fullname(match.player2) if match else '',
         'set_number': ms.set_number,
+        'score': _format_set_score(ms),
         'player1_games': ms.player1_games,
         'player2_games': ms.player2_games,
         'tiebreak_player1_points': ms.tiebreak_player1_points if ms.tiebreak_player1_points is not None else '',
@@ -159,7 +172,7 @@ def export_season_data(season):
     match_list = []
     for match in matches:
         m = _serialize_match(match)
-        m['sets'] = [_serialize_matchset(ms) for ms in match.sets.all()]
+        m['sets'] = [_serialize_matchset(ms, match) for ms in match.sets.all()]
         match_list.append(m)
 
     players = sorted({sp.player for sp in season_players}, key=lambda u: u.username)
