@@ -11,13 +11,9 @@ class SiteConfig(models.Model):
         default='TennisLeague',
         help_text='Displayed in the navbar and page footer.',
     )
-    logo_svg = models.TextField(
+    logo = models.TextField(
         blank=True,
-        help_text=(
-            'Paste SVG markup here. The SVG is sanitized before saving — '
-            'scripts, event handlers, and external resource references are stripped. '
-            'Leave blank to use the default tennis-ball icon.'
-        ),
+        help_text='Base64-encoded data URL of the logo image (set via the admin upload field).',
     )
 
     class Meta:

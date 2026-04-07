@@ -255,10 +255,10 @@ tennis-scores-app/
 ### `leagues.SiteConfig`
 ```
 site_name   CharField(100)   Navbar brand name and page footer; default "TennisLeague"
-logo_svg    TextField        Sanitized SVG markup stored verbatim; blank = default icon shown
+logo        TextField        Base64 data URL (data:image/png;base64,… or data:image/jpeg;base64,…); blank = default icon shown
 pk          always 1         Singleton — enforced by model.save() and admin
 ```
-SVG is sanitized by `leagues/svg_sanitizer.py` on save via the admin form: parsed as XML (to defeat encoding tricks), element allowlist applied, event handlers and unsafe URI schemes stripped, href/src restricted to fragment references.
+Logo uploads are validated in the admin form: magic bytes are checked (PNG `\x89PNG\r\n\x1a\n`, JPEG `\xff\xd8\xff`) to confirm the file type regardless of extension, and size is capped at 2 MB. The data URL is stored in the database — no file system writes, no MEDIA configuration needed.
 
 ### `accounts.User`
 ```

@@ -30,8 +30,8 @@
 
       <!-- Brand -->
       <a class="navbar-brand" href="/">
-        {% if logo_svg %}
-          {{ logo_svg }}
+        {% if logo_data_url %}
+          <img src="{{ logo_data_url }}" alt="{{ site_name|default:'TennisLeague' }} logo" class="brand-logo">
         {% else %}
         <svg class="brand-ball" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <circle cx="13" cy="13" r="12" fill="#C4522A"/>

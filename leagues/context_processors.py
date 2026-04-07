@@ -1,5 +1,4 @@
 from django.db.models import Q
-from django.utils.safestring import mark_safe
 
 from .models import Season, SiteConfig
 
@@ -11,7 +10,7 @@ def season_context(request):
 
     config = SiteConfig.get()
     site_name = config.site_name
-    logo_svg = mark_safe(config.logo_svg) if config.logo_svg else None
+    logo_data_url = config.logo or None
 
     user = request.user
 
@@ -52,5 +51,5 @@ def season_context(request):
         'current_season': current_season,
         'all_seasons': all_seasons,
         'site_name': site_name,
-        'logo_svg': logo_svg,
+        'logo_data_url': logo_data_url,
     }
