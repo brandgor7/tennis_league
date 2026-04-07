@@ -11,6 +11,7 @@ from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
+from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
 from .models import Season, SeasonPlayer, SiteConfig
@@ -341,9 +342,10 @@ class SiteConfigAdmin(admin.ModelAdmin):
     def logo_preview(self, obj):
         if not obj or not obj.logo:
             return '(none — default tennis-ball icon will be shown)'
-        return mark_safe(
-            f'<img src="{obj.logo}" alt="Current logo"'
-            f' style="max-height:80px;background:#1B3D2B;padding:8px;border-radius:4px;">'
+        return format_html(
+            '<img src="{}" alt="Current logo"'
+            ' style="max-height:80px;background:#1B3D2B;padding:8px;border-radius:4px;">',
+            obj.logo,
         )
     logo_preview.short_description = 'Current logo'
 

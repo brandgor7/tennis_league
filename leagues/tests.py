@@ -1,3 +1,4 @@
+import base64
 import datetime
 
 from django.core.exceptions import ValidationError
@@ -7,11 +8,27 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.urls import reverse
 
-from .models import Season, SeasonPlayer
+from .models import Season, SeasonPlayer, SiteConfig
 from .forms import SeasonForm
+from .admin import SiteConfigForm
 from matches.models import Match
 
 User = get_user_model()
+
+# ─── Image test fixtures ──────────────────────────────────────────────────────
+
+_PNG_HEADER = b'\x89PNG\r\n\x1a\n'
+_JPEG_HEADER = b'\xff\xd8\xff\xe0'
+_SMALL_PNG = _PNG_HEADER + b'\x00' * 20
+_SMALL_JPEG = _JPEG_HEADER + b'\x00' * 20
+
+
+def _png_file(name='logo.png', content=_SMALL_PNG):
+    return SimpleUploadedFile(name, content, content_type='image/png')
+
+
+def _jpeg_file(name='logo.jpg', content=_SMALL_JPEG):
+    return SimpleUploadedFile(name, content, content_type='image/jpeg')
 
 
 # ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -871,3 +888,382 @@ class ImportPlayersViewTest(TestCase):
             self.url, {'csv_file': _csv('1\nAlice Smith')}, follow=True
         )
         self.assertContains(response, 'Import complete')
+
+
+# ─── SiteConfig model tests ───────────────────────────────────────────────────
+
+class SiteConfigModelTest(TestCase):
+    def test_str(self):
+        config = SiteConfig(site_name='MyLeague')
+        self.assertEqual(str(config), 'Site Configuration')
+
+    def test_default_site_name(self):
+        config = SiteConfig.objects.create()
+        self.assertEqual(config.site_name, 'TennisLeague')
+
+    def test_default_logo_is_blank(self):
+        config = SiteConfig.objects.create()
+        self.assertEqual(config.logo, '')
+
+    def test_save_forces_pk_to_1(self):
+        config = SiteConfig(site_name='Test')
+        config.save()
+        self.assertEqual(config.pk, 1)
+
+    def test_second_save_overwrites_not_duplicates(self):
+        SiteConfig(site_name='First').save()
+        SiteConfig(site_name='Second').save()
+        self.assertEqual(SiteConfig.objects.count(), 1)
+        self.assertEqual(SiteConfig.objects.get(pk=1).site_name, 'Second')
+
+    def test_get_creates_singleton_when_none_exists(self):
+        self.assertEqual(SiteConfig.objects.count(), 0)
+        config = SiteConfig.get()
+        self.assertEqual(SiteConfig.objects.count(), 1)
+        self.assertEqual(config.pk, 1)
+
+    def test_get_returns_existing_singleton(self):
+        SiteConfig.objects.create(pk=1, site_name='Existing')
+        config = SiteConfig.get()
+        self.assertEqual(config.site_name, 'Existing')
+
+    def test_get_called_twice_returns_same_object(self):
+        config1 = SiteConfig.get()
+        config2 = SiteConfig.get()
+        self.assertEqual(config1.pk, config2.pk)
+        self.assertEqual(SiteConfig.objects.count(), 1)
+
+    def test_site_name_persists(self):
+        SiteConfig.objects.create(pk=1, site_name='League X')
+        config = SiteConfig.objects.get(pk=1)
+        self.assertEqual(config.site_name, 'League X')
+
+    def test_logo_persists(self):
+        data_url = 'data:image/png;base64,abc123'
+        SiteConfig.objects.create(pk=1, logo=data_url)
+        config = SiteConfig.objects.get(pk=1)
+        self.assertEqual(config.logo, data_url)
+
+
+# ─── SiteConfigForm tests ─────────────────────────────────────────────────────
+
+class SiteConfigFormTest(TestCase):
+    def setUp(self):
+        self.config = SiteConfig.objects.create(pk=1)
+
+    def _form(self, data=None, files=None):
+        return SiteConfigForm(
+            data=data or {'site_name': 'TennisLeague'},
+            files=files or {},
+            instance=self.config,
+        )
+
+    # ── Site name field ───────────────────────────────────────────
+
+    def test_valid_form_with_no_logo(self):
+        form = self._form()
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_site_name_saved(self):
+        form = self._form(data={'site_name': 'My Club'})
+        self.assertTrue(form.is_valid())
+        instance = form.save()
+        self.assertEqual(instance.site_name, 'My Club')
+
+    def test_empty_site_name_is_invalid(self):
+        form = self._form(data={'site_name': ''})
+        self.assertFalse(form.is_valid())
+        self.assertIn('site_name', form.errors)
+
+    # ── PNG upload ────────────────────────────────────────────────
+
+    def test_valid_png_accepted(self):
+        form = self._form(files={'logo_upload': _png_file()})
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_png_stored_as_png_data_url(self):
+        form = self._form(files={'logo_upload': _png_file()})
+        form.is_valid()
+        instance = form.save()
+        self.assertTrue(instance.logo.startswith('data:image/png;base64,'))
+
+    def test_png_data_url_decodes_to_original_bytes(self):
+        form = self._form(files={'logo_upload': _png_file()})
+        form.is_valid()
+        instance = form.save()
+        _, encoded = instance.logo.split(',', 1)
+        self.assertEqual(base64.b64decode(encoded), _SMALL_PNG)
+
+    # ── JPEG upload ───────────────────────────────────────────────
+
+    def test_valid_jpeg_accepted(self):
+        form = self._form(files={'logo_upload': _jpeg_file()})
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_jpeg_stored_as_jpeg_data_url(self):
+        form = self._form(files={'logo_upload': _jpeg_file()})
+        form.is_valid()
+        instance = form.save()
+        self.assertTrue(instance.logo.startswith('data:image/jpeg;base64,'))
+
+    def test_jpeg_data_url_decodes_to_original_bytes(self):
+        form = self._form(files={'logo_upload': _jpeg_file()})
+        form.is_valid()
+        instance = form.save()
+        _, encoded = instance.logo.split(',', 1)
+        self.assertEqual(base64.b64decode(encoded), _SMALL_JPEG)
+
+    # ── File type rejection ───────────────────────────────────────
+
+    def test_non_image_bytes_rejected(self):
+        f = SimpleUploadedFile('evil.png', b'not an image at all', content_type='image/png')
+        form = self._form(files={'logo_upload': f})
+        self.assertFalse(form.is_valid())
+        self.assertIn('logo_upload', form.errors)
+
+    def test_gif_rejected(self):
+        gif_bytes = b'GIF89a' + b'\x00' * 20
+        f = SimpleUploadedFile('anim.gif', gif_bytes, content_type='image/gif')
+        form = self._form(files={'logo_upload': f})
+        self.assertFalse(form.is_valid())
+        self.assertIn('logo_upload', form.errors)
+
+    def test_png_extension_with_jpeg_bytes_detected_as_jpeg(self):
+        # Extension is irrelevant; magic bytes determine the type.
+        f = SimpleUploadedFile('photo.png', _SMALL_JPEG, content_type='image/png')
+        form = self._form(files={'logo_upload': f})
+        self.assertTrue(form.is_valid(), form.errors)
+        instance = form.save()
+        self.assertTrue(instance.logo.startswith('data:image/jpeg;base64,'))
+
+    def test_jpeg_extension_with_png_bytes_detected_as_png(self):
+        f = SimpleUploadedFile('logo.jpg', _SMALL_PNG, content_type='image/jpeg')
+        form = self._form(files={'logo_upload': f})
+        self.assertTrue(form.is_valid(), form.errors)
+        instance = form.save()
+        self.assertTrue(instance.logo.startswith('data:image/png;base64,'))
+
+    # ── File size limit ───────────────────────────────────────────
+
+    def test_file_over_2mb_rejected(self):
+        big = _PNG_HEADER + b'\x00' * (2 * 1024 * 1024 + 1)
+        f = SimpleUploadedFile('big.png', big, content_type='image/png')
+        form = self._form(files={'logo_upload': f})
+        self.assertFalse(form.is_valid())
+        self.assertIn('logo_upload', form.errors)
+
+    def test_file_exactly_2mb_accepted(self):
+        at_limit = _PNG_HEADER + b'\x00' * (2 * 1024 * 1024 - len(_PNG_HEADER))
+        f = SimpleUploadedFile('exact.png', at_limit, content_type='image/png')
+        form = self._form(files={'logo_upload': f})
+        self.assertTrue(form.is_valid(), form.errors)
+
+    # ── No upload → existing logo unchanged ──────────────────────
+
+    def test_no_upload_leaves_logo_unchanged(self):
+        self.config.logo = 'data:image/png;base64,existing=='
+        self.config.save()
+        form = self._form()
+        form.is_valid()
+        instance = form.save()
+        self.assertEqual(instance.logo, 'data:image/png;base64,existing==')
+
+    # ── clear_logo ────────────────────────────────────────────────
+
+    def test_clear_logo_removes_existing_logo(self):
+        self.config.logo = 'data:image/png;base64,existing=='
+        self.config.save()
+        form = self._form(data={'site_name': 'TennisLeague', 'clear_logo': '1'})
+        form.is_valid()
+        instance = form.save()
+        self.assertEqual(instance.logo, '')
+
+    def test_clear_logo_takes_precedence_over_new_upload(self):
+        self.config.logo = 'data:image/png;base64,existing=='
+        self.config.save()
+        form = self._form(
+            data={'site_name': 'TennisLeague', 'clear_logo': '1'},
+            files={'logo_upload': _png_file()},
+        )
+        form.is_valid()
+        instance = form.save()
+        self.assertEqual(instance.logo, '')
+
+
+# ─── SiteConfig context processor tests ──────────────────────────────────────
+
+class SiteConfigContextProcessorTest(TestCase):
+    def _get(self, url=None):
+        return self.client.get(url or reverse('leagues:season_list'))
+
+    def test_site_name_in_context_with_default(self):
+        response = self._get()
+        self.assertEqual(response.context['site_name'], 'TennisLeague')
+
+    def test_site_name_in_context_reflects_custom_value(self):
+        SiteConfig.objects.create(pk=1, site_name='My Club')
+        response = self._get()
+        self.assertEqual(response.context['site_name'], 'My Club')
+
+    def test_logo_data_url_none_when_no_logo(self):
+        SiteConfig.objects.create(pk=1, logo='')
+        response = self._get()
+        self.assertIsNone(response.context['logo_data_url'])
+
+    def test_logo_data_url_returned_when_set(self):
+        data_url = 'data:image/png;base64,abc123'
+        SiteConfig.objects.create(pk=1, logo=data_url)
+        response = self._get()
+        self.assertEqual(response.context['logo_data_url'], data_url)
+
+    def test_context_processor_skipped_on_admin_pages(self):
+        admin = User.objects.create_user(
+            username='admin', password='pass', is_staff=True, is_superuser=True,
+        )
+        self.client.login(username='admin', password='pass')
+        response = self.client.get('/admin/')
+        self.assertNotIn('site_name', response.context)
+
+    def test_singleton_auto_created_on_first_request(self):
+        self.assertEqual(SiteConfig.objects.count(), 0)
+        self._get()
+        self.assertEqual(SiteConfig.objects.count(), 1)
+
+
+# ─── SiteConfig template rendering tests ─────────────────────────────────────
+
+class SiteConfigTemplateTest(TestCase):
+    def _get(self):
+        return self.client.get(reverse('leagues:season_list'))
+
+    def test_default_site_name_in_navbar(self):
+        response = self._get()
+        self.assertContains(response, 'TennisLeague')
+
+    def test_custom_site_name_in_navbar(self):
+        SiteConfig.objects.create(pk=1, site_name='Wimbledon League')
+        response = self._get()
+        self.assertContains(response, 'Wimbledon League')
+
+    def test_custom_site_name_in_footer(self):
+        SiteConfig.objects.create(pk=1, site_name='Wimbledon League')
+        response = self._get()
+        content = response.content.decode()
+        footer_start = content.find('site-footer')
+        self.assertIn('Wimbledon League', content[footer_start:footer_start + 300])
+
+    def test_default_icon_shown_when_no_logo(self):
+        SiteConfig.objects.create(pk=1, logo='')
+        response = self._get()
+        self.assertContains(response, 'class="brand-ball"')
+        self.assertNotContains(response, 'class="brand-logo"')
+
+    def test_logo_img_shown_when_logo_set(self):
+        data_url = 'data:image/png;base64,abc123'
+        SiteConfig.objects.create(pk=1, logo=data_url)
+        response = self._get()
+        self.assertContains(response, 'class="brand-logo"')
+        self.assertNotContains(response, 'class="brand-ball"')
+
+    def test_logo_img_src_equals_data_url(self):
+        data_url = 'data:image/png;base64,abc123'
+        SiteConfig.objects.create(pk=1, logo=data_url)
+        response = self._get()
+        self.assertContains(response, f'src="{data_url}"')
+
+
+# ─── SiteConfig admin tests ───────────────────────────────────────────────────
+
+class SiteConfigAdminTest(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username='admin', password='pass', is_staff=True, is_superuser=True,
+        )
+        self.client.login(username='admin', password='pass')
+        self.changelist_url = reverse('admin:leagues_siteconfig_changelist')
+        self.change_url = reverse('admin:leagues_siteconfig_change', args=[1])
+
+    # ── Singleton redirect ────────────────────────────────────────
+
+    def test_changelist_redirects_to_change_page(self):
+        response = self.client.get(self.changelist_url)
+        self.assertRedirects(response, self.change_url, fetch_redirect_response=False)
+
+    def test_changelist_creates_singleton_if_missing(self):
+        self.assertEqual(SiteConfig.objects.count(), 0)
+        self.client.get(self.changelist_url)
+        self.assertEqual(SiteConfig.objects.count(), 1)
+
+    # ── Access control ────────────────────────────────────────────
+
+    def test_change_page_accessible_to_staff(self):
+        SiteConfig.objects.create(pk=1)
+        response = self.client.get(self.change_url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_change_page_not_accessible_to_non_staff(self):
+        SiteConfig.objects.create(pk=1)
+        self.client.logout()
+        non_staff = User.objects.create_user(username='regular', password='pass')
+        self.client.login(username='regular', password='pass')
+        response = self.client.get(self.change_url)
+        self.assertNotEqual(response.status_code, 200)
+
+    # ── Permissions ───────────────────────────────────────────────
+
+    def test_no_delete_button_on_change_page(self):
+        SiteConfig.objects.create(pk=1)
+        response = self.client.get(self.change_url)
+        self.assertNotContains(response, 'deletelink')
+
+    def test_no_add_button_when_singleton_exists(self):
+        SiteConfig.objects.create(pk=1)
+        response = self.client.get(self.change_url)
+        add_url = reverse('admin:leagues_siteconfig_add')
+        self.assertNotContains(response, add_url)
+
+    # ── POST: update site name ────────────────────────────────────
+
+    def test_post_updates_site_name(self):
+        SiteConfig.objects.create(pk=1)
+        self.client.post(self.change_url, {'site_name': 'Club Serve'})
+        self.assertEqual(SiteConfig.objects.get(pk=1).site_name, 'Club Serve')
+
+    # ── POST: upload PNG ──────────────────────────────────────────
+
+    def test_post_png_stores_data_url(self):
+        SiteConfig.objects.create(pk=1)
+        self.client.post(self.change_url, {
+            'site_name': 'TennisLeague',
+            'logo_upload': _png_file(),
+        })
+        config = SiteConfig.objects.get(pk=1)
+        self.assertTrue(config.logo.startswith('data:image/png;base64,'))
+
+    def test_post_jpeg_stores_data_url(self):
+        SiteConfig.objects.create(pk=1)
+        self.client.post(self.change_url, {
+            'site_name': 'TennisLeague',
+            'logo_upload': _jpeg_file(),
+        })
+        config = SiteConfig.objects.get(pk=1)
+        self.assertTrue(config.logo.startswith('data:image/jpeg;base64,'))
+
+    def test_post_clear_logo_removes_logo(self):
+        SiteConfig.objects.create(pk=1, logo='data:image/png;base64,abc123')
+        self.client.post(self.change_url, {
+            'site_name': 'TennisLeague',
+            'clear_logo': '1',
+        })
+        config = SiteConfig.objects.get(pk=1)
+        self.assertEqual(config.logo, '')
+
+    def test_post_invalid_file_does_not_save(self):
+        SiteConfig.objects.create(pk=1, logo='data:image/png;base64,original')
+        bad_file = SimpleUploadedFile('bad.png', b'not an image', content_type='image/png')
+        self.client.post(self.change_url, {
+            'site_name': 'TennisLeague',
+            'logo_upload': bad_file,
+        })
+        config = SiteConfig.objects.get(pk=1)
+        self.assertEqual(config.logo, 'data:image/png;base64,original')
