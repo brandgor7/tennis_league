@@ -176,10 +176,12 @@ step_9() {
         return
     fi
 
-    echo "==> Installing AWS CLI..."
-    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-    unzip awscliv2.zip
-    sudo ./aws/install
+    if ! command -v aws &>/dev/null; then
+        echo "==> Installing AWS CLI..."
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        unzip awscliv2.zip
+        sudo ./aws/install
+    fi
 
     if ! aws sts get-caller-identity &>/dev/null; then
         echo "==> AWS credentials not configured — running aws configure..."
