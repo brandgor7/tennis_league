@@ -6,12 +6,51 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env(
     DEBUG=(bool, False),
+    LOG_DIR=(str, ''),
 )
 environ.Env.read_env(BASE_DIR / '.env')
 
 SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
+
+_log_dir_str = env('LOG_DIR')
+LOG_DIR = Path(_log_dir_str) if _log_dir_str else BASE_DIR / 'logs'
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '{asctime} {levelname} {name}: {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'standard',
+            'level': 'DEBUG' if DEBUG else 'ERROR',
+        },
+        'file': {
+            'class': 'logging.handlers.WatchedFileHandler',
+            'filename': str(LOG_DIR / 'app.log'),
+            'formatter': 'standard',
+            'level': 'INFO',
+        },
+    },
+    'root': {
+        'handlers': ['console'] if DEBUG else ['file', 'console'],
+        'level': 'DEBUG' if DEBUG else 'WARNING',
+    },
+    'loggers': {
+        'django': {'level': 'WARNING', 'propagate': True},
+        'django.request': {'level': 'WARNING', 'propagate': True},
+        'django.security': {'level': 'WARNING', 'propagate': True},
+    },
+}
 
 INSTALLED_APPS = [
     'django.contrib.admin',
