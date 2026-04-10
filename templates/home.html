@@ -6,10 +6,8 @@
 <div class="row justify-content-center">
   <div class="col-12 col-md-6 text-center py-5">
     {% if logo_data_url %}
-    <div class="mb-4 mx-auto rounded-circle overflow-hidden d-flex align-items-center justify-content-center"
-         style="width:96px;height:96px;background:var(--sand);">
-      <img src="{{ logo_data_url }}" alt="{{ site_name|default:'TennisLeague' }} logo" style="width:72px;height:72px;object-fit:contain;">
-    </div>
+    <img src="{{ logo_data_url }}" alt="{{ site_name|default:'TennisLeague' }} logo" class="mb-4"
+         style="width:96px;height:96px;object-fit:cover;border-radius:50%;">
     {% else %}
     <svg class="mb-4" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"
          style="width:64px;height:64px;" aria-hidden="true">
