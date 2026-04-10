@@ -442,7 +442,7 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
 ## URL Map
 
 ```
-/                                          Home → redirect to active season standings
+/                                          Home → redirect to last visited season (cookie) or welcome page
 /accounts/login/                           Login
 /accounts/logout/                          Logout
 /accounts/profile/                         Player profile + their match history

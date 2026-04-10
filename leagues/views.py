@@ -11,10 +11,12 @@ from standings.calculator import calculate_standings
 
 
 def home(request):
-    active_season = Season.objects.filter(status=Season.STATUS_ACTIVE).first()
-    if active_season:
-        return redirect('leagues:standings', slug=active_season.slug)
-    return redirect('leagues:season_list')
+    last_slug = request.COOKIES.get('last_season')
+    if last_slug:
+        season = Season.objects.filter(slug=last_slug).first()
+        if season:
+            return redirect('leagues:standings', slug=season.slug)
+    return render(request, 'home.html')
 
 
 class SeasonListView(ListView):

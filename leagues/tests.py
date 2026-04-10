@@ -250,14 +250,22 @@ class SeasonFormTest(TestCase):
 # ─── View tests ───────────────────────────────────────────────────────────────
 
 class HomeViewTest(TestCase):
-    def test_home_redirects_to_season_list_when_no_active_season(self):
+    def test_home_renders_welcome_page_without_cookie(self):
         response = self.client.get(reverse('home'))
-        self.assertRedirects(response, reverse('leagues:season_list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'home.html')
 
-    def test_home_redirects_to_active_season_standings(self):
+    def test_home_redirects_to_last_season_from_cookie(self):
         season = Season.objects.create(name='Spring', year=2025, status=Season.STATUS_ACTIVE)
+        self.client.cookies['last_season'] = season.slug
         response = self.client.get(reverse('home'))
         self.assertRedirects(response, reverse('leagues:standings', kwargs={'slug': season.slug}))
+
+    def test_home_renders_welcome_page_when_cookie_slug_invalid(self):
+        self.client.cookies['last_season'] = 'nonexistent-slug'
+        response = self.client.get(reverse('home'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'home.html')
 
     def test_home_accessible_when_authenticated(self):
         user = User.objects.create_user(username='tester', password='pass')
