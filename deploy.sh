@@ -94,6 +94,7 @@ After=network.target
 User=ubuntu
 Group=www-data
 WorkingDirectory=$APP_DIR
+Environment=DJANGO_SETTINGS_MODULE=config.settings_production
 ExecStart=$APP_DIR/.venv/bin/gunicorn \\
     --workers 2 \\
     --bind unix:$APP_DIR/gunicorn.sock \\
