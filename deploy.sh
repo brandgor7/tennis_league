@@ -176,10 +176,17 @@ step_9() {
         return
     fi
 
-    echo "==> Creating S3 bucket and lifecycle rule..."
+    echo "==> Installing AWS CLI..."
     curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
     unzip awscliv2.zip
     sudo ./aws/install
+
+    if ! aws sts get-caller-identity &>/dev/null; then
+        echo "==> AWS credentials not configured — running aws configure..."
+        aws configure
+    fi
+
+    echo "==> Creating S3 bucket and lifecycle rule..."
     aws s3 mb "s3://$S3_BUCKET"
     aws s3api put-bucket-lifecycle-configuration \
         --bucket "$S3_BUCKET" \
