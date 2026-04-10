@@ -532,12 +532,13 @@ class StandingsViewTest(TestCase):
 
 
 class HomeViewRedirectToStandingsTest(TestCase):
-    """home() should redirect to standings once an active season exists."""
+    """home() redirects to the last visited season stored in the cookie."""
 
-    def test_home_redirects_to_standings_when_active_season(self):
+    def test_home_redirects_to_standings_via_cookie(self):
         season = Season.objects.create(
             name='Spring', year=2025, status=Season.STATUS_ACTIVE
         )
+        self.client.cookies['last_season'] = season.slug
         response = self.client.get(reverse('home'))
         self.assertRedirects(
             response,
