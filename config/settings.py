@@ -49,6 +49,7 @@ LOGGING = {
         'django': {'level': 'WARNING', 'propagate': True},
         'django.request': {'level': 'WARNING', 'propagate': True},
         'django.security': {'level': 'WARNING', 'propagate': True},
+        'audit': {'handlers': [], 'level': 'INFO', 'propagate': False},
     },
 }
 
