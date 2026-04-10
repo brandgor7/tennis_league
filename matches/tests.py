@@ -1,5 +1,7 @@
 import datetime
 
+from django.contrib.admin.models import LogEntry
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -1922,3 +1924,130 @@ class GenerateScheduleTest(TestCase):
         matches = generate_schedule(season, self.START, 5)
         involved = {m.player1_id for m in matches} | {m.player2_id for m in matches}
         self.assertNotIn(inactive.pk, involved)
+
+
+class MatchAuditLogTest(TestCase):
+    """Views that mutate a match should write a LogEntry to the admin audit log."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            name='Spring 2025', year=2025,
+            sets_to_win=1,
+        )
+        self.p1 = User.objects.create_user(username='alice', first_name='Alice', last_name='Smith')
+        self.p2 = User.objects.create_user(username='bob', first_name='Bob', last_name='Jones')
+        SeasonPlayer.objects.create(season=self.season, player=self.p1, tier=1)
+        SeasonPlayer.objects.create(season=self.season, player=self.p2, tier=1)
+
+    def _match(self, **kwargs):
+        return Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2, tier=1, **kwargs
+        )
+
+    def _entries(self, match):
+        ct = ContentType.objects.get_for_model(Match)
+        return list(LogEntry.objects.filter(content_type=ct, object_id=match.pk))
+
+    def test_enter_result_logs_set_scores(self):
+        match = self._match(status=Match.STATUS_SCHEDULED)
+        self.client.force_login(self.p1)
+        self.client.post(
+            reverse('matches:enter_result', args=[match.pk]),
+            {'set1_p1': '6', 'set1_p2': '3', 'set1_tb_p1': '', 'set1_tb_p2': ''},
+        )
+        entries = self._entries(match)
+        self.assertEqual(len(entries), 1)
+        self.assertIn('Result submitted', entries[0].change_message)
+        self.assertIn('6', entries[0].change_message)
+        self.assertIn('3', entries[0].change_message)
+        self.assertEqual(entries[0].user_id, self.p1.pk)
+
+    def test_enter_result_no_log_on_invalid_form(self):
+        match = self._match(status=Match.STATUS_SCHEDULED)
+        self.client.force_login(self.p1)
+        self.client.post(
+            reverse('matches:enter_result', args=[match.pk]),
+            {'set1_p1': '', 'set1_p2': '', 'set1_tb_p1': '', 'set1_tb_p2': ''},
+        )
+        self.assertEqual(len(self._entries(match)), 0)
+
+    def test_confirm_result_logs_winner(self):
+        match = self._match(status=Match.STATUS_PENDING, entered_by=self.p1)
+        MatchSet.objects.create(match=match, set_number=1, player1_games=6, player2_games=3)
+        self.client.force_login(self.p2)
+        self.client.post(reverse('matches:confirm_result', args=[match.pk]), {'action': 'confirm'})
+        entries = self._entries(match)
+        self.assertEqual(len(entries), 1)
+        self.assertIn('Result confirmed', entries[0].change_message)
+        self.assertIn('Alice Smith', entries[0].change_message)
+        self.assertEqual(entries[0].user_id, self.p2.pk)
+
+    def test_confirm_walkover_logs_correctly(self):
+        match = self._match(status=Match.STATUS_PENDING, entered_by=self.p1, winner=self.p1)
+        self.client.force_login(self.p2)
+        self.client.post(reverse('matches:confirm_result', args=[match.pk]), {'action': 'confirm'})
+        entries = self._entries(match)
+        self.assertEqual(len(entries), 1)
+        self.assertIn('Walkover confirmed', entries[0].change_message)
+
+    def test_dispute_result_logs_dispute(self):
+        match = self._match(status=Match.STATUS_PENDING, entered_by=self.p1)
+        MatchSet.objects.create(match=match, set_number=1, player1_games=6, player2_games=3)
+        self.client.force_login(self.p2)
+        self.client.post(reverse('matches:confirm_result', args=[match.pk]), {'action': 'dispute'})
+        entries = self._entries(match)
+        self.assertEqual(len(entries), 1)
+        self.assertIn('disputed', entries[0].change_message)
+        self.assertEqual(entries[0].user_id, self.p2.pk)
+
+    def test_walkover_submission_logs_winner_and_reason(self):
+        match = self._match(status=Match.STATUS_SCHEDULED)
+        self.client.force_login(self.p1)
+        self.client.post(
+            reverse('matches:walkover', args=[match.pk]),
+            {'winner': 'player1', 'reason': 'Injury'},
+        )
+        entries = self._entries(match)
+        self.assertEqual(len(entries), 1)
+        self.assertIn('Walkover submitted', entries[0].change_message)
+        self.assertIn('Alice Smith', entries[0].change_message)
+        self.assertIn('Injury', entries[0].change_message)
+        self.assertEqual(entries[0].user_id, self.p1.pk)
+
+    def test_walkover_no_reason_omits_reason_from_log(self):
+        match = self._match(status=Match.STATUS_SCHEDULED)
+        self.client.force_login(self.p1)
+        self.client.post(
+            reverse('matches:walkover', args=[match.pk]),
+            {'winner': 'player2', 'reason': ''},
+        )
+        entries = self._entries(match)
+        self.assertEqual(len(entries), 1)
+        self.assertNotIn('Reason', entries[0].change_message)
+
+    def test_postpone_logs_new_date_and_reason(self):
+        match = self._match(status=Match.STATUS_SCHEDULED)
+        self.client.force_login(self.p1)
+        new_date = datetime.date.today() + datetime.timedelta(days=7)
+        self.client.post(
+            reverse('matches:postpone', args=[match.pk]),
+            {'new_date': new_date.isoformat(), 'reason': 'Travel'},
+        )
+        entries = self._entries(match)
+        self.assertEqual(len(entries), 1)
+        self.assertIn('postponed', entries[0].change_message)
+        self.assertIn(str(new_date), entries[0].change_message)
+        self.assertIn('Travel', entries[0].change_message)
+        self.assertEqual(entries[0].user_id, self.p1.pk)
+
+    def test_postpone_no_reason_omits_reason_from_log(self):
+        match = self._match(status=Match.STATUS_SCHEDULED)
+        self.client.force_login(self.p1)
+        new_date = datetime.date.today() + datetime.timedelta(days=7)
+        self.client.post(
+            reverse('matches:postpone', args=[match.pk]),
+            {'new_date': new_date.isoformat(), 'reason': ''},
+        )
+        entries = self._entries(match)
+        self.assertEqual(len(entries), 1)
+        self.assertNotIn('Reason', entries[0].change_message)

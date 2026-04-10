@@ -1,6 +1,7 @@
 import datetime
 
 from django.contrib import messages
+from django.contrib.admin.models import LogEntry, CHANGE
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
@@ -12,6 +13,15 @@ from django.views.generic import TemplateView, DetailView
 from leagues.models import Season
 from .forms import ResultEntryForm, WalkoverForm, PostponeForm
 from .models import Match, MatchSet
+
+
+def _audit_match(user, match, message):
+    LogEntry.objects.log_actions(
+        user_id=user.pk,
+        queryset=Match.objects.filter(pk=match.pk),
+        action_flag=CHANGE,
+        change_message=message,
+    )
 
 
 def _get_player_match(request, pk):
@@ -195,6 +205,14 @@ class EnterResultView(LoginRequiredMixin, View):
                 match.entered_by = request.user
                 match.save()
 
+            set_scores = []
+            for i in range(1, form.max_sets + 1):
+                p1 = cleaned.get(f'set{i}_p1')
+                p2 = cleaned.get(f'set{i}_p2')
+                if p1 is None or p2 is None:
+                    break
+                set_scores.append(f'{p1}–{p2}')
+            _audit_match(request.user, match, f'Result submitted: {", ".join(set_scores)}.')
             messages.success(request, 'Score submitted — awaiting confirmation from your opponent.')
             return redirect('matches:match_detail', pk=pk)
 
@@ -247,6 +265,7 @@ class ConfirmResultView(LoginRequiredMixin, View):
                     match.confirmed_by = request.user
                     match.played_date = datetime.date.today()
                     match.save(update_fields=['status', 'confirmed_by', 'played_date'])
+                    _audit_match(request.user, match, 'Walkover confirmed.')
                     messages.success(request, 'Walkover confirmed.')
                 else:
                     p1_sets = sum(1 for s in sets if s.player1_games > s.player2_games)
@@ -260,6 +279,8 @@ class ConfirmResultView(LoginRequiredMixin, View):
                     match.played_date = datetime.date.today()
                     match.winner = winner
                     match.save()
+                    winner_name = winner.get_full_name() or winner.username
+                    _audit_match(request.user, match, f'Result confirmed. Winner: {winner_name}.')
                     messages.success(request, 'Result confirmed. Match is now complete.')
             return redirect('matches:match_detail', pk=pk)
 
@@ -271,6 +292,7 @@ class ConfirmResultView(LoginRequiredMixin, View):
                 match.winner = None
                 match.walkover_reason = ''
                 match.save()
+            _audit_match(request.user, match, 'Result disputed — match reset to scheduled.')
             messages.warning(
                 request,
                 'Result disputed. The match has been reset to scheduled. '
@@ -318,6 +340,12 @@ class WalkoverView(LoginRequiredMixin, View):
             match.walkover_reason = form.cleaned_data['reason']
             match.entered_by = request.user
             match.save(update_fields=['status', 'winner', 'walkover_reason', 'entered_by'])
+            winner_name = winner.get_full_name() or winner.username
+            reason = form.cleaned_data['reason'].strip()
+            msg = f'Walkover submitted. Winner: {winner_name}.'
+            if reason:
+                msg += f' Reason: {reason}'
+            _audit_match(request.user, match, msg)
             messages.success(request, 'Walkover submitted — awaiting confirmation from the other player.')
             return redirect('matches:match_detail', pk=pk)
         return render(request, self.template_name, self._context(form, match))
@@ -346,12 +374,17 @@ class PostponeView(LoginRequiredMixin, View):
         form = PostponeForm(request.POST)
         if form.is_valid():
             reason = form.cleaned_data['reason'].strip()
-            match.scheduled_date = form.cleaned_data['new_date']
+            new_date = form.cleaned_data['new_date']
+            match.scheduled_date = new_date
             match.status = Match.STATUS_POSTPONED
             if reason:
                 existing = match.notes.strip()
                 match.notes = f'{existing}\nPostponed: {reason}'.strip()
             match.save(update_fields=['scheduled_date', 'status', 'notes'])
+            audit_msg = f'Match postponed to {new_date}.'
+            if reason:
+                audit_msg += f' Reason: {reason}'
+            _audit_match(request.user, match, audit_msg)
             messages.success(request, 'Match postponed and rescheduled.')
             return redirect('matches:match_detail', pk=pk)
         return render(request, self.template_name, self._context(form, match))
