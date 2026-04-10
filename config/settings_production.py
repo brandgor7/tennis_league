@@ -11,3 +11,4 @@ LOGGING['root']['handlers'] = ['file', 'console']
 LOGGING['root']['level'] = 'WARNING'
 LOGGING['handlers']['console']['level'] = 'ERROR'
 LOGGING['loggers']['audit'] = {'handlers': ['file'], 'level': 'INFO', 'propagate': False}
+LOGGING['loggers']['access'] = {'handlers': ['file'], 'level': 'INFO', 'propagate': False}

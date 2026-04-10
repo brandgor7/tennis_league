@@ -50,6 +50,7 @@ LOGGING = {
         'django.request': {'level': 'WARNING', 'propagate': True},
         'django.security': {'level': 'WARNING', 'propagate': True},
         'audit': {'handlers': [], 'level': 'INFO', 'propagate': False},
+        'access': {'handlers': [], 'level': 'INFO', 'propagate': False},
     },
 }
 
@@ -68,6 +69,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'config.middleware.RequestLogMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
