@@ -5,6 +5,9 @@
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-12 col-md-6 text-center py-5">
+    {% if logo_data_url %}
+    <img src="{{ logo_data_url }}" alt="{{ site_name|default:'TennisLeague' }} logo" class="mb-4" style="height:64px;width:auto;">
+    {% else %}
     <svg class="mb-4" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"
          style="width:64px;height:64px;" aria-hidden="true">
       <circle cx="32" cy="32" r="30" fill="var(--clay)" opacity="0.12"/>
@@ -14,6 +17,7 @@
       <path d="M20 12 C26 16, 38 16, 44 12" stroke="var(--clay)" stroke-width="3" fill="none" stroke-linecap="round"/>
       <path d="M20 52 C26 48, 38 48, 44 52" stroke="var(--clay)" stroke-width="3" fill="none" stroke-linecap="round"/>
     </svg>
+    {% endif %}
     <h1 class="font-serif mb-3">Welcome to {{ site_name|default:"TennisLeague" }}</h1>
     <p class="text-muted mb-4">
       Please contact an administrator to be added to a season.<br>
