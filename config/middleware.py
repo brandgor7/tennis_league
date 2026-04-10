@@ -1,6 +1,33 @@
 import logging
+import re
 
 logger = logging.getLogger('access')
+
+_SEASON_PATH_RE = re.compile(r'^/seasons/([^/]+)/')
+
+LAST_SEASON_COOKIE = 'last_season'
+LAST_SEASON_COOKIE_MAX_AGE = 365 * 24 * 60 * 60
+
+
+class SeasonCookieMiddleware:
+    """Sets a cookie tracking the most recently visited season slug."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        match = _SEASON_PATH_RE.match(request.path)
+        if match:
+            slug = match.group(1)
+            response.set_cookie(
+                LAST_SEASON_COOKIE,
+                slug,
+                max_age=LAST_SEASON_COOKIE_MAX_AGE,
+                httponly=True,
+                samesite='Lax',
+            )
+        return response
 
 
 class RequestLogMiddleware:
