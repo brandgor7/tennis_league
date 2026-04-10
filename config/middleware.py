@@ -1,6 +1,8 @@
 import logging
 import re
 
+from django.conf import settings
+
 logger = logging.getLogger('access')
 
 _SEASON_PATH_RE = re.compile(r'^/seasons/([^/]+)/')
@@ -26,6 +28,7 @@ class SeasonCookieMiddleware:
                 max_age=LAST_SEASON_COOKIE_MAX_AGE,
                 httponly=True,
                 samesite='Lax',
+                secure=not settings.DEBUG,
             )
         return response
 
