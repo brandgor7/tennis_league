@@ -118,8 +118,14 @@
 
         </ul>
 
-        <!-- Right: auth -->
+        <!-- Right: sponsor + auth -->
         <ul class="navbar-nav ms-auto align-items-md-center">
+          {% if sponsor_logo_data_url %}
+          <li class="nav-item d-flex align-items-center me-2">
+            <span class="sponsor-label d-none d-md-inline me-2">Season sponsored by:</span>
+            <img src="{{ sponsor_logo_data_url }}" alt="Season sponsor" class="sponsor-logo">
+          </li>
+          {% endif %}
           {% if user.is_authenticated %}
           <li class="nav-item dropdown">
             <a class="nav-link user-badge dropdown-toggle" href="#" role="button"

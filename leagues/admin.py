@@ -294,6 +294,21 @@ class SeasonPlayerAdmin(admin.ModelAdmin):
     autocomplete_fields = ('player', 'season')
 
 
+def _validate_image_upload(f):
+    """Validate an uploaded image file and return (mime_type, bytes) or raise ValidationError."""
+    if f.size > _MAX_LOGO_BYTES:
+        raise forms.ValidationError('Image must be under 2 MB.')
+    header = f.read(8)
+    f.seek(0)
+    if header[:8] == _PNG_MAGIC:
+        mime = 'image/png'
+    elif header[:3] == _JPEG_MAGIC:
+        mime = 'image/jpeg'
+    else:
+        raise forms.ValidationError('File must be a PNG or JPEG image.')
+    return (mime, f.read())
+
+
 class SiteConfigForm(forms.ModelForm):
     logo_upload = forms.FileField(
         required=False,
@@ -305,6 +320,16 @@ class SiteConfigForm(forms.ModelForm):
         label='Remove current logo',
         help_text='Tick to revert to the default tennis-ball icon.',
     )
+    sponsor_logo_upload = forms.FileField(
+        required=False,
+        label='Upload sponsor logo (PNG or JPEG)',
+        help_text='Max 2 MB. Displayed in the navbar next to the user menu.',
+    )
+    clear_sponsor_logo = forms.BooleanField(
+        required=False,
+        label='Remove sponsor logo',
+        help_text='Tick to remove the sponsor logo from the navbar.',
+    )
 
     class Meta:
         model = SiteConfig
@@ -312,19 +337,11 @@ class SiteConfigForm(forms.ModelForm):
 
     def clean_logo_upload(self):
         f = self.cleaned_data.get('logo_upload')
-        if not f:
-            return None
-        if f.size > _MAX_LOGO_BYTES:
-            raise forms.ValidationError('Logo must be under 2 MB.')
-        header = f.read(8)
-        f.seek(0)
-        if header[:8] == _PNG_MAGIC:
-            mime = 'image/png'
-        elif header[:3] == _JPEG_MAGIC:
-            mime = 'image/jpeg'
-        else:
-            raise forms.ValidationError('File must be a PNG or JPEG image.')
-        return (mime, f.read())
+        return _validate_image_upload(f) if f else None
+
+    def clean_sponsor_logo_upload(self):
+        f = self.cleaned_data.get('sponsor_logo_upload')
+        return _validate_image_upload(f) if f else None
 
     def save(self, commit=True):
         instance = super().save(commit=False)
@@ -333,6 +350,11 @@ class SiteConfigForm(forms.ModelForm):
         elif self.cleaned_data.get('logo_upload'):
             mime, data = self.cleaned_data['logo_upload']
             instance.logo = f'data:{mime};base64,{base64.b64encode(data).decode()}'
+        if self.cleaned_data.get('clear_sponsor_logo'):
+            instance.sponsor_logo = ''
+        elif self.cleaned_data.get('sponsor_logo_upload'):
+            mime, data = self.cleaned_data['sponsor_logo_upload']
+            instance.sponsor_logo = f'data:{mime};base64,{base64.b64encode(data).decode()}'
         if commit:
             instance.save()
         return instance
@@ -344,8 +366,9 @@ class SiteConfigAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {'fields': ('site_name',)}),
         ('Logo', {'fields': ('logo_preview', 'logo_upload', 'clear_logo')}),
+        ('Sponsor Logo', {'fields': ('sponsor_logo_preview', 'sponsor_logo_upload', 'clear_sponsor_logo')}),
     )
-    readonly_fields = ('logo_preview',)
+    readonly_fields = ('logo_preview', 'sponsor_logo_preview')
 
     def logo_preview(self, obj):
         if not obj or not obj.logo:
@@ -356,6 +379,16 @@ class SiteConfigAdmin(admin.ModelAdmin):
             obj.logo,
         )
     logo_preview.short_description = 'Current logo'
+
+    def sponsor_logo_preview(self, obj):
+        if not obj or not obj.sponsor_logo:
+            return '(none)'
+        return format_html(
+            '<img src="{}" alt="Current sponsor logo"'
+            ' style="max-height:60px;background:#1B3D2B;padding:8px;border-radius:4px;">',
+            obj.sponsor_logo,
+        )
+    sponsor_logo_preview.short_description = 'Current sponsor logo'
 
     def has_add_permission(self, request):
         return not SiteConfig.objects.exists()

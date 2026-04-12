@@ -11,6 +11,7 @@ def season_context(request):
     config = SiteConfig.get()
     site_name = config.site_name
     logo_data_url = config.logo_url
+    sponsor_logo_data_url = config.sponsor_logo_url
 
     user = request.user
 
@@ -52,4 +53,5 @@ def season_context(request):
         'all_seasons': all_seasons,
         'site_name': site_name,
         'logo_data_url': logo_data_url,
+        'sponsor_logo_data_url': sponsor_logo_data_url,
     }

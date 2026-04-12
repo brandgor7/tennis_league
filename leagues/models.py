@@ -15,6 +15,10 @@ class SiteConfig(models.Model):
         blank=True,
         help_text='Base64-encoded data URL of the logo image (set via the admin upload field).',
     )
+    sponsor_logo = models.TextField(
+        blank=True,
+        help_text='Base64-encoded data URL of the sponsor logo (set via the admin upload field).',
+    )
 
     class Meta:
         verbose_name = 'Site Configuration'
@@ -31,6 +35,11 @@ class SiteConfig(models.Model):
     def logo_url(self):
         """Return logo only when it is a data URL with an image MIME type."""
         return self.logo if self.logo.startswith('data:image/') else None
+
+    @property
+    def sponsor_logo_url(self):
+        """Return sponsor_logo only when it is a data URL with an image MIME type."""
+        return self.sponsor_logo if self.sponsor_logo.startswith('data:image/') else None
 
     @classmethod
     def get(cls):
