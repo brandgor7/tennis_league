@@ -17,6 +17,17 @@
   <link href="{% static 'css/app.css' %}" rel="stylesheet">
 
   {% block extra_css %}{% endblock %}
+  {% if logo_data_url %}
+  <style>
+    body {
+      background-image: url("{{ logo_data_url }}"), linear-gradient(var(--cream), var(--cream));
+      background-blend-mode: luminosity, normal;
+      background-repeat: no-repeat, no-repeat;
+      background-position: center 30%, 0 0;
+      background-size: 55vmin, cover;
+    }
+  </style>
+  {% endif %}
 </head>
 <body>
 
