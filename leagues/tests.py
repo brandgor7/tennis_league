@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.urls import reverse
 
-from .models import Season, SeasonPlayer, SiteConfig
+from .models import Season, SeasonPlayer, SiteConfig, Tier
 from .forms import SeasonForm
 from .admin import SiteConfigForm
 from .templatetags.site_branding import get_site_config
@@ -155,6 +155,57 @@ class SeasonModelTest(TestCase):
         season = Season.objects.create(name='Spring', year=2025, display=False)
         season.refresh_from_db()
         self.assertFalse(season.display)
+
+    # ── tier_name() ──────────────────────────────────────────────────────────
+
+    def test_tier_name_falls_back_when_no_tier_configured(self):
+        season = Season.objects.create(name='Spring', year=2025, num_tiers=2)
+        self.assertEqual(season.tier_name(1), 'Tier 1')
+        self.assertEqual(season.tier_name(2), 'Tier 2')
+
+    def test_tier_name_returns_configured_name(self):
+        season = Season.objects.create(name='Spring', year=2025, num_tiers=2)
+        Tier.objects.create(season=season, number=1, name='Premier')
+        Tier.objects.create(season=season, number=2, name='Division 1')
+        self.assertEqual(season.tier_name(1), 'Premier')
+        self.assertEqual(season.tier_name(2), 'Division 1')
+
+    def test_tier_name_falls_back_for_unconfigured_number(self):
+        season = Season.objects.create(name='Spring', year=2025, num_tiers=2)
+        Tier.objects.create(season=season, number=1, name='Premier')
+        self.assertEqual(season.tier_name(2), 'Tier 2')
+
+
+class TierModelTest(TestCase):
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025, num_tiers=2)
+
+    def test_str(self):
+        tier = Tier(season=self.season, number=1, name='Premier')
+        self.assertEqual(str(tier), 'Premier — Spring 2025')
+
+    def test_unique_together_enforced(self):
+        Tier.objects.create(season=self.season, number=1, name='Premier')
+        with self.assertRaises(IntegrityError):
+            Tier.objects.create(season=self.season, number=1, name='Other')
+
+    def test_different_numbers_allowed_same_season(self):
+        Tier.objects.create(season=self.season, number=1, name='Premier')
+        Tier.objects.create(season=self.season, number=2, name='Division 1')
+        self.assertEqual(Tier.objects.filter(season=self.season).count(), 2)
+
+    def test_same_number_allowed_different_seasons(self):
+        season2 = Season.objects.create(name='Fall', year=2025, num_tiers=2)
+        Tier.objects.create(season=self.season, number=1, name='Premier')
+        Tier.objects.create(season=season2, number=1, name='Elite')
+        self.assertEqual(Tier.objects.count(), 2)
+
+    def test_ordering_by_number(self):
+        Tier.objects.create(season=self.season, number=2, name='Division 1')
+        Tier.objects.create(season=self.season, number=1, name='Premier')
+        tiers = list(Tier.objects.filter(season=self.season))
+        self.assertEqual(tiers[0].number, 1)
+        self.assertEqual(tiers[1].number, 2)
 
 
 class SeasonPlayerModelTest(TestCase):

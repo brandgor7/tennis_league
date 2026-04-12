@@ -6,7 +6,7 @@
 
   {% if existing_bracket %}
   <div class="alert alert-warning">
-    A bracket for Tier {{ tier }} was already generated on {{ existing_bracket.generated_at|date:"N j, Y" }}.
+    A bracket for {{ tier_name }} was already generated on {{ existing_bracket.generated_at|date:"N j, Y" }}.
     Delete it from the admin before regenerating.
   </div>
   {% elif bracket_size == 0 %}

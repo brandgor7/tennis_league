@@ -154,8 +154,27 @@ class Season(models.Model):
                     {'status': 'Only one season can be active at a time.'}
                 )
 
+    def tier_name(self, number):
+        try:
+            return self.tiers.get(number=number).name
+        except Tier.DoesNotExist:
+            return f'Tier {number}'
+
     def __str__(self):
         return f'{self.name} {self.year}'
+
+
+class Tier(models.Model):
+    season = models.ForeignKey(Season, on_delete=models.CASCADE, related_name='tiers')
+    number = models.IntegerField(help_text='1-indexed tier ordering')
+    name = models.CharField(max_length=50, help_text='Display name (e.g. Premier, Division 1)')
+
+    class Meta:
+        unique_together = [('season', 'number')]
+        ordering = ['number']
+
+    def __str__(self):
+        return f'{self.name} — {self.season}'
 
 
 class SeasonPlayer(models.Model):

@@ -210,37 +210,37 @@ class MatchupsViewTest(TestCase):
     def test_shows_scheduled_match(self):
         self._match(status=Match.STATUS_SCHEDULED)
         response = self.client.get(self.url)
-        tier_num, matches = response.context['tiers'][0]
+        tier_num, _, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 1)
 
     def test_shows_postponed_match(self):
         self._match(status=Match.STATUS_POSTPONED)
         response = self.client.get(self.url)
-        tier_num, matches = response.context['tiers'][0]
+        tier_num, _, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 1)
 
     def test_excludes_completed_match(self):
         self._match(status=Match.STATUS_COMPLETED)
         response = self.client.get(self.url)
-        tier_num, matches = response.context['tiers'][0]
+        tier_num, _, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 0)
 
     def test_excludes_walkover_match(self):
         self._match(status=Match.STATUS_WALKOVER)
         response = self.client.get(self.url)
-        tier_num, matches = response.context['tiers'][0]
+        tier_num, _, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 0)
 
     def test_shows_pending_match(self):
         self._match(status=Match.STATUS_PENDING)
         response = self.client.get(self.url)
-        tier_num, matches = response.context['tiers'][0]
+        tier_num, _, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 1)
 
     def test_excludes_cancelled_match(self):
         self._match(status=Match.STATUS_CANCELLED)
         response = self.client.get(self.url)
-        tier_num, matches = response.context['tiers'][0]
+        tier_num, _, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 0)
 
     def test_excludes_other_season_matches(self):
@@ -250,7 +250,7 @@ class MatchupsViewTest(TestCase):
             status=Match.STATUS_SCHEDULED,
         )
         response = self.client.get(self.url)
-        tier_num, matches = response.context['tiers'][0]
+        tier_num, _, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 0)
 
     def test_single_tier_multi_tier_false(self):
@@ -276,8 +276,8 @@ class MatchupsViewTest(TestCase):
         )
         response = self.client.get(self.url)
         tiers = response.context['tiers']
-        tier1_num, tier1_matches = tiers[0]
-        tier2_num, tier2_matches = tiers[1]
+        tier1_num, _, tier1_matches = tiers[0]
+        tier2_num, _, tier2_matches = tiers[1]
         self.assertEqual(tier1_num, 1)
         self.assertEqual(tier2_num, 2)
         self.assertEqual(tier1_matches.count(), 1)
@@ -289,7 +289,7 @@ class MatchupsViewTest(TestCase):
         self._match(status=Match.STATUS_SCHEDULED, scheduled_date=datetime.date(2025, 6, 1))
         self._match(status=Match.STATUS_SCHEDULED, scheduled_date=datetime.date(2025, 6, 5))
         response = self.client.get(self.url)
-        _, matches = response.context['tiers'][0]
+        _, _, matches = response.context['tiers'][0]
         dates = [m.scheduled_date for m in matches]
         self.assertEqual(dates, sorted(dates))
 
@@ -314,7 +314,7 @@ class MatchupsDisplayFilterTest(TestCase):
         return Match.objects.create(**defaults)
 
     def _count(self):
-        _, matches = self.client.get(self.url).context['tiers'][0]
+        _, _, matches = self.client.get(self.url).context['tiers'][0]
         return matches.count()
 
     def _set_mode(self, mode, days=None):
@@ -461,37 +461,37 @@ class ResultsViewTest(TestCase):
     def test_shows_completed_match(self):
         self._match(status=Match.STATUS_COMPLETED, winner=self.p1)
         response = self.client.get(self.url)
-        tier_num, matches = response.context['tiers'][0]
+        tier_num, _, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 1)
 
     def test_shows_walkover_match(self):
         self._match(status=Match.STATUS_WALKOVER, winner=self.p1)
         response = self.client.get(self.url)
-        tier_num, matches = response.context['tiers'][0]
+        tier_num, _, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 1)
 
     def test_excludes_scheduled_match(self):
         self._match(status=Match.STATUS_SCHEDULED)
         response = self.client.get(self.url)
-        tier_num, matches = response.context['tiers'][0]
+        tier_num, _, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 0)
 
     def test_excludes_pending_match(self):
         self._match(status=Match.STATUS_PENDING)
         response = self.client.get(self.url)
-        tier_num, matches = response.context['tiers'][0]
+        tier_num, _, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 0)
 
     def test_excludes_postponed_match(self):
         self._match(status=Match.STATUS_POSTPONED)
         response = self.client.get(self.url)
-        tier_num, matches = response.context['tiers'][0]
+        tier_num, _, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 0)
 
     def test_excludes_cancelled_match(self):
         self._match(status=Match.STATUS_CANCELLED)
         response = self.client.get(self.url)
-        tier_num, matches = response.context['tiers'][0]
+        tier_num, _, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 0)
 
     def test_excludes_other_season_matches(self):
@@ -501,7 +501,7 @@ class ResultsViewTest(TestCase):
             status=Match.STATUS_COMPLETED, winner=self.p1,
         )
         response = self.client.get(self.url)
-        tier_num, matches = response.context['tiers'][0]
+        tier_num, _, matches = response.context['tiers'][0]
         self.assertEqual(matches.count(), 0)
 
     def test_single_tier_multi_tier_false(self):
@@ -521,7 +521,7 @@ class ResultsViewTest(TestCase):
         self._match(status=Match.STATUS_COMPLETED, winner=self.p1, played_date=datetime.date(2025, 5, 15))
         self._match(status=Match.STATUS_COMPLETED, winner=self.p1, played_date=datetime.date(2025, 5, 8))
         response = self.client.get(self.url)
-        _, matches = response.context['tiers'][0]
+        _, _, matches = response.context['tiers'][0]
         dates = [m.played_date for m in matches]
         self.assertEqual(dates, sorted(dates, reverse=True))
 
@@ -531,7 +531,7 @@ class ResultsViewTest(TestCase):
         self._match(status=Match.STATUS_COMPLETED, winner=self.p1, played_date=datetime.date(2025, 5, 1))
         self._match(status=Match.STATUS_WALKOVER, winner=self.p1, played_date=None)
         response = self.client.get(self.url)
-        _, matches = response.context['tiers'][0]
+        _, _, matches = response.context['tiers'][0]
         match_list = list(matches)
         self.assertEqual(match_list[0].status, Match.STATUS_COMPLETED)
         self.assertEqual(match_list[1].status, Match.STATUS_WALKOVER)
@@ -549,8 +549,8 @@ class ResultsViewTest(TestCase):
         response = self.client.get(self.url)
         tiers = response.context['tiers']
         self.assertEqual(len(tiers), 2)
-        self.assertEqual(tiers[0][1].count(), 1)
-        self.assertEqual(tiers[1][1].count(), 1)
+        self.assertEqual(tiers[0][2].count(), 1)
+        self.assertEqual(tiers[1][2].count(), 1)
 
     def test_uses_results_template(self):
         response = self.client.get(self.url)

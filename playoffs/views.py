@@ -73,7 +73,7 @@ class PlayoffListView(TemplateView):
             for b in PlayoffBracket.objects.filter(season=season)
         }
         tier_brackets = [
-            (t, brackets_by_tier.get(t))
+            (t, season.tier_name(t), brackets_by_tier.get(t))
             for t in range(1, season.num_tiers + 1)
         ]
         return self.render_to_response({
@@ -91,12 +91,14 @@ class PlayoffBracketView(TemplateView):
         tier = self.kwargs['tier']
         bracket = get_object_or_404(PlayoffBracket, season=season, tier=tier)
         rounds_data, bracket_size = _bracket_context(bracket)
+        tier_nav = [(t, season.tier_name(t)) for t in range(1, season.num_tiers + 1)]
         ctx.update({
             'season': season,
             'bracket': bracket,
             'tier': tier,
+            'tier_name': season.tier_name(tier),
             'multi_tier': season.num_tiers > 1,
-            'tier_range': range(1, season.num_tiers + 1),
+            'tier_nav': tier_nav,
             'rounds_data': rounds_data,
             'bracket_size': bracket_size,
             'num_rounds': len(rounds_data),

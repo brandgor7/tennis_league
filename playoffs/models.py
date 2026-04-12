@@ -15,7 +15,7 @@ class PlayoffBracket(models.Model):
         unique_together = [('season', 'tier')]
 
     def __str__(self):
-        return f'Playoff Bracket — {self.season} (Tier {self.tier})'
+        return f'Playoff Bracket — {self.season} ({self.season.tier_name(self.tier)})'
 
 
 class PlayoffSlot(models.Model):

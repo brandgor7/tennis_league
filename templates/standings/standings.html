@@ -18,7 +18,7 @@
 {% if multi_tier %}
 {# ── Multi-tier: Bootstrap tabs, one per tier ─────────────────────────── #}
 <ul class="nav nav-tabs mb-3" id="tier-tabs" role="tablist">
-  {% for tier_num, rows in tiers %}
+  {% for tier_num, tier_name, rows in tiers %}
   <li class="nav-item" role="presentation">
     <button class="nav-link {% if forloop.first %}active{% endif %}"
             id="tier-{{ tier_num }}-tab"
@@ -27,14 +27,14 @@
             type="button" role="tab"
             aria-controls="tier-{{ tier_num }}-pane"
             aria-selected="{% if forloop.first %}true{% else %}false{% endif %}">
-      Tier {{ tier_num }}
+      {{ tier_name }}
     </button>
   </li>
   {% endfor %}
 </ul>
 
 <div class="tab-content" id="tier-tabs-content">
-  {% for tier_num, rows in tiers %}
+  {% for tier_num, tier_name, rows in tiers %}
   <div class="tab-pane fade {% if forloop.first %}show active{% endif %}"
        id="tier-{{ tier_num }}-pane"
        role="tabpanel"
@@ -46,7 +46,7 @@
 
 {% else %}
 {# ── Single tier: render the table directly ───────────────────────────── #}
-{% for tier_num, rows in tiers %}
+{% for tier_num, tier_name, rows in tiers %}
 {% include 'standings/_standings_table.html' with rows=rows %}
 {% endfor %}
 {% endif %}

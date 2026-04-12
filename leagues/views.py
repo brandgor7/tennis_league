@@ -78,6 +78,7 @@ class SeasonPlayerDetailView(View):
             'season': season,
             'player': player,
             'season_player': season_player,
+            'tier_name': season.tier_name(tier),
             'standing': standing,
             'rank': rank,
             'upcoming': upcoming,
