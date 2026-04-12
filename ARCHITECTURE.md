@@ -254,9 +254,10 @@ tennis-scores-app/
 
 ### `leagues.SiteConfig`
 ```
-site_name   CharField(100)   Navbar brand name and page footer; default "TennisLeague"
-logo        TextField        Base64 data URL (data:image/png;base64,… or data:image/jpeg;base64,…); blank = default icon shown
-pk          always 1         Singleton — enforced by model.save() and admin
+site_name     CharField(100)   Navbar brand name and page footer; default "TennisLeague"
+logo          TextField        Base64 data URL (data:image/png;base64,… or data:image/jpeg;base64,…); blank = default icon shown; also used as blended background watermark on the page
+sponsor_logo  TextField        Base64 data URL for an optional sponsor logo; blank = not shown; displayed in the navbar to the left of the user menu with "Season sponsored by:" label
+pk            always 1         Singleton — enforced by model.save() and admin
 ```
 Logo uploads are validated in the admin form: magic bytes are checked (PNG `\x89PNG\r\n\x1a\n`, JPEG `\xff\xd8\xff`) to confirm the file type regardless of extension, and size is capped at 2 MB. The data URL is stored in the database — no file system writes, no MEDIA configuration needed.
 
@@ -283,6 +284,7 @@ points_for_loss           IntegerField    default 0
 points_for_walkover_loss  IntegerField    default 0 (set to 1 if walkover_rule=split)
 schedule_display_mode     CharField       all | current_day | current_week | next_x_days — controls which upcoming matches appear on the matchups page
 schedule_display_days     IntegerField    default 7; days ahead to show when schedule_display_mode=next_x_days
+playoffs_enabled          BooleanField    default True; if False, the Playoffs navbar tab is hidden and admin playoff generation buttons are not shown
 display                   BooleanField    default True; if False, season is hidden from the dropdown for non-staff users not enrolled in it (direct URL access still works for anyone)
 created_at                DateTimeField
 ```
