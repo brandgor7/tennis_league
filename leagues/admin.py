@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
 from django.utils.html import format_html
 
-from .models import Season, SeasonPlayer, SiteConfig
+from .models import Season, SeasonPlayer, SiteConfig, Tier
 from playoffs.generator import bracket_size_for, generate_bracket
 from playoffs.models import PlayoffBracket
 from standings.calculator import calculate_standings
@@ -21,6 +21,12 @@ from standings.calculator import calculate_standings
 _PNG_MAGIC = b'\x89PNG\r\n\x1a\n'
 _JPEG_MAGIC = b'\xff\xd8\xff'
 _MAX_LOGO_BYTES = 2 * 1024 * 1024  # 2 MB
+
+
+class TierInline(admin.TabularInline):
+    model = Tier
+    extra = 0
+    fields = ('number', 'name')
 
 
 class SeasonPlayerInline(admin.TabularInline):
@@ -32,12 +38,12 @@ class SeasonPlayerInline(admin.TabularInline):
 
 @admin.register(Season)
 class SeasonAdmin(admin.ModelAdmin):
-    list_display = ('name', 'year', 'status', 'schedule_type', 'num_tiers', 'sets_to_win', 'final_set_format', 'playoff_qualifiers_count')
+    list_display = ('name', 'year', 'status', 'schedule_type', 'sets_to_win', 'final_set_format', 'playoff_qualifiers_count')
     list_filter = ('status', 'year', 'final_set_format', 'walkover_rule')
     search_fields = ('name',)
-    inlines = [SeasonPlayerInline]
+    inlines = [TierInline, SeasonPlayerInline]
     fieldsets = (
-        (None, {'fields': ('name', 'year', 'status', 'display', 'num_tiers')}),
+        (None, {'fields': ('name', 'year', 'status', 'display')}),
         ('Schedule', {'fields': ('schedule_type', 'schedule_display_mode', 'schedule_display_days')}),
         ('Match Format', {'fields': ('sets_to_win', 'games_to_win_set', 'final_set_format')}),
         ('Playoffs', {'fields': ('playoff_qualifiers_count',)}),
@@ -68,11 +74,11 @@ class SeasonAdmin(admin.ModelAdmin):
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
         extra_context = extra_context or {}
-        season = get_object_or_404(Season, pk=object_id)
+        season = get_object_or_404(Season.objects.prefetch_related('tiers'), pk=object_id)
         generate_urls = []
         for tier in range(1, season.num_tiers + 1):
             generate_urls.append({
-                'tier': tier,
+                'tier_name': season.tier_name(tier),
                 'url': reverse('admin:leagues_season_generate_playoffs', args=[object_id, tier]),
             })
         extra_context['generate_playoff_urls'] = generate_urls
@@ -88,14 +94,14 @@ class SeasonAdmin(admin.ModelAdmin):
         from matches.models import Match
         from matches.scheduler import generate_schedule
 
-        season = get_object_or_404(Season, pk=season_id)
+        season = get_object_or_404(Season.objects.prefetch_related('tiers'), pk=season_id)
         has_matches = Match.objects.filter(season=season, round=Match.ROUND_REGULAR).exists()
 
         tier_info = []
         for tier in range(1, season.num_tiers + 1):
             count = SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True).count()
             max_rounds = count - 1 + count % 2  # N-1 for even N, N for odd N
-            tier_info.append({'tier': tier, 'player_count': count, 'max_rounds': max_rounds})
+            tier_info.append({'tier_name': season.tier_name(tier), 'player_count': count, 'max_rounds': max_rounds})
 
         error = None
         start_date_val = ''
@@ -255,10 +261,11 @@ class SeasonAdmin(admin.ModelAdmin):
         size = bracket_size_for(max_q)
         qualifiers = standings[:size]
 
+        tier_name = season.tier_name(tier)
         if request.method == 'POST' and not existing_bracket:
             try:
                 generate_bracket(season, tier, request.user)
-                messages.success(request, f'Tier {tier} playoff bracket generated successfully.')
+                messages.success(request, f'{tier_name} playoff bracket generated successfully.')
                 return HttpResponseRedirect(
                     reverse('leagues:playoffs_tier', kwargs={'pk': season_id, 'tier': tier})
                 )
@@ -269,10 +276,11 @@ class SeasonAdmin(admin.ModelAdmin):
             **self.admin_site.each_context(request),
             'season': season,
             'tier': tier,
+            'tier_name': tier_name,
             'qualifiers': qualifiers,
             'bracket_size': size,
             'existing_bracket': existing_bracket,
-            'title': f'Generate Tier {tier} Playoffs — {season.name}',
+            'title': f'Generate {tier_name} Playoffs — {season.name}',
         }
         return render(request, 'playoffs/generate_playoffs.html', context)
 

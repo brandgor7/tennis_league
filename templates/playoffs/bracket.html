@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ season }} — {% if multi_tier %}Tier {{ tier }} {% endif %}Playoffs{% endblock %}
+{% block title %}{{ season }} — {% if multi_tier %}{{ tier_name }} {% endif %}Playoffs{% endblock %}
 {% block nav_playoffs %}nav-active{% endblock %}
 
 {% block extra_css %}
@@ -119,16 +119,16 @@
 
 {% block content %}
 <div class="page-header">
-  <h1>Playoffs{% if multi_tier %} — Tier {{ tier }}{% endif %}</h1>
+  <h1>Playoffs{% if multi_tier %} — {{ tier_name }}{% endif %}</h1>
   <p class="page-meta">{{ season }}</p>
 </div>
 
 {% if multi_tier %}
 <div class="d-flex gap-2 mb-4">
-  {% for t in tier_range %}
+  {% for t, t_name in tier_nav %}
   <a href="{% url 'leagues:playoffs_tier' season.slug t %}"
      class="btn btn-sm {% if t == tier %}btn-primary{% else %}btn-outline-primary{% endif %}">
-    Tier {{ t }}
+    {{ t_name }}
   </a>
   {% endfor %}
 </div>

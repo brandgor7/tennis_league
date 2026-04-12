@@ -21,7 +21,7 @@ import datetime
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
-from leagues.models import Season, SeasonPlayer
+from leagues.models import Season, SeasonPlayer, Tier
 from matches.models import Match, MatchSet
 
 User = get_user_model()
@@ -104,7 +104,6 @@ class Command(BaseCommand):
             name='Spring 2025',
             year=2025,
             status=Season.STATUS_ACTIVE,
-            num_tiers=2,
             sets_to_win=2,
             final_set_format=Season.FINAL_SET_FULL,
             playoff_qualifiers_count=4,
@@ -114,6 +113,8 @@ class Command(BaseCommand):
             points_for_loss=0,
             points_for_walkover_loss=0,
         )
+        Tier.objects.create(season=season, number=1, name='Tier 1')
+        Tier.objects.create(season=season, number=2, name='Tier 2')
         self.stdout.write(f'  season        "{season}"')
         return season
 

@@ -17,7 +17,7 @@
   <p class="page-meta">
     {{ season }}
     {% if multi_tier and match.tier %}
-    &nbsp;·&nbsp; Tier {{ match.tier }}
+    &nbsp;·&nbsp; {{ tier_name }}
     {% endif %}
     &nbsp;·&nbsp;
     <span class="status-badge status-{{ match.status }}">{{ match.get_status_display }}</span>

@@ -90,7 +90,6 @@ class Season(models.Model):
     slug = models.SlugField(max_length=120, unique=True)
     year = models.IntegerField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_UPCOMING)
-    num_tiers = models.IntegerField(default=1, help_text='Number of competitive tiers in this season')
     sets_to_win = models.IntegerField(default=2, help_text='2 = best of 3, 3 = best of 5')
     games_to_win_set = models.IntegerField(default=6, help_text='Games needed to win a set (typically 6, sometimes 8)')
     final_set_format = models.CharField(max_length=20, choices=FINAL_SET_CHOICES, default=FINAL_SET_FULL)
@@ -154,8 +153,31 @@ class Season(models.Model):
                     {'status': 'Only one season can be active at a time.'}
                 )
 
+    @property
+    def num_tiers(self):
+        return len(self.tiers.all()) or 1
+
+    def tier_name(self, number):
+        for tier in self.tiers.all():
+            if tier.number == number:
+                return tier.name
+        return f'Tier {number}'
+
     def __str__(self):
         return f'{self.name} {self.year}'
+
+
+class Tier(models.Model):
+    season = models.ForeignKey(Season, on_delete=models.CASCADE, related_name='tiers')
+    number = models.IntegerField(help_text='1-indexed tier ordering')
+    name = models.CharField(max_length=50, help_text='Display name (e.g. Premier, Division 1)')
+
+    class Meta:
+        unique_together = [('season', 'number')]
+        ordering = ['number']
+
+    def __str__(self):
+        return f'{self.name} — {self.season}'
 
 
 class SeasonPlayer(models.Model):

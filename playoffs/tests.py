@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 
-from leagues.models import Season, SeasonPlayer
+from leagues.models import Season, SeasonPlayer, Tier
 from matches.models import Match, PLAYOFF_ROUND_CHOICES
 from .models import PlayoffBracket, PlayoffSlot
 from .generator import generate_bracket
@@ -74,6 +74,11 @@ class PlayoffBracketModelTest(TestCase):
     def test_default_tier_is_1(self):
         bracket = PlayoffBracket.objects.create(season=self.season)
         self.assertEqual(bracket.tier, 1)
+
+    def test_str_uses_named_tier_when_configured(self):
+        Tier.objects.create(season=self.season, number=1, name='Premier')
+        bracket = PlayoffBracket.objects.create(season=self.season, tier=1)
+        self.assertEqual(str(bracket), 'Playoff Bracket — Spring 2025 (Premier)')
 
 
 class PlayoffSlotModelTest(TestCase):

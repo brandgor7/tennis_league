@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from leagues.models import Season, SeasonPlayer
+from leagues.models import Season, SeasonPlayer, Tier
 from matches.models import Match, MatchSet
 from .calculator import calculate_standings
 
@@ -15,7 +15,6 @@ def make_season(**kwargs):
     defaults = dict(
         name='Spring 2025', year=2025,
         status=Season.STATUS_ACTIVE,
-        num_tiers=1,
         points_for_win=3,
         points_for_loss=0,
         points_for_walkover_loss=0,
@@ -335,7 +334,9 @@ class CalculateStandingsTierIsolationTest(TestCase):
     """Standings for tier 1 should not include tier 2 players or matches."""
 
     def setUp(self):
-        self.season = make_season(num_tiers=2, points_for_win=3)
+        self.season = make_season(points_for_win=3)
+        Tier.objects.create(season=self.season, number=1, name='Tier 1')
+        Tier.objects.create(season=self.season, number=2, name='Tier 2')
         self.p1 = make_player('t1p1')
         self.p2 = make_player('t1p2')
         self.p3 = make_player('t2p1')
@@ -429,7 +430,7 @@ class CalculateStandingsScheduledMatchesIgnoredTest(TestCase):
 
 class StandingsViewTest(TestCase):
     def setUp(self):
-        self.season = make_season(num_tiers=1)
+        self.season = make_season()
         self.url = reverse('leagues:standings', kwargs={'slug': self.season.slug})
 
     def test_standings_url_resolves(self):
@@ -457,13 +458,17 @@ class StandingsViewTest(TestCase):
         self.assertEqual(len(response.context['tiers']), 1)
 
     def test_multi_tier_context_has_correct_count(self):
-        season = make_season(num_tiers=2, name='Multi', status=Season.STATUS_UPCOMING)
+        season = make_season(name='Multi', status=Season.STATUS_UPCOMING)
+        Tier.objects.create(season=season, number=1, name='Tier 1')
+        Tier.objects.create(season=season, number=2, name='Tier 2')
         url = reverse('leagues:standings', kwargs={'slug': season.slug})
         response = self.client.get(url)
         self.assertEqual(len(response.context['tiers']), 2)
 
     def test_multi_tier_flag_true(self):
-        season = make_season(num_tiers=2, name='Multi', status=Season.STATUS_UPCOMING)
+        season = make_season(name='Multi', status=Season.STATUS_UPCOMING)
+        Tier.objects.create(season=season, number=1, name='Tier 1')
+        Tier.objects.create(season=season, number=2, name='Tier 2')
         url = reverse('leagues:standings', kwargs={'slug': season.slug})
         response = self.client.get(url)
         self.assertTrue(response.context['multi_tier'])
@@ -520,7 +525,9 @@ class StandingsViewTest(TestCase):
         self.assertContains(response, '-10')  # p2 pd = -10
 
     def test_multi_tier_shows_tier_tabs(self):
-        season = make_season(num_tiers=2, name='Multi', status=Season.STATUS_UPCOMING)
+        season = make_season(name='Multi', status=Season.STATUS_UPCOMING)
+        Tier.objects.create(season=season, number=1, name='Tier 1')
+        Tier.objects.create(season=season, number=2, name='Tier 2')
         url = reverse('leagues:standings', kwargs={'slug': season.slug})
         response = self.client.get(url)
         self.assertContains(response, 'Tier 1')

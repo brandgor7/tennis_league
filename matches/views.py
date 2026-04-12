@@ -40,7 +40,7 @@ class MatchupsView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        season = get_object_or_404(Season, slug=self.kwargs['slug'])
+        season = get_object_or_404(Season.objects.prefetch_related('tiers'), slug=self.kwargs['slug'])
         qs = (
             Match.objects
             .filter(season=season, status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED, Match.STATUS_PENDING])
@@ -67,9 +67,9 @@ class MatchupsView(TemplateView):
 
         multi_tier = season.num_tiers > 1
         tiers = [
-            (tier_num, qs.filter(tier=tier_num))
+            (tier_num, season.tier_name(tier_num), qs.filter(tier=tier_num))
             for tier_num in range(1, season.num_tiers + 1)
-        ] if multi_tier else [(1, qs)]
+        ] if multi_tier else [(1, season.tier_name(1), qs)]
         ctx['season'] = season
         ctx['tiers'] = tiers
         ctx['multi_tier'] = multi_tier
@@ -81,7 +81,7 @@ class ResultsView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        season = get_object_or_404(Season, slug=self.kwargs['slug'])
+        season = get_object_or_404(Season.objects.prefetch_related('tiers'), slug=self.kwargs['slug'])
         qs = (
             Match.objects
             .filter(season=season, status__in=[Match.STATUS_COMPLETED, Match.STATUS_WALKOVER])
@@ -91,9 +91,9 @@ class ResultsView(TemplateView):
         )
         multi_tier = season.num_tiers > 1
         tiers = [
-            (tier_num, qs.filter(tier=tier_num))
+            (tier_num, season.tier_name(tier_num), qs.filter(tier=tier_num))
             for tier_num in range(1, season.num_tiers + 1)
-        ] if multi_tier else [(1, qs)]
+        ] if multi_tier else [(1, season.tier_name(1), qs)]
         ctx['season'] = season
         ctx['tiers'] = tiers
         ctx['multi_tier'] = multi_tier
@@ -110,8 +110,10 @@ class MatchDetailView(DetailView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx['season'] = self.object.season
-        ctx['multi_tier'] = self.object.season.num_tiers > 1
+        season = self.object.season
+        ctx['season'] = season
+        ctx['multi_tier'] = season.num_tiers > 1
+        ctx['tier_name'] = season.tier_name(self.object.tier) if self.object.tier else ''
         ctx['sets'] = self.object.sets.all()
         return ctx
 
