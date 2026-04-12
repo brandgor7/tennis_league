@@ -97,10 +97,12 @@
             <a class="nav-link {% block nav_results %}{% endblock %}"
                href="{% url 'leagues:results' current_season.slug %}">Results</a>
           </li>
+          {% if current_season.playoffs_enabled %}
           <li class="nav-item">
               <a class="nav-link {% block nav_playoffs %}{% endblock %}"
                href="{% url 'leagues:playoffs' current_season.slug %}">Playoffs</a>
           </li>
+          {% endif %}
           {% endif %}
 
         </ul>

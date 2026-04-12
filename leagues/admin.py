@@ -46,7 +46,7 @@ class SeasonAdmin(admin.ModelAdmin):
         (None, {'fields': ('name', 'year', 'status', 'display')}),
         ('Schedule', {'fields': ('schedule_type', 'schedule_display_mode', 'schedule_display_days')}),
         ('Match Format', {'fields': ('sets_to_win', 'games_to_win_set', 'final_set_format')}),
-        ('Playoffs', {'fields': ('playoff_qualifiers_count',)}),
+        ('Playoffs', {'fields': ('playoffs_enabled', 'playoff_qualifiers_count')}),
         ('Points', {'fields': ('points_for_win', 'points_for_loss', 'points_for_walkover_loss')}),
         ('Rules', {'fields': ('walkover_rule', 'postponement_deadline', 'grace_period_days')}),
     )
@@ -76,11 +76,12 @@ class SeasonAdmin(admin.ModelAdmin):
         extra_context = extra_context or {}
         season = get_object_or_404(Season.objects.prefetch_related('tiers'), pk=object_id)
         generate_urls = []
-        for tier in range(1, season.num_tiers + 1):
-            generate_urls.append({
-                'tier_name': season.tier_name(tier),
-                'url': reverse('admin:leagues_season_generate_playoffs', args=[object_id, tier]),
-            })
+        if season.playoffs_enabled:
+            for tier in range(1, season.num_tiers + 1):
+                generate_urls.append({
+                    'tier_name': season.tier_name(tier),
+                    'url': reverse('admin:leagues_season_generate_playoffs', args=[object_id, tier]),
+                })
         extra_context['generate_playoff_urls'] = generate_urls
         extra_context['generate_schedule_url'] = reverse(
             'admin:leagues_season_generate_schedule', args=[object_id]
