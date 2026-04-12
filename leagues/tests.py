@@ -38,7 +38,6 @@ def make_season(**kwargs):
     defaults = dict(
         name='Spring 2025', year=2025,
         status=Season.STATUS_ACTIVE,
-        num_tiers=1,
         points_for_win=3,
         points_for_loss=0,
         points_for_walkover_loss=0,
@@ -105,19 +104,23 @@ class SeasonModelTest(TestCase):
         season2 = Season.objects.create(name='Spring', year=2025, status=Season.STATUS_UPCOMING)
         self.assertEqual(season2.slug, 'spring-2025-1')
 
-    # ── Phase 5: num_tiers ───────────────────────────────────────────────────
+    # ── num_tiers property ───────────────────────────────────────────────────
 
-    def test_num_tiers_defaults_to_1(self):
+    def test_num_tiers_defaults_to_1_with_no_tier_records(self):
         season = Season.objects.create(name='Spring', year=2025)
         self.assertEqual(season.num_tiers, 1)
 
-    def test_num_tiers_can_be_set(self):
-        season = Season.objects.create(name='Spring', year=2025, num_tiers=2)
+    def test_num_tiers_reflects_tier_count(self):
+        season = Season.objects.create(name='Spring', year=2025)
+        Tier.objects.create(season=season, number=1, name='Premier')
+        Tier.objects.create(season=season, number=2, name='Division 1')
         self.assertEqual(season.num_tiers, 2)
 
-    def test_num_tiers_persists_after_save(self):
-        season = Season.objects.create(name='Spring', year=2025, num_tiers=3)
-        season.refresh_from_db()
+    def test_num_tiers_reflects_tier_count_after_adding_tier(self):
+        season = Season.objects.create(name='Spring', year=2025)
+        Tier.objects.create(season=season, number=1, name='Premier')
+        Tier.objects.create(season=season, number=2, name='Division 1')
+        Tier.objects.create(season=season, number=3, name='Division 2')
         self.assertEqual(season.num_tiers, 3)
 
     # ── schedule_display_mode / schedule_display_days ────────────────────────
@@ -159,26 +162,26 @@ class SeasonModelTest(TestCase):
     # ── tier_name() ──────────────────────────────────────────────────────────
 
     def test_tier_name_falls_back_when_no_tier_configured(self):
-        season = Season.objects.create(name='Spring', year=2025, num_tiers=2)
+        season = Season.objects.create(name='Spring', year=2025)
         self.assertEqual(season.tier_name(1), 'Tier 1')
         self.assertEqual(season.tier_name(2), 'Tier 2')
 
     def test_tier_name_returns_configured_name(self):
-        season = Season.objects.create(name='Spring', year=2025, num_tiers=2)
+        season = Season.objects.create(name='Spring', year=2025)
         Tier.objects.create(season=season, number=1, name='Premier')
         Tier.objects.create(season=season, number=2, name='Division 1')
         self.assertEqual(season.tier_name(1), 'Premier')
         self.assertEqual(season.tier_name(2), 'Division 1')
 
     def test_tier_name_falls_back_for_unconfigured_number(self):
-        season = Season.objects.create(name='Spring', year=2025, num_tiers=2)
+        season = Season.objects.create(name='Spring', year=2025)
         Tier.objects.create(season=season, number=1, name='Premier')
         self.assertEqual(season.tier_name(2), 'Tier 2')
 
 
 class TierModelTest(TestCase):
     def setUp(self):
-        self.season = Season.objects.create(name='Spring', year=2025, num_tiers=2)
+        self.season = Season.objects.create(name='Spring', year=2025)
 
     def test_str(self):
         tier = Tier(season=self.season, number=1, name='Premier')
@@ -195,7 +198,7 @@ class TierModelTest(TestCase):
         self.assertEqual(Tier.objects.filter(season=self.season).count(), 2)
 
     def test_same_number_allowed_different_seasons(self):
-        season2 = Season.objects.create(name='Fall', year=2025, num_tiers=2)
+        season2 = Season.objects.create(name='Fall', year=2025)
         Tier.objects.create(season=self.season, number=1, name='Premier')
         Tier.objects.create(season=season2, number=1, name='Elite')
         self.assertEqual(Tier.objects.count(), 2)
@@ -265,7 +268,6 @@ class SeasonFormTest(TestCase):
             'name': 'Spring 2025',
             'year': 2025,
             'status': Season.STATUS_UPCOMING,
-            'num_tiers': 1,
             'schedule_type': Season.SCHEDULE_WEEKLY,
             'sets_to_win': 2,
             'final_set_format': Season.FINAL_SET_FULL,
@@ -279,23 +281,13 @@ class SeasonFormTest(TestCase):
         data.update(overrides)
         return data
 
-    def test_valid_single_tier_form(self):
-        form = SeasonForm(data=self._valid_data(num_tiers=1))
+    def test_valid_form(self):
+        form = SeasonForm(data=self._valid_data())
         self.assertTrue(form.is_valid(), form.errors)
 
-    def test_valid_multi_tier_form(self):
-        form = SeasonForm(data=self._valid_data(num_tiers=2))
-        self.assertTrue(form.is_valid(), form.errors)
-
-    def test_num_tiers_in_fields(self):
+    def test_num_tiers_not_in_fields(self):
         form = SeasonForm()
-        self.assertIn('num_tiers', form.fields)
-
-    def test_form_saves_num_tiers(self):
-        form = SeasonForm(data=self._valid_data(num_tiers=3))
-        self.assertTrue(form.is_valid())
-        season = form.save()
-        self.assertEqual(season.num_tiers, 3)
+        self.assertNotIn('num_tiers', form.fields)
 
 
 # ─── View tests ───────────────────────────────────────────────────────────────
@@ -462,7 +454,7 @@ class SeasonContextProcessorTest(TestCase):
 
 class SeasonPlayerDetailViewTest(TestCase):
     def setUp(self):
-        self.season = make_season(num_tiers=1)
+        self.season = make_season()
         self.player = make_player('alice', first='Alice', last='Smith')
         enroll(self.season, self.player, tier=1)
         self.url = reverse('leagues:player_detail', kwargs={
@@ -669,7 +661,7 @@ class SeasonPlayerDetailViewTest(TestCase):
 
 class SeasonPlayerDetailTemplateTest(TestCase):
     def setUp(self):
-        self.season = make_season(num_tiers=1)
+        self.season = make_season()
         self.player = make_player('alice', first='Alice', last='Smith')
         enroll(self.season, self.player, tier=1)
         self.url = reverse('leagues:player_detail', kwargs={
@@ -690,7 +682,9 @@ class SeasonPlayerDetailTemplateTest(TestCase):
         self.assertContains(response, self.season.name)
 
     def test_tier_label_shown_for_multi_tier_season(self):
-        season = make_season(num_tiers=2, name='Multi', status=Season.STATUS_UPCOMING)
+        season = make_season(name='Multi', status=Season.STATUS_UPCOMING)
+        Tier.objects.create(season=season, number=1, name='Tier 1')
+        Tier.objects.create(season=season, number=2, name='Tier 2')
         p = make_player('bob', first='Bob', last='Jones')
         enroll(season, p, tier=2)
         url = reverse('leagues:player_detail', kwargs={'slug': season.slug, 'username': p.username})

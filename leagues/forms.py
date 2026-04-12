@@ -9,7 +9,6 @@ class SeasonForm(forms.ModelForm):
             'name',
             'year',
             'status',
-            'num_tiers',
             'schedule_type',
             'sets_to_win',
             'final_set_format',
@@ -21,6 +20,5 @@ class SeasonForm(forms.ModelForm):
             'points_for_walkover_loss',
         ]
         widgets = {
-            'num_tiers': forms.NumberInput(attrs={'min': 1}),
             'sets_to_win': forms.NumberInput(attrs={'min': 1}),
         }

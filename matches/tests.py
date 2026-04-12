@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 
-from leagues.models import Season, SeasonPlayer
+from leagues.models import Season, SeasonPlayer, Tier
 from .models import Match, MatchSet
 from .forms import MatchScheduleForm, ResultEntryForm, WalkoverForm, PostponeForm
 from .scheduler import _round_robin_rounds, generate_schedule
@@ -116,7 +116,9 @@ class MatchScheduleFormTest(TestCase):
     """Phase 5: MatchScheduleForm tier-filtering and cross-tier validation."""
 
     def setUp(self):
-        self.season = Season.objects.create(name='Spring', year=2025, num_tiers=2)
+        self.season = Season.objects.create(name='Spring', year=2025)
+        Tier.objects.create(season=self.season, number=1, name='Tier 1')
+        Tier.objects.create(season=self.season, number=2, name='Tier 2')
         self.p1 = User.objects.create_user(username='player1')
         self.p2 = User.objects.create_user(username='player2')
         self.p3 = User.objects.create_user(username='player3')
@@ -258,15 +260,15 @@ class MatchupsViewTest(TestCase):
         self.assertFalse(response.context['multi_tier'])
 
     def test_multi_tier_season_has_tier_tabs(self):
-        self.season.num_tiers = 2
-        self.season.save()
+        Tier.objects.create(season=self.season, number=1, name='Tier 1')
+        Tier.objects.create(season=self.season, number=2, name='Tier 2')
         response = self.client.get(self.url)
         self.assertTrue(response.context['multi_tier'])
         self.assertEqual(len(response.context['tiers']), 2)
 
     def test_multi_tier_matches_grouped_by_tier(self):
-        self.season.num_tiers = 2
-        self.season.save()
+        Tier.objects.create(season=self.season, number=1, name='Tier 1')
+        Tier.objects.create(season=self.season, number=2, name='Tier 2')
         p3 = User.objects.create_user(username='player3')
         p4 = User.objects.create_user(username='player4')
         self._match(tier=1, status=Match.STATUS_SCHEDULED)
@@ -509,8 +511,8 @@ class ResultsViewTest(TestCase):
         self.assertFalse(response.context['multi_tier'])
 
     def test_multi_tier_season_has_tier_tabs(self):
-        self.season.num_tiers = 2
-        self.season.save()
+        Tier.objects.create(season=self.season, number=1, name='Tier 1')
+        Tier.objects.create(season=self.season, number=2, name='Tier 2')
         response = self.client.get(self.url)
         self.assertTrue(response.context['multi_tier'])
         self.assertEqual(len(response.context['tiers']), 2)
@@ -537,8 +539,8 @@ class ResultsViewTest(TestCase):
         self.assertEqual(match_list[1].status, Match.STATUS_WALKOVER)
 
     def test_multi_tier_season_groups_results(self):
-        self.season.num_tiers = 2
-        self.season.save()
+        Tier.objects.create(season=self.season, number=1, name='Tier 1')
+        Tier.objects.create(season=self.season, number=2, name='Tier 2')
         p3 = User.objects.create_user(username='player3')
         p4 = User.objects.create_user(username='player4')
         self._match(tier=1, status=Match.STATUS_COMPLETED, winner=self.p1)
@@ -591,8 +593,8 @@ class MatchDetailViewTest(TestCase):
         self.assertFalse(response.context['multi_tier'])
 
     def test_context_multi_tier_true_for_multi_tier_season(self):
-        self.season.num_tiers = 2
-        self.season.save()
+        Tier.objects.create(season=self.season, number=1, name='Tier 1')
+        Tier.objects.create(season=self.season, number=2, name='Tier 2')
         response = self.client.get(self.url)
         self.assertTrue(response.context['multi_tier'])
 
@@ -1776,11 +1778,13 @@ class GenerateScheduleTest(TestCase):
     START = datetime.date(2025, 3, 1)
 
     def _season(self, schedule_type=Season.SCHEDULE_WEEKLY, num_tiers=1):
-        return Season.objects.create(
+        season = Season.objects.create(
             name='Spring', year=2025,
             schedule_type=schedule_type,
-            num_tiers=num_tiers,
         )
+        for n in range(1, num_tiers + 1):
+            Tier.objects.create(season=season, number=n, name=f'Tier {n}')
+        return season
 
     def _add_players(self, season, count, tier=1):
         players = []
@@ -1890,7 +1894,7 @@ class GenerateScheduleTest(TestCase):
         self.assertEqual(len(pairs), len(set(pairs)))
 
     def test_players_only_matched_within_tier(self):
-        season = Season.objects.create(name='Spring', year=2025, num_tiers=2)
+        season = self._season(num_tiers=2)
         tier1_ids = {p.pk for p in self._add_players(season, 3, tier=1)}
         tier2_ids = {p.pk for p in self._add_players(season, 3, tier=2)}
         for match in generate_schedule(season, self.START, 10):
@@ -1899,7 +1903,7 @@ class GenerateScheduleTest(TestCase):
             self.assertTrue(both_tier1 or both_tier2, msg='Cross-tier match detected')
 
     def test_multi_tier_produces_matches_in_each_tier(self):
-        season = Season.objects.create(name='Spring', year=2025, num_tiers=2)
+        season = self._season(num_tiers=2)
         self._add_players(season, 4, tier=1)
         self._add_players(season, 4, tier=2)
         matches = generate_schedule(season, self.START, 1)
