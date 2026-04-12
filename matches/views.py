@@ -40,7 +40,7 @@ class MatchupsView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        season = get_object_or_404(Season, slug=self.kwargs['slug'])
+        season = get_object_or_404(Season.objects.prefetch_related('tiers'), slug=self.kwargs['slug'])
         qs = (
             Match.objects
             .filter(season=season, status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED, Match.STATUS_PENDING])
@@ -81,7 +81,7 @@ class ResultsView(TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        season = get_object_or_404(Season, slug=self.kwargs['slug'])
+        season = get_object_or_404(Season.objects.prefetch_related('tiers'), slug=self.kwargs['slug'])
         qs = (
             Match.objects
             .filter(season=season, status__in=[Match.STATUS_COMPLETED, Match.STATUS_WALKOVER])

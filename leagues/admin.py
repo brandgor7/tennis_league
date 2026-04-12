@@ -74,11 +74,10 @@ class SeasonAdmin(admin.ModelAdmin):
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
         extra_context = extra_context or {}
-        season = get_object_or_404(Season, pk=object_id)
+        season = get_object_or_404(Season.objects.prefetch_related('tiers'), pk=object_id)
         generate_urls = []
         for tier in range(1, season.num_tiers + 1):
             generate_urls.append({
-                'tier': tier,
                 'tier_name': season.tier_name(tier),
                 'url': reverse('admin:leagues_season_generate_playoffs', args=[object_id, tier]),
             })
@@ -95,14 +94,14 @@ class SeasonAdmin(admin.ModelAdmin):
         from matches.models import Match
         from matches.scheduler import generate_schedule
 
-        season = get_object_or_404(Season, pk=season_id)
+        season = get_object_or_404(Season.objects.prefetch_related('tiers'), pk=season_id)
         has_matches = Match.objects.filter(season=season, round=Match.ROUND_REGULAR).exists()
 
         tier_info = []
         for tier in range(1, season.num_tiers + 1):
             count = SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True).count()
             max_rounds = count - 1 + count % 2  # N-1 for even N, N for odd N
-            tier_info.append({'tier': tier, 'tier_name': season.tier_name(tier), 'player_count': count, 'max_rounds': max_rounds})
+            tier_info.append({'tier_name': season.tier_name(tier), 'player_count': count, 'max_rounds': max_rounds})
 
         error = None
         start_date_val = ''

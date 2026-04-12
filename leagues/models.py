@@ -155,10 +155,10 @@ class Season(models.Model):
                 )
 
     def tier_name(self, number):
-        try:
-            return self.tiers.get(number=number).name
-        except Tier.DoesNotExist:
-            return f'Tier {number}'
+        for tier in self.tiers.all():
+            if tier.number == number:
+                return tier.name
+        return f'Tier {number}'
 
     def __str__(self):
         return f'{self.name} {self.year}'
