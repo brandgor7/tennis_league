@@ -70,7 +70,7 @@ step_4() {
 step_5() {
     echo "==> Creating log directory..."
     sudo mkdir -p /var/log/tennis-scores
-    sudo chown ubuntu:www-data /var/log/tennis-scores
+    sudo chown ubuntu:ubuntu /var/log/tennis-scores
 
     echo "==> Installing logrotate config..."
     sudo cp "$APP_DIR/deploy/logrotate.conf" /etc/logrotate.d/tennis-scores
@@ -229,6 +229,27 @@ run_step() {
     esac
 }
 
+# ─── Gather inputs ────────────────────────────────────────────────────────────
+prompt DOMAIN          "Domain name pointing to this server (e.g. tennis.example.com)"
+prompt CERTBOT_EMAIL   "Email for Let's Encrypt certificate notifications"
+prompt REPO_URL        "GitHub repo URL (e.g. https://github.com/org/repo.git)"
+
+# SERVER_NAME is the domain used in nginx and ALLOWED_HOSTS
+SERVER_NAME="$DOMAIN"
+
+read -rp "Enable S3 database backups? [y/N]: " ENABLE_S3
+if [[ "${ENABLE_S3,,}" == "y" ]]; then
+    prompt S3_BUCKET "S3 bucket name (must be globally unique, e.g. tennis-league-backups)"
+fi
+
+echo
+echo "==> Domain      : $DOMAIN"
+echo "==> Cert email  : $CERTBOT_EMAIL"
+echo "==> Repo        : $REPO_URL"
+echo "==> App dir     : $APP_DIR"
+[[ "${ENABLE_S3,,}" == "y" ]] && echo "==> S3 bucket   : $S3_BUCKET"
+echo
+
 # ─── Step menu ────────────────────────────────────────────────────────────────
 echo "Steps:"
 echo "  1  System packages"
@@ -244,45 +265,6 @@ echo
 read -rp "Run which step? [1-9 or all, default: all]: " STEP_CHOICE
 STEP_CHOICE="${STEP_CHOICE:-all}"
 echo
-
-# ─── Gather inputs (only what the selected step needs) ────────────────────────
-case "$STEP_CHOICE" in
-    2)
-        prompt REPO_URL "GitHub repo URL (e.g. https://github.com/org/repo.git)"
-        ;;
-    4)
-        prompt DOMAIN "Domain name pointing to this server (e.g. tennis.example.com)"
-        SERVER_NAME="$DOMAIN"
-        ;;
-    8)
-        prompt DOMAIN "Domain name pointing to this server (e.g. tennis.example.com)"
-        prompt CERTBOT_EMAIL "Email for Let's Encrypt certificate notifications"
-        SERVER_NAME="$DOMAIN"
-        ;;
-    9)
-        read -rp "Enable S3 database backups? [y/N]: " ENABLE_S3
-        if [[ "${ENABLE_S3,,}" == "y" ]]; then
-            prompt S3_BUCKET "S3 bucket name (must be globally unique, e.g. tennis-league-backups)"
-        fi
-        ;;
-    all)
-        prompt DOMAIN          "Domain name pointing to this server (e.g. tennis.example.com)"
-        prompt CERTBOT_EMAIL   "Email for Let's Encrypt certificate notifications"
-        prompt REPO_URL        "GitHub repo URL (e.g. https://github.com/org/repo.git)"
-        SERVER_NAME="$DOMAIN"
-        read -rp "Enable S3 database backups? [y/N]: " ENABLE_S3
-        if [[ "${ENABLE_S3,,}" == "y" ]]; then
-            prompt S3_BUCKET "S3 bucket name (must be globally unique, e.g. tennis-league-backups)"
-        fi
-        echo
-        echo "==> Domain      : $DOMAIN"
-        echo "==> Cert email  : $CERTBOT_EMAIL"
-        echo "==> Repo        : $REPO_URL"
-        echo "==> App dir     : $APP_DIR"
-        [[ "${ENABLE_S3,,}" == "y" ]] && echo "==> S3 bucket   : $S3_BUCKET"
-        echo
-        ;;
-esac
 
 if [[ "$STEP_CHOICE" == "all" ]]; then
     for i in 1 2 3 4 5 6 7 8 9; do run_step "$i"; done

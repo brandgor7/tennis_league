@@ -284,7 +284,6 @@ points_for_walkover_loss  IntegerField    default 0 (set to 1 if walkover_rule=s
 schedule_display_mode     CharField       all | current_day | current_week | next_x_days — controls which upcoming matches appear on the matchups page
 schedule_display_days     IntegerField    default 7; days ahead to show when schedule_display_mode=next_x_days
 display                   BooleanField    default True; if False, season is hidden from the dropdown for non-staff users not enrolled in it (direct URL access still works for anyone)
-playoffs_enabled          BooleanField    default True; controls visibility of the Playoffs navbar tab and admin playoff actions for this season
 created_at                DateTimeField
 ```
 
