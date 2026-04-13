@@ -17,25 +17,21 @@
 
 {% if multi_tier %}
 {# ── Multi-tier: Bootstrap tabs, one per tier ─────────────────────────── #}
-<div class="tier-tabs-wrapper mb-3">
-  <button class="tier-scroll-btn tier-scroll-left" aria-hidden="true" tabindex="-1"><i class="bi bi-chevron-left"></i></button>
-  <ul class="nav nav-tabs" id="tier-tabs" role="tablist">
-    {% for tier_num, tier_name, rows in tiers %}
-    <li class="nav-item" role="presentation">
-      <button class="nav-link {% if forloop.first %}active{% endif %}"
-              id="tier-{{ tier_num }}-tab"
-              data-bs-toggle="tab"
-              data-bs-target="#tier-{{ tier_num }}-pane"
-              type="button" role="tab"
-              aria-controls="tier-{{ tier_num }}-pane"
-              aria-selected="{% if forloop.first %}true{% else %}false{% endif %}">
-        {{ tier_name }}
-      </button>
-    </li>
-    {% endfor %}
-  </ul>
-  <button class="tier-scroll-btn tier-scroll-right" aria-hidden="true" tabindex="-1"><i class="bi bi-chevron-right"></i></button>
-</div>
+<ul class="nav nav-tabs mb-3" id="tier-tabs" role="tablist">
+  {% for tier_num, tier_name, rows in tiers %}
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {% if forloop.first %}active{% endif %}"
+            id="tier-{{ tier_num }}-tab"
+            data-bs-toggle="tab"
+            data-bs-target="#tier-{{ tier_num }}-pane"
+            type="button" role="tab"
+            aria-controls="tier-{{ tier_num }}-pane"
+            aria-selected="{% if forloop.first %}true{% else %}false{% endif %}">
+      {{ tier_name }}
+    </button>
+  </li>
+  {% endfor %}
+</ul>
 
 <div class="tab-content" id="tier-tabs-content">
   {% for tier_num, tier_name, rows in tiers %}
@@ -96,9 +92,6 @@
     if (!activeVisible && firstVisibleTab) {
       bootstrap.Tab.getOrCreateInstance(firstVisibleTab).show();
     }
-
-    const navTabs = document.getElementById('tier-tabs');
-    if (navTabs) navTabs.dispatchEvent(new Event('tier-tabs-refresh'));
   }
 
   input.addEventListener('input', applyFilter);
