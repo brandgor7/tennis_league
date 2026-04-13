@@ -192,6 +192,31 @@
 
   <!-- Bootstrap 5 JS bundle (includes Popper) -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+  (function () {
+    function initTierScroll(wrapper) {
+      const list = wrapper.querySelector('.nav-tabs');
+      const btnLeft = wrapper.querySelector('.tier-scroll-left');
+      const btnRight = wrapper.querySelector('.tier-scroll-right');
+      if (!list || !btnLeft || !btnRight) return;
+
+      function update() {
+        const overflows = list.scrollWidth > list.clientWidth + 2;
+        btnLeft.classList.toggle('visible', overflows && list.scrollLeft > 2);
+        btnRight.classList.toggle('visible', overflows && list.scrollLeft < list.scrollWidth - list.clientWidth - 2);
+      }
+
+      btnLeft.addEventListener('click', () => list.scrollBy({ left: -120, behavior: 'smooth' }));
+      btnRight.addEventListener('click', () => list.scrollBy({ left: 120, behavior: 'smooth' }));
+      list.addEventListener('scroll', update, { passive: true });
+      new ResizeObserver(update).observe(wrapper);
+      list.addEventListener('tier-tabs-refresh', update);
+      update();
+    }
+
+    document.querySelectorAll('.tier-tabs-wrapper').forEach(initTierScroll);
+  })();
+  </script>
   {% block extra_js %}{% endblock %}
 
 </body>
