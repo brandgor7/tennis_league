@@ -8,7 +8,9 @@ ALERT_FROM="alerts@__DOMAIN__"
 BREVO_API_KEY="__BREVO_API_KEY__"
 FLAG_FILE="/tmp/site_down.flag"
 
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$SITE_URL")
+# Check the /health/ endpoint — Django returns "ok"; nginx maintenance page does not.
+# Status code is always 200 (by design for Cloudflare), so we check the body instead.
+RESPONSE=$(curl -s --max-time 10 "$SITE_URL/health/")
 
 send_email() {
     local subject="$1"
@@ -24,12 +26,12 @@ send_email() {
         }"
 }
 
-if [[ "$HTTP_CODE" != "200" ]]; then
+if [[ "$RESPONSE" != "ok" ]]; then
     if [[ ! -f "$FLAG_FILE" ]]; then
         touch "$FLAG_FILE"
         send_email \
-            "ALERT: Site is down ($HTTP_CODE)" \
-            "$(date): $SITE_URL returned HTTP $HTTP_CODE (or timed out). Check nginx/gunicorn."
+            "ALERT: Site is down" \
+            "$(date): $SITE_URL/health/ did not return 'ok' (got: ${RESPONSE:0:200}). Check nginx/gunicorn."
     fi
 else
     if [[ -f "$FLAG_FILE" ]]; then
