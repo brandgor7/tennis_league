@@ -70,7 +70,7 @@ step_4() {
 step_5() {
     echo "==> Creating log directory..."
     sudo mkdir -p /var/log/tennis-scores
-    sudo chown ubuntu:ubuntu /var/log/tennis-scores
+    sudo chown ubuntu:www-data /var/log/tennis-scores
 
     echo "==> Installing logrotate config..."
     sudo cp "$APP_DIR/deploy/logrotate.conf" /etc/logrotate.d/tennis-scores
@@ -214,6 +214,26 @@ EOF
     sudo chmod +x /etc/cron.daily/backup-db
 }
 
+step_10() {
+    if [[ "${ENABLE_UPTIME,,}" != "y" ]]; then
+        echo "    Uptime monitoring not enabled — skipping."
+        return
+    fi
+
+    echo "==> Installing uptime monitoring cron..."
+    sed -e "s|__DOMAIN__|$DOMAIN|g" \
+        -e "s|__BREVO_API_KEY__|$BREVO_API_KEY|g" \
+        -e "s|__ALERT_TO__|$UPTIME_ALERT_TO|g" \
+        "$APP_DIR/deploy/check-uptime.sh" \
+        | sudo tee /usr/local/bin/check-uptime > /dev/null
+    sudo chmod +x /usr/local/bin/check-uptime
+
+    sudo tee /etc/cron.d/tennis-uptime > /dev/null <<EOF
+*/5 * * * * ubuntu /usr/local/bin/check-uptime >> /var/log/tennis-scores/uptime.log 2>&1
+EOF
+    sudo chmod 644 /etc/cron.d/tennis-uptime
+}
+
 run_step() {
     case "$1" in
         1) step_1 ;;
@@ -225,30 +245,10 @@ run_step() {
         7) step_7 ;;
         8) step_8 ;;
         9) step_9 ;;
+        10) step_10 ;;
         *) echo "Unknown step: $1"; exit 1 ;;
     esac
 }
-
-# ─── Gather inputs ────────────────────────────────────────────────────────────
-prompt DOMAIN          "Domain name pointing to this server (e.g. tennis.example.com)"
-prompt CERTBOT_EMAIL   "Email for Let's Encrypt certificate notifications"
-prompt REPO_URL        "GitHub repo URL (e.g. https://github.com/org/repo.git)"
-
-# SERVER_NAME is the domain used in nginx and ALLOWED_HOSTS
-SERVER_NAME="$DOMAIN"
-
-read -rp "Enable S3 database backups? [y/N]: " ENABLE_S3
-if [[ "${ENABLE_S3,,}" == "y" ]]; then
-    prompt S3_BUCKET "S3 bucket name (must be globally unique, e.g. tennis-league-backups)"
-fi
-
-echo
-echo "==> Domain      : $DOMAIN"
-echo "==> Cert email  : $CERTBOT_EMAIL"
-echo "==> Repo        : $REPO_URL"
-echo "==> App dir     : $APP_DIR"
-[[ "${ENABLE_S3,,}" == "y" ]] && echo "==> S3 bucket   : $S3_BUCKET"
-echo
 
 # ─── Step menu ────────────────────────────────────────────────────────────────
 echo "Steps:"
@@ -261,13 +261,67 @@ echo "  6  Initialise app (migrate + collectstatic)"
 echo "  7  Gunicorn systemd service"
 echo "  8  Nginx + TLS"
 echo "  9  S3 backup cron (optional)"
+echo "  10 Uptime monitoring cron (optional)"
 echo
-read -rp "Run which step? [1-9 or all, default: all]: " STEP_CHOICE
+read -rp "Run which step? [1-10 or all, default: all]: " STEP_CHOICE
 STEP_CHOICE="${STEP_CHOICE:-all}"
 echo
 
+# ─── Gather inputs (only what the selected step needs) ────────────────────────
+case "$STEP_CHOICE" in
+    2)
+        prompt REPO_URL "GitHub repo URL (e.g. https://github.com/org/repo.git)"
+        ;;
+    4)
+        prompt DOMAIN "Domain name pointing to this server (e.g. tennis.example.com)"
+        SERVER_NAME="$DOMAIN"
+        ;;
+    8)
+        prompt DOMAIN "Domain name pointing to this server (e.g. tennis.example.com)"
+        prompt CERTBOT_EMAIL "Email for Let's Encrypt certificate notifications"
+        SERVER_NAME="$DOMAIN"
+        ;;
+    9)
+        read -rp "Enable S3 database backups? [y/N]: " ENABLE_S3
+        if [[ "${ENABLE_S3,,}" == "y" ]]; then
+            prompt S3_BUCKET "S3 bucket name (must be globally unique, e.g. tennis-league-backups)"
+        fi
+        ;;
+    10)
+        read -rp "Enable uptime monitoring? [y/N]: " ENABLE_UPTIME
+        if [[ "${ENABLE_UPTIME,,}" == "y" ]]; then
+            prompt DOMAIN          "Domain name (e.g. tennis.example.com)"
+            prompt BREVO_API_KEY   "Brevo API key"
+            prompt UPTIME_ALERT_TO "Alert email address"
+        fi
+        ;;
+    all)
+        prompt DOMAIN          "Domain name pointing to this server (e.g. tennis.example.com)"
+        prompt CERTBOT_EMAIL   "Email for Let's Encrypt certificate notifications"
+        prompt REPO_URL        "GitHub repo URL (e.g. https://github.com/org/repo.git)"
+        SERVER_NAME="$DOMAIN"
+        read -rp "Enable S3 database backups? [y/N]: " ENABLE_S3
+        if [[ "${ENABLE_S3,,}" == "y" ]]; then
+            prompt S3_BUCKET "S3 bucket name (must be globally unique, e.g. tennis-league-backups)"
+        fi
+        read -rp "Enable uptime monitoring? [y/N]: " ENABLE_UPTIME
+        if [[ "${ENABLE_UPTIME,,}" == "y" ]]; then
+            prompt BREVO_API_KEY   "Brevo API key"
+            prompt UPTIME_ALERT_TO "Alert email address"
+        fi
+        echo
+        echo "==> Domain      : $DOMAIN"
+        echo "==> Cert email  : $CERTBOT_EMAIL"
+        echo "==> Repo        : $REPO_URL"
+        echo "==> App dir     : $APP_DIR"
+        [[ "${ENABLE_S3,,}" == "y" ]]     && echo "==> S3 bucket   : $S3_BUCKET"
+        [[ "${ENABLE_UPTIME,,}" == "y" ]] && echo "==> Alert email : $UPTIME_ALERT_TO"
+        echo
+        ;;
+esac
+
 if [[ "$STEP_CHOICE" == "all" ]]; then
-    for i in 1 2 3 4 5 6 7 8 9; do run_step "$i"; done
+    for i in 1 2 3 4 5 6 7 8 9 10; do run_step "$i"; done
 else
     run_step "$STEP_CHOICE"
 fi
