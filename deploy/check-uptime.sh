@@ -3,7 +3,7 @@
 # Cron: */5 * * * * /path/to/check-uptime.sh
 
 SITE_URL="https://__DOMAIN__"
-ALERT_TO="test@me.com"
+ALERT_TO="__ALERT_TO__"
 ALERT_FROM="alerts@__DOMAIN__"
 BREVO_API_KEY="__BREVO_API_KEY__"
 FLAG_FILE="/tmp/site_down.flag"
