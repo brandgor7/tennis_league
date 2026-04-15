@@ -31,7 +31,7 @@ if [[ "$RESPONSE" != "ok" ]]; then
         touch "$FLAG_FILE"
         send_email \
             "ALERT: Site is down" \
-            "$(date): $SITE_URL/health/ did not return 'ok' (got: ${RESPONSE:0:200}). Check nginx/gunicorn."
+            "$(date): $SITE_URL/health/ did not return 'ok'. Check nginx/gunicorn."
     fi
 else
     if [[ -f "$FLAG_FILE" ]]; then
