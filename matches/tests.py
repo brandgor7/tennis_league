@@ -1003,7 +1003,35 @@ class EnterResultViewPostTest(TestCase):
         self.client.login(username='staff', password='pass')
         self.client.post(self.url, {'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
         self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_COMPLETED)
+
+    def test_admin_submission_auto_confirms(self):
+        staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+        self.client.login(username='staff', password='pass')
+        self.client.post(self.url, {'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.confirmed_by, staff)
+        self.assertIsNotNone(self.match.played_date)
+
+    def test_admin_submission_sets_winner(self):
+        staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+        self.client.login(username='staff', password='pass')
+        self.client.post(self.url, {'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.winner, self.p1)
+
+    def test_admin_submission_sets_winner_p2(self):
+        staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+        self.client.login(username='staff', password='pass')
+        self.client.post(self.url, {'set1_p1': 3, 'set1_p2': 6, 'set2_p1': 4, 'set2_p2': 6})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.winner, self.p2)
+
+    def test_non_admin_submission_stays_pending(self):
+        self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.match.refresh_from_db()
         self.assertEqual(self.match.status, Match.STATUS_PENDING)
+        self.assertIsNone(self.match.confirmed_by)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1349,7 +1377,7 @@ class WalkoverViewPostTest(WalkoverViewSetupMixin, TestCase):
         self.assertEqual(self.match.entered_by, self.p1)
 
     def test_played_date_not_set_until_confirmed(self):
-        self._post()
+        self._post(user='p1')
         self.match.refresh_from_db()
         self.assertIsNone(self.match.played_date)
 
@@ -1365,7 +1393,24 @@ class WalkoverViewPostTest(WalkoverViewSetupMixin, TestCase):
     def test_staff_can_submit(self):
         self._post(user='staff')
         self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_WALKOVER)
+
+    def test_admin_walkover_auto_confirms(self):
+        self._post(user='staff')
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.confirmed_by, self.staff)
+        self.assertIsNotNone(self.match.played_date)
+
+    def test_admin_walkover_sets_winner(self):
+        self._post(winner=WalkoverForm.WINNER_P2, user='staff')
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.winner, self.p2)
+
+    def test_non_admin_walkover_stays_pending(self):
+        self._post(user='p1')
+        self.match.refresh_from_db()
         self.assertEqual(self.match.status, Match.STATUS_PENDING)
+        self.assertIsNone(self.match.confirmed_by)
 
     def test_invalid_form_rerenders(self):
         self.client.login(username='p1', password='pass')
@@ -1974,6 +2019,34 @@ class MatchAuditLogTest(TestCase):
             {'set1_p1': '', 'set1_p2': '', 'set1_tb_p1': '', 'set1_tb_p2': ''},
         )
         self.assertEqual(len(self._entries(match)), 0)
+
+    def test_admin_enter_result_logs_submission_and_auto_confirm(self):
+        staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+        match = self._match(status=Match.STATUS_SCHEDULED)
+        self.client.force_login(staff)
+        self.client.post(
+            reverse('matches:enter_result', args=[match.pk]),
+            {'set1_p1': '6', 'set1_p2': '3', 'set1_tb_p1': '', 'set1_tb_p2': ''},
+        )
+        entries = self._entries(match)
+        self.assertEqual(len(entries), 2)
+        messages = [e.change_message for e in entries]
+        self.assertTrue(any('Result submitted' in m for m in messages))
+        self.assertTrue(any('auto-confirmed' in m for m in messages))
+
+    def test_admin_walkover_logs_submission_and_auto_confirm(self):
+        staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+        match = self._match(status=Match.STATUS_SCHEDULED)
+        self.client.force_login(staff)
+        self.client.post(
+            reverse('matches:walkover', args=[match.pk]),
+            {'winner': 'player1', 'reason': ''},
+        )
+        entries = self._entries(match)
+        self.assertEqual(len(entries), 2)
+        messages = [e.change_message for e in entries]
+        self.assertTrue(any('Walkover submitted' in m for m in messages))
+        self.assertTrue(any('auto-confirmed' in m for m in messages))
 
     def test_confirm_result_logs_winner(self):
         match = self._match(status=Match.STATUS_PENDING, entered_by=self.p1)

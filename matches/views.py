@@ -189,6 +189,7 @@ class EnterResultView(LoginRequiredMixin, View):
 
             with transaction.atomic():
                 match.sets.all().delete()
+                sets_data = []
                 for i in range(1, form.max_sets + 1):
                     p1 = cleaned.get(f'set{i}_p1')
                     p2 = cleaned.get(f'set{i}_p2')
@@ -203,19 +204,27 @@ class EnterResultView(LoginRequiredMixin, View):
                         tiebreak_player1_points=None if is_super else cleaned.get(f'set{i}_tb_p1'),
                         tiebreak_player2_points=None if is_super else cleaned.get(f'set{i}_tb_p2'),
                     )
-                match.status = Match.STATUS_PENDING
+                    sets_data.append((p1, p2))
                 match.entered_by = request.user
+                if request.user.is_staff:
+                    p1_sets_won = sum(1 for p1, p2 in sets_data if p1 > p2)
+                    p2_sets_won = sum(1 for p1, p2 in sets_data if p2 > p1)
+                    match.winner = match.player1 if p1_sets_won > p2_sets_won else match.player2
+                    match.status = Match.STATUS_COMPLETED
+                    match.confirmed_by = request.user
+                    match.played_date = datetime.date.today()
+                else:
+                    match.status = Match.STATUS_PENDING
                 match.save()
 
-            set_scores = []
-            for i in range(1, form.max_sets + 1):
-                p1 = cleaned.get(f'set{i}_p1')
-                p2 = cleaned.get(f'set{i}_p2')
-                if p1 is None or p2 is None:
-                    break
-                set_scores.append(f'{p1}–{p2}')
+            set_scores = [f'{p1}–{p2}' for p1, p2 in sets_data]
             _audit_match(request.user, match, f'Result submitted: {", ".join(set_scores)}.')
-            messages.success(request, 'Score submitted — awaiting confirmation from your opponent.')
+            if request.user.is_staff:
+                winner_name = match.winner.get_full_name() or match.winner.username
+                _audit_match(request.user, match, f'Result auto-confirmed by admin. Winner: {winner_name}.')
+                messages.success(request, 'Result submitted and confirmed.')
+            else:
+                messages.success(request, 'Score submitted — awaiting confirmation from your opponent.')
             return redirect('matches:match_detail', pk=pk)
 
         return render(request, self.template_name, self._build_context(form, match))
@@ -337,18 +346,29 @@ class WalkoverView(LoginRequiredMixin, View):
         if form.is_valid():
             winner_choice = form.cleaned_data['winner']
             winner = match.player1 if winner_choice == WalkoverForm.WINNER_P1 else match.player2
-            match.status = Match.STATUS_PENDING
+            winner_name = winner.get_full_name() or winner.username
+            reason = form.cleaned_data['reason'].strip()
+            update_fields = ['status', 'winner', 'walkover_reason', 'entered_by']
             match.winner = winner
             match.walkover_reason = form.cleaned_data['reason']
             match.entered_by = request.user
-            match.save(update_fields=['status', 'winner', 'walkover_reason', 'entered_by'])
-            winner_name = winner.get_full_name() or winner.username
-            reason = form.cleaned_data['reason'].strip()
+            if request.user.is_staff:
+                match.status = Match.STATUS_WALKOVER
+                match.confirmed_by = request.user
+                match.played_date = datetime.date.today()
+                update_fields += ['confirmed_by', 'played_date']
+            else:
+                match.status = Match.STATUS_PENDING
+            match.save(update_fields=update_fields)
             msg = f'Walkover submitted. Winner: {winner_name}.'
             if reason:
                 msg += f' Reason: {reason}'
             _audit_match(request.user, match, msg)
-            messages.success(request, 'Walkover submitted — awaiting confirmation from the other player.')
+            if request.user.is_staff:
+                _audit_match(request.user, match, f'Walkover auto-confirmed by admin. Winner: {winner_name}.')
+                messages.success(request, 'Walkover submitted and confirmed.')
+            else:
+                messages.success(request, 'Walkover submitted — awaiting confirmation from the other player.')
             return redirect('matches:match_detail', pk=pk)
         return render(request, self.template_name, self._context(form, match))
 
