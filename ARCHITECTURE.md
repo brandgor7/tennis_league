@@ -263,6 +263,7 @@ Logo uploads are validated in the admin form: magic bytes are checked (PNG `\x89
 ### `accounts.User`
 ```
 AbstractUser fields: username, email, first_name, last_name, password, is_staff, is_active
+phone_number  CharField(20, blank)   Used to match WhatsApp message senders to player accounts
 ```
 
 ### `leagues.Season`
@@ -508,6 +509,39 @@ INSTALLED_APPS = [
 ```
 
 **Running tests:** `config/test_settings.py` overrides `DATABASES` with SQLite in-memory so the test suite runs without PostgreSQL. See `TESTS.md` for the full command reference.
+
+---
+
+## WhatsApp Group Score Import
+
+A management command reads recent messages from a WhatsApp group and imports any scores it finds.
+
+**Provider:** [Green API](https://green-api.com) — free tier (1 instance, no expiry). Connects a personal WhatsApp account via QR scan; provides a REST API for group message history. No Meta Business verification required. No new Python dependencies (uses stdlib `urllib`).
+
+**Command:**
+```bash
+python manage.py import_whatsapp_scores           # last 24h, live
+python manage.py import_whatsapp_scores --dry-run # parse only, no DB writes
+python manage.py import_whatsapp_scores --hours 48
+```
+
+**Flow:**
+1. Calls `POST /waInstance{id}/GetChatHistory/{token}` for the configured group
+2. Filters messages to the last N hours; skips non-text and outgoing messages
+3. For each message with ≥ 2 `NN-NN` patterns, tries to match the sender's phone to `User.phone_number`
+4. If exactly one scheduled match exists for that player in an active season, creates `MatchSet` records and advances the match to `pending_confirmation`
+5. The opponent then confirms via the normal web UI
+
+**Required settings (`.env`):**
+```
+GREEN_API_INSTANCE_ID=   # from green-api.com dashboard
+GREEN_API_TOKEN=         # from green-api.com dashboard
+WHATSAPP_GROUP_ID=       # format: 120363xxxxxxxxxx@g.us
+```
+
+Admin sets each player's `phone_number` on their User record. The WhatsApp sender ID (`447912345678@c.us`) is matched against `phone_number` stored as digits (with or without leading `+`).
+
+**Location:** `matches/management/commands/import_whatsapp_scores.py`
 
 ---
 
