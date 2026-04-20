@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'matches',
     'standings',
     'playoffs',
+    'whatsapp',
 ]
 
 MIDDLEWARE = [
@@ -139,9 +140,8 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Green API — WhatsApp group score import
-# Sign up free at https://green-api.com, scan QR with your WhatsApp.
-GREEN_API_INSTANCE_ID = env('GREEN_API_INSTANCE_ID', default='')
-GREEN_API_TOKEN = env('GREEN_API_TOKEN', default='')
-# Group chat ID — format: 120363xxxxxxxxxx@g.us
-WHATSAPP_GROUP_ID = env('WHATSAPP_GROUP_ID', default='')
+# WhatsApp Business Platform (Meta Cloud API)
+# WHATSAPP_VERIFY_TOKEN: any random string you choose; entered in the Meta webhook config UI
+# WHATSAPP_APP_SECRET:   from Meta App Dashboard → App Settings → Basic → App Secret
+WHATSAPP_VERIFY_TOKEN = env('WHATSAPP_VERIFY_TOKEN', default='')
+WHATSAPP_APP_SECRET = env('WHATSAPP_APP_SECRET', default='')

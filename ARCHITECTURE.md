@@ -514,34 +514,40 @@ INSTALLED_APPS = [
 
 ## WhatsApp Group Score Import
 
-A management command reads recent messages from a WhatsApp group and imports any scores it finds.
+A webhook receives real-time group messages from a WhatsApp Business number that has been added to the league group, and imports any scores it finds.
 
-**Provider:** [Green API](https://green-api.com) — free tier (1 instance, no expiry). Connects a personal WhatsApp account via QR scan; provides a REST API for group message history. No Meta Business verification required. No new Python dependencies (uses stdlib `urllib`).
-
-**Command:**
-```bash
-python manage.py import_whatsapp_scores           # last 24h, live
-python manage.py import_whatsapp_scores --dry-run # parse only, no DB writes
-python manage.py import_whatsapp_scores --hours 48
-```
+**Provider:** Meta WhatsApp Business Platform (Cloud API) — official, free at league scale (incoming messages are free; outgoing business-initiated conversations cost ~$0.01–0.03 each but are not used here). Requires Meta Business verification and a dedicated phone number registered with WhatsApp Business.
 
 **Flow:**
-1. Calls `POST /waInstance{id}/GetChatHistory/{token}` for the configured group
-2. Filters messages to the last N hours; skips non-text and outgoing messages
-3. For each message with ≥ 2 `NN-NN` patterns, tries to match the sender's phone to `User.phone_number`
-4. If exactly one scheduled match exists for that player in an active season, creates `MatchSet` records and advances the match to `pending_confirmation`
-5. The opponent then confirms via the normal web UI
+```
+Player posts score in WhatsApp group
+          │
+          ▼
+Meta Cloud API → POST /whatsapp/webhook/
+          │
+          ▼
+  Validate HMAC-SHA256 signature
+  Extract sender phone + message text
+  Parse NN-NN set score patterns (≥ 2 required)
+  Match sender phone → User.phone_number
+  Find user's single scheduled match in an active season
+  Create MatchSet records, advance match to pending_confirmation
+          │
+          ▼
+  Opponent confirms via normal web UI
+```
+
+**Webhook endpoint:** `POST /whatsapp/webhook/` — also handles the one-time `GET` verification handshake during Meta setup.
 
 **Required settings (`.env`):**
 ```
-GREEN_API_INSTANCE_ID=   # from green-api.com dashboard
-GREEN_API_TOKEN=         # from green-api.com dashboard
-WHATSAPP_GROUP_ID=       # format: 120363xxxxxxxxxx@g.us
+WHATSAPP_VERIFY_TOKEN=   # any random string you choose; entered in Meta webhook config UI
+WHATSAPP_APP_SECRET=     # Meta App Dashboard → App Settings → Basic → App Secret
 ```
 
-Admin sets each player's `phone_number` on their User record. The WhatsApp sender ID (`447912345678@c.us`) is matched against `phone_number` stored as digits (with or without leading `+`).
+Admin sets each player's `phone_number` on their User record. The sender's WhatsApp number (`447912345678`) is matched against `phone_number` stored as digits (with or without leading `+`).
 
-**Location:** `matches/management/commands/import_whatsapp_scores.py`
+**Location:** `whatsapp/views.py`
 
 ---
 

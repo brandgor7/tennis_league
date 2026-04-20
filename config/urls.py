@@ -13,4 +13,5 @@ urlpatterns = [
     path('', home, name='home'),
     path('', include('leagues.urls')),
     path('', include('matches.urls')),
+    path('whatsapp/', include('whatsapp.urls')),
 ]
