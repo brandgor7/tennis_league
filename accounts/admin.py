@@ -1,7 +1,8 @@
 from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from django.contrib.auth import get_user_model
+from django.http import JsonResponse
+from django.urls import path
 
 from .models import User
 
@@ -25,12 +26,11 @@ class PlayerAddForm(forms.ModelForm):
         widget=forms.PasswordInput,
         required=False,
     )
-    season = forms.Field(required=False)
     tier = forms.IntegerField(
         required=False,
         initial=1,
         min_value=1,
-        help_text='Tier within the selected season (defaults to 1).',
+        help_text='Select a season first to see named tiers.',
     )
 
     class Meta:
@@ -44,12 +44,7 @@ class PlayerAddForm(forms.ModelForm):
             queryset=Season.objects.all().order_by('-year', 'name'),
             required=False,
             help_text='Optionally enrol this player in a season.',
-        )
-        self.fields['tier'] = forms.IntegerField(
-            required=False,
-            initial=1,
-            min_value=1,
-            help_text='Tier within the selected season (defaults to 1).',
+            widget=forms.Select(attrs={'data-tiers-url': '../tiers-json/'}),
         )
 
     def clean(self):
@@ -74,6 +69,7 @@ class CustomUserAdmin(UserAdmin):
     search_fields = ('username', 'email', 'first_name', 'last_name')
 
     add_form = PlayerAddForm
+    add_form_template = None
     add_fieldsets = (
         ('Player Info', {
             'fields': ('first_name', 'last_name', 'username', 'email'),
@@ -85,6 +81,21 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('season', 'tier'),
         }),
     )
+
+    def get_urls(self):
+        return [
+            path('tiers-json/', self.admin_site.admin_view(self._tiers_json), name='accounts_user_tiers_json'),
+        ] + super().get_urls()
+
+    def _tiers_json(self, request):
+        from leagues.models import Tier
+        season_id = request.GET.get('season_id')
+        if not season_id:
+            return JsonResponse([], safe=False)
+        tiers = list(
+            Tier.objects.filter(season_id=season_id).order_by('number').values('number', 'name')
+        )
+        return JsonResponse(tiers, safe=False)
 
     def save_model(self, request, obj, form, change):
         if change:
