@@ -1505,7 +1505,6 @@ class CopyPlayersViewTest(TestCase):
         self.assertContains(resp, f'value="{self.target.pk}"')
 
     def test_player_in_nonexistent_tier_is_skipped(self):
-        from leagues.models import Tier
         Tier.objects.create(season=self.target, number=1, name='Premier')
         p = make_player('tier2player')
         enroll(self.source, p, tier=2)
@@ -1513,7 +1512,6 @@ class CopyPlayersViewTest(TestCase):
         self.assertFalse(SeasonPlayer.objects.filter(season=self.target, player=p).exists())
 
     def test_player_in_valid_tier_is_copied_when_tiers_explicit(self):
-        from leagues.models import Tier
         Tier.objects.create(season=self.target, number=1, name='Premier')
         p = make_player('tier1player')
         enroll(self.source, p, tier=1)
@@ -1521,7 +1519,6 @@ class CopyPlayersViewTest(TestCase):
         self.assertTrue(SeasonPlayer.objects.filter(season=self.target, player=p, tier=1).exists())
 
     def test_tier_skipped_count_in_success_message(self):
-        from leagues.models import Tier
         Tier.objects.create(season=self.target, number=1, name='Premier')
         p1 = make_player('t1')
         p2 = make_player('t2')
