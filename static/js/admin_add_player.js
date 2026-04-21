@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (lastName) lastName.addEventListener('input', autoUsername);
     if (username) {
         username.addEventListener('input', function () {
+            // Stop auto-fill once user types; resume if they clear the field entirely.
             usernameEdited = username.value.length > 0;
         });
     }
@@ -44,7 +45,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- Tier select: populate from season ---
 
     const tierRow = document.querySelector('.field-tier');
-    const tierInput = document.getElementById('id_tier');
 
     function buildTierSelect(tiers) {
         const sel = document.createElement('select');

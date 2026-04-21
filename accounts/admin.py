@@ -4,6 +4,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.http import JsonResponse
 from django.urls import path
 
+from leagues.models import Season, SeasonPlayer, Tier
 from .models import User
 
 
@@ -26,6 +27,12 @@ class PlayerAddForm(forms.ModelForm):
         widget=forms.PasswordInput,
         required=False,
     )
+    season = forms.ModelChoiceField(
+        queryset=Season.objects.none(),
+        required=False,
+        help_text='Optionally enrol this player in a season.',
+        widget=forms.Select(attrs={'data-tiers-url': '/admin/accounts/user/tiers-json/'}),
+    )
     tier = forms.IntegerField(
         required=False,
         initial=1,
@@ -39,13 +46,7 @@ class PlayerAddForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from leagues.models import Season
-        self.fields['season'] = forms.ModelChoiceField(
-            queryset=Season.objects.all().order_by('-year', 'name'),
-            required=False,
-            help_text='Optionally enrol this player in a season.',
-            widget=forms.Select(attrs={'data-tiers-url': '../tiers-json/'}),
-        )
+        self.fields['season'].queryset = Season.objects.all().order_by('-year', 'name')
 
     def clean(self):
         cleaned = super().clean()
@@ -56,6 +57,12 @@ class PlayerAddForm(forms.ModelForm):
                 self.add_error('password1', 'Enter a password.')
             elif p1 != p2:
                 self.add_error('password2', 'Passwords do not match.')
+        season = cleaned.get('season')
+        if season:
+            tier = cleaned.get('tier') or 1
+            max_tier = Tier.objects.filter(season=season).count() or 1
+            if tier > max_tier:
+                self.add_error('tier', f'Season "{season}" only has {max_tier} tier(s).')
         return cleaned
 
     class Media:
@@ -69,6 +76,7 @@ class CustomUserAdmin(UserAdmin):
     search_fields = ('username', 'email', 'first_name', 'last_name')
 
     add_form = PlayerAddForm
+    # Override UserAdmin's two-step add template; our form handles everything in one step.
     add_form_template = None
     add_fieldsets = (
         ('Player Info', {
@@ -88,9 +96,12 @@ class CustomUserAdmin(UserAdmin):
         ] + super().get_urls()
 
     def _tiers_json(self, request):
-        from leagues.models import Tier
         season_id = request.GET.get('season_id')
         if not season_id:
+            return JsonResponse([], safe=False)
+        try:
+            season_id = int(season_id)
+        except (ValueError, TypeError):
             return JsonResponse([], safe=False)
         tiers = list(
             Tier.objects.filter(season_id=season_id).order_by('number').values('number', 'name')
@@ -110,7 +121,6 @@ class CustomUserAdmin(UserAdmin):
 
         season = form.cleaned_data.get('season')
         if season:
-            from leagues.models import SeasonPlayer
             tier = form.cleaned_data.get('tier') or 1
             SeasonPlayer.objects.get_or_create(
                 season=season, player=obj, defaults={'tier': tier}
