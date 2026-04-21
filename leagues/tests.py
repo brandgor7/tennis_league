@@ -500,6 +500,19 @@ class SeasonPlayerDetailViewTest(TestCase):
         response = self.client.get(self.url)
         self.assertTemplateUsed(response, 'leagues/player_detail.html')
 
+    def test_email_not_exposed_on_public_page(self):
+        self.player.email = 'alice@private.com'
+        self.player.save()
+        response = self.client.get(self.url)
+        self.assertNotContains(response, 'alice@private.com')
+
+    def test_email_not_exposed_on_public_page_when_unauthenticated(self):
+        self.player.email = 'alice@private.com'
+        self.player.save()
+        self.client.logout()
+        response = self.client.get(self.url)
+        self.assertNotContains(response, 'alice@private.com')
+
     def test_season_in_context(self):
         response = self.client.get(self.url)
         self.assertEqual(response.context['season'], self.season)

@@ -7,6 +7,7 @@
   <h1>My Profile</h1>
   <p class="page-meta">
     {{ user.get_full_name|default:user.username }}
+    {% if user.email %}&nbsp;·&nbsp; <span class="text-muted">{{ user.email }}</span>{% endif %}
     &nbsp;·&nbsp;
     <span class="text-clay">{{ wins }}W</span>
     &nbsp;/&nbsp;
