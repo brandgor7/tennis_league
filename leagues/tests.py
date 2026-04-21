@@ -1414,3 +1414,127 @@ class SiteBrandingTagTest(TestCase):
         get_site_config()
         get_site_config()
         self.assertEqual(SiteConfig.objects.count(), 1)
+
+
+# ─── Copy players admin view ──────────────────────────────────────────────────
+
+class CopyPlayersViewTest(TestCase):
+    def setUp(self):
+        self.superuser = User.objects.create_superuser('admin', password='password')
+        self.client.force_login(self.superuser)
+        self.source = make_season(name='Winter 2024', year=2024, status=Season.STATUS_COMPLETED)
+        self.target = make_season(name='Spring 2025', year=2025, status=Season.STATUS_UPCOMING)
+        self.url = reverse('admin:leagues_season_copy_players', args=[self.target.pk])
+
+    def _post(self, source_id=None):
+        return self.client.post(self.url, {'source_season': source_id or self.source.pk}, follow=True)
+
+    def test_get_renders_form(self):
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Copy Players')
+        self.assertContains(resp, str(self.source))
+
+    def test_copies_active_players(self):
+        Tier.objects.create(season=self.target, number=1, name='Tier 1')
+        Tier.objects.create(season=self.target, number=2, name='Tier 2')
+        p1 = make_player('alice')
+        p2 = make_player('bob')
+        enroll(self.source, p1, tier=1)
+        enroll(self.source, p2, tier=2)
+        self._post()
+        self.assertTrue(SeasonPlayer.objects.filter(season=self.target, player=p1, tier=1).exists())
+        self.assertTrue(SeasonPlayer.objects.filter(season=self.target, player=p2, tier=2).exists())
+
+    def test_skips_inactive_players(self):
+        p = make_player('inactive')
+        enroll(self.source, p, tier=1, is_active=False)
+        self._post()
+        self.assertFalse(SeasonPlayer.objects.filter(season=self.target, player=p).exists())
+
+    def test_skips_already_enrolled_players(self):
+        p = make_player('existing')
+        enroll(self.source, p, tier=1)
+        enroll(self.target, p, tier=2)
+        self._post()
+        sp = SeasonPlayer.objects.get(season=self.target, player=p)
+        self.assertEqual(sp.tier, 2)
+
+    def test_redirects_to_change_view_on_success(self):
+        resp = self.client.post(self.url, {'source_season': self.source.pk})
+        self.assertRedirects(resp, reverse('admin:leagues_season_change', args=[self.target.pk]))
+
+    def test_invalid_source_shows_error(self):
+        resp = self.client.post(self.url, {'source_season': ''})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Please select a valid season.')
+
+    def test_requires_authentication(self):
+        self.client.logout()
+        resp = self.client.get(self.url)
+        self.assertNotEqual(resp.status_code, 200)
+
+    def test_copy_players_url_in_change_view(self):
+        resp = self.client.get(reverse('admin:leagues_season_change', args=[self.target.pk]))
+        self.assertContains(resp, 'Copy Players from Season')
+
+    def test_nonexistent_source_pk_shows_error(self):
+        resp = self.client.post(self.url, {'source_season': 99999})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Please select a valid season.')
+
+    def test_source_season_with_no_active_players_redirects(self):
+        resp = self.client.post(self.url, {'source_season': self.source.pk})
+        self.assertRedirects(resp, reverse('admin:leagues_season_change', args=[self.target.pk]))
+
+    def test_success_message_counts(self):
+        p1 = make_player('msg1')
+        p2 = make_player('msg2')
+        p3 = make_player('msg3')
+        enroll(self.source, p1, tier=1)
+        enroll(self.source, p2, tier=1)
+        enroll(self.target, p3, tier=1)
+        enroll(self.source, p3, tier=1)
+        resp = self._post()
+        self.assertContains(resp, '2 added')
+        self.assertContains(resp, '1 already enrolled')
+
+    def test_source_season_excluded_from_own_dropdown(self):
+        resp = self.client.get(reverse('admin:leagues_season_copy_players', args=[self.source.pk]))
+        self.assertNotContains(resp, f'value="{self.source.pk}"')
+        self.assertContains(resp, f'value="{self.target.pk}"')
+
+    def test_player_in_nonexistent_tier_is_skipped(self):
+        Tier.objects.create(season=self.target, number=1, name='Premier')
+        p = make_player('tier2player')
+        enroll(self.source, p, tier=2)
+        self._post()
+        self.assertFalse(SeasonPlayer.objects.filter(season=self.target, player=p).exists())
+
+    def test_player_in_valid_tier_is_copied_when_tiers_explicit(self):
+        Tier.objects.create(season=self.target, number=1, name='Premier')
+        p = make_player('tier1player')
+        enroll(self.source, p, tier=1)
+        self._post()
+        self.assertTrue(SeasonPlayer.objects.filter(season=self.target, player=p, tier=1).exists())
+
+    def test_tier_skipped_count_in_success_message(self):
+        Tier.objects.create(season=self.target, number=1, name='Premier')
+        p1 = make_player('t1')
+        p2 = make_player('t2')
+        enroll(self.source, p1, tier=1)
+        enroll(self.source, p2, tier=2)
+        resp = self._post()
+        self.assertContains(resp, '1 skipped (tier not in this season)')
+
+    def test_no_explicit_tiers_treats_tier_1_as_valid(self):
+        p = make_player('notierobj')
+        enroll(self.source, p, tier=1)
+        self._post()
+        self.assertTrue(SeasonPlayer.objects.filter(season=self.target, player=p, tier=1).exists())
+
+    def test_no_explicit_tiers_skips_tier_2(self):
+        p = make_player('notierobj2')
+        enroll(self.source, p, tier=2)
+        self._post()
+        self.assertFalse(SeasonPlayer.objects.filter(season=self.target, player=p).exists())

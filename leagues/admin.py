@@ -69,6 +69,11 @@ class SeasonAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.import_players_view),
                 name='leagues_season_import_players',
             ),
+            path(
+                '<int:season_id>/copy-players/',
+                self.admin_site.admin_view(self.copy_players_view),
+                name='leagues_season_copy_players',
+            ),
         ]
         return custom + urls
 
@@ -88,6 +93,9 @@ class SeasonAdmin(admin.ModelAdmin):
         )
         extra_context['import_players_url'] = reverse(
             'admin:leagues_season_import_players', args=[object_id]
+        )
+        extra_context['copy_players_url'] = reverse(
+            'admin:leagues_season_copy_players', args=[object_id]
         )
         return super().change_view(request, object_id, form_url, extra_context)
 
@@ -253,6 +261,56 @@ class SeasonAdmin(admin.ModelAdmin):
             'title': f'Import Players — {season.name}',
         }
         return render(request, 'leagues/import_players.html', context)
+
+    def copy_players_view(self, request, season_id):
+        season = get_object_or_404(Season, pk=season_id)
+        error = None
+
+        if request.method == 'POST':
+            source_id = request.POST.get('source_season')
+            try:
+                source_season = Season.objects.get(pk=source_id)
+            except (Season.DoesNotExist, ValueError, TypeError):
+                error = 'Please select a valid season.'
+            else:
+                valid_tiers = {t.number for t in season.tiers.all()} or {1}
+                source_players = SeasonPlayer.objects.filter(
+                    season=source_season, is_active=True
+                ).select_related('player')
+                added = skipped = tier_skipped = 0
+                with transaction.atomic():
+                    for sp in source_players:
+                        if sp.tier not in valid_tiers:
+                            tier_skipped += 1
+                            continue
+                        _, created = SeasonPlayer.objects.get_or_create(
+                            season=season,
+                            player=sp.player,
+                            defaults={'tier': sp.tier},
+                        )
+                        if created:
+                            added += 1
+                        else:
+                            skipped += 1
+
+                parts = [f'{added} added', f'{skipped} already enrolled']
+                if tier_skipped:
+                    parts.append(f'{tier_skipped} skipped (tier not in this season)')
+                messages.success(request, f'Copy complete: {", ".join(parts)}.')
+                return HttpResponseRedirect(
+                    reverse('admin:leagues_season_change', args=[season_id])
+                )
+
+        other_seasons = Season.objects.exclude(pk=season_id).order_by('-year', 'name')
+        context = {
+            **self.admin_site.each_context(request),
+            'season': season,
+            'other_seasons': other_seasons,
+            'error': error,
+            'back_url': reverse('admin:leagues_season_change', args=[season_id]),
+            'title': f'Copy Players — {season.name}',
+        }
+        return render(request, 'leagues/copy_players_from_season.html', context)
 
     def generate_playoffs_view(self, request, season_id, tier):
         season = get_object_or_404(Season, pk=season_id)
