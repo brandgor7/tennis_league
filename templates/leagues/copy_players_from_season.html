@@ -12,7 +12,7 @@
   <div class="alert alert-warning">
     No other seasons exist to copy players from.
   </div>
-  <p style="margin-top: 1rem;"><a href="../">&lsaquo; Back to season</a></p>
+  <p style="margin-top: 1rem;"><a href="{{ back_url }}">&lsaquo; Back to season</a></p>
 
   {% else %}
 
@@ -37,7 +37,7 @@
       </select>
     </div>
     <button type="submit" class="button default">Copy Players</button>
-    <a href="../" class="button cancel-link" style="margin-left: 0.75rem;">Cancel</a>
+    <a href="{{ back_url }}" class="button cancel-link" style="margin-left: 0.75rem;">Cancel</a>
   </form>
 
   {% endif %}

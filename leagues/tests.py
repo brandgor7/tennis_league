@@ -1475,3 +1475,29 @@ class CopyPlayersViewTest(TestCase):
     def test_copy_players_url_in_change_view(self):
         resp = self.client.get(reverse('admin:leagues_season_change', args=[self.target.pk]))
         self.assertContains(resp, 'Copy Players from Season')
+
+    def test_nonexistent_source_pk_shows_error(self):
+        resp = self.client.post(self.url, {'source_season': 99999})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Please select a valid season.')
+
+    def test_source_season_with_no_active_players_redirects(self):
+        resp = self.client.post(self.url, {'source_season': self.source.pk})
+        self.assertRedirects(resp, reverse('admin:leagues_season_change', args=[self.target.pk]))
+
+    def test_success_message_counts(self):
+        p1 = make_player('msg1')
+        p2 = make_player('msg2')
+        p3 = make_player('msg3')
+        enroll(self.source, p1, tier=1)
+        enroll(self.source, p2, tier=1)
+        enroll(self.target, p3, tier=1)
+        enroll(self.source, p3, tier=1)
+        resp = self._post()
+        self.assertContains(resp, '2 added')
+        self.assertContains(resp, '1 already enrolled')
+
+    def test_source_season_excluded_from_own_dropdown(self):
+        resp = self.client.get(reverse('admin:leagues_season_copy_players', args=[self.source.pk]))
+        self.assertNotContains(resp, f'value="{self.source.pk}"')
+        self.assertContains(resp, f'value="{self.target.pk}"')

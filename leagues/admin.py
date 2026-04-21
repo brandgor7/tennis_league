@@ -264,9 +264,7 @@ class SeasonAdmin(admin.ModelAdmin):
 
     def copy_players_view(self, request, season_id):
         season = get_object_or_404(Season, pk=season_id)
-        other_seasons = Season.objects.exclude(pk=season_id).order_by('-year', 'name')
         error = None
-        results = None
 
         if request.method == 'POST':
             source_id = request.POST.get('source_season')
@@ -278,7 +276,7 @@ class SeasonAdmin(admin.ModelAdmin):
                 source_players = SeasonPlayer.objects.filter(
                     season=source_season, is_active=True
                 ).select_related('player')
-                results = {'created': [], 'skipped': []}
+                added = skipped = 0
                 with transaction.atomic():
                     for sp in source_players:
                         _, created = SeasonPlayer.objects.get_or_create(
@@ -286,27 +284,26 @@ class SeasonAdmin(admin.ModelAdmin):
                             player=sp.player,
                             defaults={'tier': sp.tier},
                         )
-                        name = sp.player.get_full_name() or sp.player.username
                         if created:
-                            results['created'].append(f'{name} (Tier {sp.tier})')
+                            added += 1
                         else:
-                            results['skipped'].append(name)
+                            skipped += 1
 
                 messages.success(
                     request,
-                    f'Copy complete: {len(results["created"])} added, '
-                    f'{len(results["skipped"])} already enrolled.',
+                    f'Copy complete: {added} added, {skipped} already enrolled.',
                 )
                 return HttpResponseRedirect(
                     reverse('admin:leagues_season_change', args=[season_id])
                 )
 
+        other_seasons = Season.objects.exclude(pk=season_id).order_by('-year', 'name')
         context = {
             **self.admin_site.each_context(request),
             'season': season,
             'other_seasons': other_seasons,
             'error': error,
-            'results': results,
+            'back_url': reverse('admin:leagues_season_change', args=[season_id]),
             'title': f'Copy Players — {season.name}',
         }
         return render(request, 'leagues/copy_players_from_season.html', context)
