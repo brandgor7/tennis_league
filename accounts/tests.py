@@ -301,3 +301,17 @@ class ProfileViewTest(TestCase):
         self.client.login(username='me', password='testpass123')
         response = self.client.get(self.url)
         self.assertContains(response, 'No completed matches yet')
+
+    # ── Email visibility ──────────────────────────────────────────
+
+    def test_email_shown_on_authenticated_profile(self):
+        self.user.email = 'me@example.com'
+        self.user.save()
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertContains(response, 'me@example.com')
+
+    def test_email_not_shown_when_not_set(self):
+        self.client.login(username='me', password='testpass123')
+        response = self.client.get(self.url)
+        self.assertNotContains(response, 'me@example.com')
