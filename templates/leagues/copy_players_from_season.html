@@ -1,0 +1,45 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div style="max-width: 640px;">
+  <h1>{{ title }}</h1>
+
+  {% if error %}
+  <div class="alert alert-error" style="margin-bottom: 1rem;">{{ error }}</div>
+  {% endif %}
+
+  {% if not other_seasons %}
+  <div class="alert alert-warning">
+    No other seasons exist to copy players from.
+  </div>
+  <p style="margin-top: 1rem;"><a href="../">&lsaquo; Back to season</a></p>
+
+  {% else %}
+
+  <p>
+    Select a season to copy all active players from into
+    <strong>{{ season }}</strong>.
+    Players already enrolled in this season will be skipped.
+  </p>
+
+  <form method="post" style="margin-top: 1.5rem;">
+    {% csrf_token %}
+    <div style="margin-bottom: 1.5rem;">
+      <label for="id_source_season" style="display: block; font-weight: bold; margin-bottom: 0.25rem;">
+        Copy players from
+      </label>
+      <select id="id_source_season" name="source_season"
+              style="padding: 0.4rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; min-width: 240px;">
+        <option value="">— select a season —</option>
+        {% for s in other_seasons %}
+        <option value="{{ s.pk }}">{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="button default">Copy Players</button>
+    <a href="../" class="button cancel-link" style="margin-left: 0.75rem;">Cancel</a>
+  </form>
+
+  {% endif %}
+</div>
+{% endblock %}

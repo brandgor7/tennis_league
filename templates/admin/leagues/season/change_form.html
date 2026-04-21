@@ -12,6 +12,11 @@
     <a href="{{ import_players_url }}" class="historylink">Import Players</a>
   </li>
   {% endif %}
+  {% if copy_players_url %}
+  <li>
+    <a href="{{ copy_players_url }}" class="historylink">Copy Players from Season</a>
+  </li>
+  {% endif %}
   {% for item in generate_playoff_urls %}
   <li>
     <a href="{{ item.url }}" class="historylink">
