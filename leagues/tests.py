@@ -1436,6 +1436,8 @@ class CopyPlayersViewTest(TestCase):
         self.assertContains(resp, str(self.source))
 
     def test_copies_active_players(self):
+        Tier.objects.create(season=self.target, number=1, name='Tier 1')
+        Tier.objects.create(season=self.target, number=2, name='Tier 2')
         p1 = make_player('alice')
         p2 = make_player('bob')
         enroll(self.source, p1, tier=1)
@@ -1501,3 +1503,41 @@ class CopyPlayersViewTest(TestCase):
         resp = self.client.get(reverse('admin:leagues_season_copy_players', args=[self.source.pk]))
         self.assertNotContains(resp, f'value="{self.source.pk}"')
         self.assertContains(resp, f'value="{self.target.pk}"')
+
+    def test_player_in_nonexistent_tier_is_skipped(self):
+        from leagues.models import Tier
+        Tier.objects.create(season=self.target, number=1, name='Premier')
+        p = make_player('tier2player')
+        enroll(self.source, p, tier=2)
+        self._post()
+        self.assertFalse(SeasonPlayer.objects.filter(season=self.target, player=p).exists())
+
+    def test_player_in_valid_tier_is_copied_when_tiers_explicit(self):
+        from leagues.models import Tier
+        Tier.objects.create(season=self.target, number=1, name='Premier')
+        p = make_player('tier1player')
+        enroll(self.source, p, tier=1)
+        self._post()
+        self.assertTrue(SeasonPlayer.objects.filter(season=self.target, player=p, tier=1).exists())
+
+    def test_tier_skipped_count_in_success_message(self):
+        from leagues.models import Tier
+        Tier.objects.create(season=self.target, number=1, name='Premier')
+        p1 = make_player('t1')
+        p2 = make_player('t2')
+        enroll(self.source, p1, tier=1)
+        enroll(self.source, p2, tier=2)
+        resp = self._post()
+        self.assertContains(resp, '1 skipped (tier not in this season)')
+
+    def test_no_explicit_tiers_treats_tier_1_as_valid(self):
+        p = make_player('notierobj')
+        enroll(self.source, p, tier=1)
+        self._post()
+        self.assertTrue(SeasonPlayer.objects.filter(season=self.target, player=p, tier=1).exists())
+
+    def test_no_explicit_tiers_skips_tier_2(self):
+        p = make_player('notierobj2')
+        enroll(self.source, p, tier=2)
+        self._post()
+        self.assertFalse(SeasonPlayer.objects.filter(season=self.target, player=p).exists())

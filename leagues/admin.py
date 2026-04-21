@@ -273,12 +273,16 @@ class SeasonAdmin(admin.ModelAdmin):
             except (Season.DoesNotExist, ValueError, TypeError):
                 error = 'Please select a valid season.'
             else:
+                valid_tiers = {t.number for t in season.tiers.all()} or {1}
                 source_players = SeasonPlayer.objects.filter(
                     season=source_season, is_active=True
                 ).select_related('player')
-                added = skipped = 0
+                added = skipped = tier_skipped = 0
                 with transaction.atomic():
                     for sp in source_players:
+                        if sp.tier not in valid_tiers:
+                            tier_skipped += 1
+                            continue
                         _, created = SeasonPlayer.objects.get_or_create(
                             season=season,
                             player=sp.player,
@@ -289,10 +293,10 @@ class SeasonAdmin(admin.ModelAdmin):
                         else:
                             skipped += 1
 
-                messages.success(
-                    request,
-                    f'Copy complete: {added} added, {skipped} already enrolled.',
-                )
+                parts = [f'{added} added', f'{skipped} already enrolled']
+                if tier_skipped:
+                    parts.append(f'{tier_skipped} skipped (tier not in this season)')
+                messages.success(request, f'Copy complete: {", ".join(parts)}.')
                 return HttpResponseRedirect(
                     reverse('admin:leagues_season_change', args=[season_id])
                 )
