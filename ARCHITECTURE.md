@@ -288,11 +288,20 @@ playoffs_enabled          BooleanField    default True; controls visibility of t
 created_at                DateTimeField
 ```
 
+### `leagues.Tier`
+```
+season    FK → Season (related_name='tiers')
+number    IntegerField    1-indexed ordering within the season
+name      CharField(50)   Display name, e.g. "Premier", "Division 1"
+UNIQUE: (season, number)
+ORDER BY: number
+```
+
 ### `leagues.SeasonPlayer`
 ```
 season    FK → Season
 player    FK → User
-tier      IntegerField              1-indexed tier number for this player in this season (default 1)
+tier      IntegerField              1-indexed tier number; matches Tier.number for the same season
 seed      IntegerField (nullable)   initial seeding for playoffs within their tier
 is_active BooleanField
 joined_at DateTimeField
