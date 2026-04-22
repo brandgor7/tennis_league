@@ -8,6 +8,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Count
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
@@ -101,22 +102,32 @@ class SeasonAdmin(admin.ModelAdmin):
 
     def generate_schedule_view(self, request, season_id):
         from matches.models import Match
-        from matches.scheduler import generate_schedule
+        from matches.scheduler import generate_schedule, remaining_rounds_count
 
         season = get_object_or_404(Season.objects.prefetch_related('tiers'), pk=season_id)
-        has_matches = Match.objects.filter(season=season, round=Match.ROUND_REGULAR).exists()
+        tier_range = range(1, season.num_tiers + 1)
 
         tier_info = []
-        for tier in range(1, season.num_tiers + 1):
+        for tier in tier_range:
             count = SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True).count()
             max_rounds = count - 1 + count % 2  # N-1 for even N, N for odd N
-            tier_info.append({'tier_name': season.tier_name(tier), 'player_count': count, 'max_rounds': max_rounds})
+            remaining = remaining_rounds_count(season, tier)
+            tier_info.append({
+                'tier_name': season.tier_name(tier),
+                'player_count': count,
+                'max_rounds': max_rounds,
+                'remaining_rounds': remaining,
+            })
+
+        all_exhausted = all(row['remaining_rounds'] == 0 for row in tier_info)
+
+        schedule_analysis = self._build_schedule_analysis(season, tier_range)
 
         error = None
         start_date_val = ''
         num_rounds_val = ''
 
-        if request.method == 'POST' and not has_matches:
+        if request.method == 'POST':
             start_date_val = request.POST.get('start_date', '')
             num_rounds_val = request.POST.get('num_rounds', '')
             start_date = None
@@ -135,29 +146,117 @@ class SeasonAdmin(admin.ModelAdmin):
                     error = 'Number of rounds must be a positive integer.'
 
             if not error:
-                try:
-                    matches = generate_schedule(season, start_date, num_rounds)
+                matches = generate_schedule(season, start_date, num_rounds)
+                if matches:
                     messages.success(
                         request,
                         f'{len(matches)} match{"es" if len(matches) != 1 else ""} scheduled for {season}.',
                     )
-                    return HttpResponseRedirect(
-                        reverse('admin:leagues_season_change', args=[season_id])
-                    )
-                except ValueError as e:
-                    error = str(e)
+                else:
+                    messages.warning(request, 'No new matches were scheduled — all rounds are already booked.')
+                return HttpResponseRedirect(
+                    reverse('admin:leagues_season_change', args=[season_id])
+                )
 
         context = {
             **self.admin_site.each_context(request),
             'season': season,
-            'has_matches': has_matches,
             'tier_info': tier_info,
+            'all_exhausted': all_exhausted,
+            'schedule_analysis': schedule_analysis,
             'error': error,
             'start_date_val': start_date_val,
             'num_rounds_val': num_rounds_val,
-            'title': f'Generate Schedule — {season.name}',
+            'title': f'Analyze / Generate Schedule — {season.name}',
         }
         return render(request, 'leagues/generate_schedule.html', context)
+
+    def _build_schedule_analysis(self, season, tier_range):
+        from matches.models import Match
+
+        date_tier_qs = (
+            Match.objects.filter(season=season, round=Match.ROUND_REGULAR)
+            .exclude(scheduled_date=None)
+            .values('scheduled_date', 'tier')
+            .annotate(count=Count('id'))
+            .order_by('scheduled_date', 'tier')
+        )
+
+        date_tier_map = {}
+        for row in date_tier_qs:
+            d = row['scheduled_date']
+            t = row['tier']
+            date_tier_map.setdefault(d, {})[t] = row['count']
+
+        if not date_tier_map:
+            return None
+
+        tier_names = [season.tier_name(t) for t in tier_range]
+        multi_tier = len(tier_names) > 1
+
+        date_rows = []
+        for d in sorted(date_tier_map.keys()):
+            tier_counts = [date_tier_map[d].get(t, 0) for t in tier_range]
+            date_rows.append({
+                'date': d,
+                'tier_counts': tier_counts,
+                'total': sum(tier_counts),
+            })
+
+        totals = [sum(row['tier_counts'][i] for row in date_rows) for i in range(len(tier_names))]
+        grand_total = sum(totals)
+
+        behind_by_tier = []
+        for tier in tier_range:
+            tier_players = list(
+                SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True)
+                .select_related('player')
+            )
+            if not tier_players:
+                continue
+
+            match_pairs = list(
+                Match.objects.filter(season=season, tier=tier, round=Match.ROUND_REGULAR)
+                .values_list('player1_id', 'player2_id')
+            )
+            count_map = {sp.player_id: 0 for sp in tier_players}
+            for p1_id, p2_id in match_pairs:
+                if p1_id in count_map:
+                    count_map[p1_id] += 1
+                if p2_id in count_map:
+                    count_map[p2_id] += 1
+
+            max_count = max(count_map.values()) if count_map else 0
+            if max_count == 0:
+                continue
+
+            behind = sorted(
+                [
+                    {
+                        'player': sp.player,
+                        'count': count_map[sp.player_id],
+                        'deficit': max_count - count_map[sp.player_id],
+                    }
+                    for sp in tier_players
+                    if count_map[sp.player_id] < max_count
+                ],
+                key=lambda x: (x['count'], x['player'].get_full_name()),
+            )
+            if behind:
+                behind_by_tier.append({
+                    'tier_name': season.tier_name(tier),
+                    'max_count': max_count,
+                    'players': behind,
+                })
+
+        return {
+            'tier_names': tier_names,
+            'multi_tier': multi_tier,
+            'date_rows': date_rows,
+            'totals': totals,
+            'grand_total': grand_total,
+            'behind_by_tier': behind_by_tier,
+        }
 
     def import_players_view(self, request, season_id):
         season = get_object_or_404(Season, pk=season_id)

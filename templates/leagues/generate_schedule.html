@@ -1,68 +1,268 @@
 {% extends "admin/base_site.html" %}
 
+{% block title %}{{ title }} | {{ site_title|default:"Django site admin" }}{% endblock %}
+
 {% block content %}
-<div style="max-width: 640px;">
-  <h1>{{ title }}</h1>
+<style>
+  .sched-section { margin-bottom: 2.25rem; }
+  .sched-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+    margin: 0 0 0.65rem;
+  }
+  .sched-table {
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    width: 100%;
+  }
+  .sched-table thead tr {
+    background: #417690;
+    color: #fff;
+  }
+  .sched-table th {
+    padding: 0.6rem 1.1rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .sched-table th:first-child { text-align: left; }
+  .sched-table th:not(:first-child) { text-align: center; }
+  .sched-table td {
+    padding: 0.55rem 1.1rem;
+    border-bottom: 1px solid #ebebeb;
+  }
+  .sched-table td:first-child { font-weight: 500; white-space: nowrap; }
+  .sched-table td:not(:first-child) { text-align: center; }
+  .sched-table tbody tr:nth-child(even) { background: #f9f9f9; }
+  .sched-table tbody tr:nth-child(odd)  { background: #fff; }
+  .sched-table tfoot tr {
+    background: #eef2f5;
+    border-top: 2px solid #c8d4de;
+    font-weight: 700;
+  }
+  .sched-table .cell-zero { color: #bbb; }
 
-  {% if has_matches %}
-  <div class="alert alert-warning">
-    Regular-season matches already exist for this season.
-    Delete them from the admin before generating a new schedule.
-  </div>
-  <p style="margin-top: 1rem;"><a href="../">&lsaquo; Back to season</a></p>
+  .player-chip {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    background: #fff;
+    border: 1px solid #f0c040;
+    border-radius: 7px;
+    padding: 0.5rem 0.8rem;
+    min-width: 130px;
+  }
+  .player-chip-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    white-space: nowrap;
+  }
+  .player-chip-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .player-chip-count { font-size: 0.8rem; color: #666; }
+  .player-chip-deficit {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #c04800;
+    background: #fff0e2;
+    border-radius: 10px;
+    padding: 0.1rem 0.45rem;
+  }
+  .behind-block {
+    background: #fffcf0;
+    border: 1px solid #edd060;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.875rem;
+  }
+  .behind-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.8rem;
+  }
+  .behind-block-tier { font-weight: 700; font-size: 0.9rem; }
+  .behind-block-max {
+    font-size: 0.78rem;
+    color: #7a6500;
+    background: #f5de80;
+    border-radius: 12px;
+    padding: 0.2rem 0.65rem;
+  }
+  .behind-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+</style>
 
-  {% else %}
+<div style="max-width: 860px;">
 
   {% if error %}
-  <div class="alert alert-error" style="margin-bottom: 1rem;">{{ error }}</div>
+  <div class="errornote" style="margin-bottom: 1.25rem;">{{ error }}</div>
   {% endif %}
 
-  <table class="table table-sm" style="max-width: 400px; margin-bottom: 1.5rem;">
-    <thead>
-      <tr><th>Tier</th><th>Active players</th><th>Max rounds</th></tr>
-    </thead>
-    <tbody>
-      {% for row in tier_info %}
-      <tr>
-        <td>{{ row.tier_name }}</td>
-        <td>{{ row.player_count }}</td>
-        <td>{{ row.max_rounds }}</td>
-      </tr>
+  <!-- Tier Overview -->
+  <div class="sched-section" style="max-width: 520px;">
+    <p class="sched-label">Tier Overview</p>
+    <table class="sched-table">
+      <thead>
+        <tr>
+          <th>Tier</th>
+          <th>Players</th>
+          <th>Total Rounds</th>
+          <th>Remaining</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in tier_info %}
+        <tr>
+          <td>{{ row.tier_name }}</td>
+          <td>{{ row.player_count }}</td>
+          <td>{{ row.max_rounds }}</td>
+          <td>
+            {% if row.remaining_rounds == 0 %}
+            <span style="color:#aaa;font-size:0.8rem;font-style:italic;">complete</span>
+            {% else %}
+            <strong style="color:#2e7d32;">{{ row.remaining_rounds }}</strong>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p style="margin-top:0.65rem;font-size:0.82rem;color:#888;">
+      Schedule type: <strong style="color:#444;">{{ season.get_schedule_type_display }}</strong>
+    </p>
+  </div>
+
+  <!-- Generate Form -->
+  {% if all_exhausted %}
+  <div style="background:#f8f8e8;border:1px solid #ddd88a;border-radius:7px;padding:0.9rem 1.2rem;margin-bottom:1.75rem;color:#666600;font-size:0.9rem;">
+    All possible rounds have been scheduled. No further matches can be generated.
+  </div>
+  {% else %}
+  <div class="sched-section" style="background:#f4f7fa;border:1px solid #dce4ec;border-radius:8px;padding:1.4rem 1.5rem;max-width:420px;">
+    <p class="sched-label" style="margin-bottom:1rem;">Add Rounds</p>
+    <form method="post">
+      {% csrf_token %}
+      <div style="margin-bottom:0.9rem;">
+        <label for="id_start_date" style="display:block;font-weight:600;font-size:0.85rem;margin-bottom:0.3rem;color:#333;">
+          Start date
+        </label>
+        <input type="date" id="id_start_date" name="start_date"
+               value="{{ start_date_val }}" required
+               style="padding:0.45rem 0.6rem;border:1px solid #c0cdd8;border-radius:5px;font-size:0.875rem;">
+      </div>
+      <div style="margin-bottom:1.1rem;">
+        <label for="id_num_rounds" style="display:block;font-weight:600;font-size:0.85rem;margin-bottom:0.3rem;color:#333;">
+          Number of rounds
+        </label>
+        <input type="number" id="id_num_rounds" name="num_rounds" min="1"
+               value="{{ num_rounds_val }}" required
+               style="width:84px;padding:0.45rem 0.6rem;border:1px solid #c0cdd8;border-radius:5px;font-size:0.875rem;">
+        <p style="margin:0.3rem 0 0;font-size:0.78rem;color:#999;">
+          Already-scheduled matchups are skipped. Capped at remaining rounds per tier.
+        </p>
+      </div>
+      <button type="submit" class="button default" onclick="this.disabled=true;this.form.submit();">
+        Generate Schedule
+      </button>
+      <a href="../" class="button cancel-link" style="margin-left:0.75rem;">Cancel</a>
+    </form>
+  </div>
+  {% endif %}
+
+  <!-- Schedule Analysis -->
+  {% if schedule_analysis %}
+  <div style="border-top:2px solid #e4e4e4;padding-top:1.75rem;">
+    <h2 style="font-size:1rem;font-weight:700;margin:0 0 1.5rem;color:#333;letter-spacing:0.01em;">Schedule Analysis</h2>
+
+    <!-- Matches by Date -->
+    <div class="sched-section">
+      <p class="sched-label">Matches by Date</p>
+      <div style="overflow-x:auto;">
+        <table class="sched-table" style="max-width:680px;">
+          <thead>
+            <tr>
+              <th>Date</th>
+              {% for name in schedule_analysis.tier_names %}
+              <th>{{ name }}</th>
+              {% endfor %}
+              {% if schedule_analysis.multi_tier %}
+              <th>Total</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in schedule_analysis.date_rows %}
+            <tr>
+              <td>{{ row.date|date:"M j, Y" }}</td>
+              {% for count in row.tier_counts %}
+              <td {% if count == 0 %}class="cell-zero"{% endif %}>
+                {% if count == 0 %}—{% else %}{{ count }}{% endif %}
+              </td>
+              {% endfor %}
+              {% if schedule_analysis.multi_tier %}
+              <td style="color:#555;">{{ row.total }}</td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>Total</td>
+              {% for total in schedule_analysis.totals %}
+              <td>{{ total }}</td>
+              {% endfor %}
+              {% if schedule_analysis.multi_tier %}
+              <td>{{ schedule_analysis.grand_total }}</td>
+              {% endif %}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Behind Players -->
+    {% if schedule_analysis.behind_by_tier %}
+    <div class="sched-section">
+      <p class="sched-label" style="color:#b05800;">Players with Fewer Scheduled Matches</p>
+      {% for tier_data in schedule_analysis.behind_by_tier %}
+      <div class="behind-block">
+        <div class="behind-block-header">
+          <span class="behind-block-tier">{{ tier_data.tier_name }}</span>
+          <span class="behind-block-max">max {{ tier_data.max_count }} match{{ tier_data.max_count|pluralize }}</span>
+        </div>
+        <div class="behind-chips">
+          {% for p in tier_data.players %}
+          <div class="player-chip">
+            <span class="player-chip-name">{{ p.player.get_full_name }}</span>
+            <div class="player-chip-meta">
+              <span class="player-chip-count">{{ p.count }} match{{ p.count|pluralize }}</span>
+              <span class="player-chip-deficit">−{{ p.deficit }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
       {% endfor %}
-    </tbody>
-  </table>
-
-  <p>
-    Schedule type: <strong>{{ season.get_schedule_type_display }}</strong>
-  </p>
-
-  <form method="post" style="margin-top: 1.5rem;">
-    {% csrf_token %}
-    <div style="margin-bottom: 1rem;">
-      <label for="id_start_date" style="display: block; font-weight: bold; margin-bottom: 0.25rem;">
-        Start date
-      </label>
-      <input type="date" id="id_start_date" name="start_date"
-             value="{{ start_date_val }}" required
-             style="padding: 0.4rem 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
     </div>
-    <div style="margin-bottom: 1.5rem;">
-      <label for="id_num_rounds" style="display: block; font-weight: bold; margin-bottom: 0.25rem;">
-        Number of rounds
-      </label>
-      <input type="number" id="id_num_rounds" name="num_rounds" min="1"
-             value="{{ num_rounds_val }}" required
-             style="width: 100px; padding: 0.4rem 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
-      <p class="help" style="margin-top: 0.25rem;">
-        Capped automatically at the maximum available rounds per tier.
-      </p>
+    {% else %}
+    <div style="display:flex;align-items:center;gap:0.5rem;color:#2e7d32;font-size:0.875rem;padding:0.75rem 1rem;background:#f0faf0;border:1px solid #b8e0b8;border-radius:6px;max-width:420px;">
+      <span style="font-size:1rem;">✓</span>
+      All players have an equal number of scheduled matches.
     </div>
-    <button type="submit" class="button default" onclick="this.disabled=true;this.form.submit();">
-      Generate Schedule
-    </button>
-    <a href="../" class="button cancel-link" style="margin-left: 0.75rem;">Cancel</a>
-  </form>
+    {% endif %}
 
+  </div>
   {% endif %}
+
+  {% if not schedule_analysis %}
+  <p style="margin-top:0.5rem;"><a href="../" style="color:#666;">‹ Back to season</a></p>
+  {% endif %}
+
 </div>
 {% endblock %}

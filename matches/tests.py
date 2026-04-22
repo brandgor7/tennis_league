@@ -1955,12 +1955,36 @@ class GenerateScheduleTest(TestCase):
         self.assertEqual(sum(1 for m in matches if m.tier == 1), 2)
         self.assertEqual(sum(1 for m in matches if m.tier == 2), 2)
 
-    def test_double_call_raises(self):
+    def test_double_call_skips_existing_pairs(self):
+        # 4 players → 3 rounds (6 matches total). Scheduling all rounds twice produces no duplicates.
         season = self._season()
         self._add_players(season, 4)
-        generate_schedule(season, self.START, 3)
-        with self.assertRaises(ValueError):
-            generate_schedule(season, self.START, 3)
+        first = generate_schedule(season, self.START, 3)
+        second = generate_schedule(season, self.START, 3)
+        self.assertEqual(len(second), 0)
+        self.assertEqual(Match.objects.filter(season=season).count(), 6)
+
+    def test_incremental_schedule_no_duplicate_pairs(self):
+        # Schedule 1 round, then 2 more. All 6 matches created, no pair repeated.
+        season = self._season()
+        self._add_players(season, 4)
+        generate_schedule(season, self.START, 1)
+        generate_schedule(season, self.START, 2)
+        self.assertEqual(Match.objects.filter(season=season).count(), 6)
+        pairs = [
+            frozenset([m.player1_id, m.player2_id])
+            for m in Match.objects.filter(season=season)
+        ]
+        self.assertEqual(len(pairs), len(set(pairs)))
+
+    def test_incremental_schedule_correct_partial_count(self):
+        # Scheduling 1 round then 1 more = 2 rounds × 2 pairs = 4 matches
+        season = self._season()
+        self._add_players(season, 4)
+        generate_schedule(season, self.START, 1)
+        second = generate_schedule(season, self.START, 1)
+        self.assertEqual(len(second), 2)
+        self.assertEqual(Match.objects.filter(season=season).count(), 4)
 
     def test_inactive_players_excluded(self):
         season = self._season()

@@ -1538,3 +1538,260 @@ class CopyPlayersViewTest(TestCase):
         enroll(self.source, p, tier=2)
         self._post()
         self.assertFalse(SeasonPlayer.objects.filter(season=self.target, player=p).exists())
+
+
+# ─── Generate Schedule / Analyze view tests ──────────────────────────────────
+
+class GenerateScheduleViewTest(TestCase):
+    """Tests for the Analyze / Generate Schedule admin view and _build_schedule_analysis."""
+
+    START = datetime.date(2025, 4, 7)
+    NEXT  = datetime.date(2025, 4, 14)
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser('schedadmin', password='pass')
+        self.client.force_login(self.admin)
+        self.season = make_season(name='Schedule Test', year=2025)
+
+    def _url(self, season=None):
+        return reverse('admin:leagues_season_generate_schedule', args=[(season or self.season).pk])
+
+    def _add_players(self, count, tier=1, season=None):
+        s = season or self.season
+        players = []
+        for i in range(count):
+            p = make_player(f'sched_t{tier}_p{i}_{s.pk}', first=f'Player{tier}', last=str(i))
+            enroll(s, p, tier=tier)
+            players.append(p)
+        return players
+
+    def _match(self, p1, p2, tier=1, date=None, season=None):
+        return Match.objects.create(
+            season=season or self.season,
+            player1=p1, player2=p2,
+            tier=tier,
+            round=Match.ROUND_REGULAR,
+            scheduled_date=date or self.START,
+            status=Match.STATUS_SCHEDULED,
+        )
+
+    # ── Access / rendering ────────────────────────────────────────────────────
+
+    def test_requires_staff(self):
+        self.client.logout()
+        self.client.force_login(make_player('nobody_sched'))
+        self.assertNotEqual(self.client.get(self._url()).status_code, 200)
+
+    def test_404_for_unknown_season(self):
+        url = reverse('admin:leagues_season_generate_schedule', args=[99999])
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_title_contains_analyze_generate(self):
+        resp = self.client.get(self._url())
+        self.assertContains(resp, 'Analyze / Generate Schedule')
+
+    # ── No matches yet ────────────────────────────────────────────────────────
+
+    def test_no_analysis_before_matches_scheduled(self):
+        self._add_players(4)
+        resp = self.client.get(self._url())
+        self.assertIsNone(resp.context['schedule_analysis'])
+
+    def test_generate_form_shown_when_rounds_remain(self):
+        self._add_players(4)
+        resp = self.client.get(self._url())
+        self.assertFalse(resp.context['all_exhausted'])
+        self.assertContains(resp, 'Generate Schedule')
+
+    def test_all_exhausted_hides_form(self):
+        players = self._add_players(2)
+        self._match(players[0], players[1])
+        resp = self.client.get(self._url())
+        self.assertTrue(resp.context['all_exhausted'])
+        self.assertNotContains(resp, 'id_num_rounds')
+
+    # ── Date rows ─────────────────────────────────────────────────────────────
+
+    def test_date_rows_one_per_distinct_date(self):
+        p = self._add_players(4)
+        self._match(p[0], p[1], date=self.START)
+        self._match(p[2], p[3], date=self.START)
+        self._match(p[0], p[2], date=self.NEXT)
+        rows = self.client.get(self._url()).context['schedule_analysis']['date_rows']
+        self.assertEqual(len(rows), 2)
+
+    def test_date_rows_sorted_ascending(self):
+        p = self._add_players(4)
+        self._match(p[0], p[1], date=self.NEXT)
+        self._match(p[2], p[3], date=self.START)
+        rows = self.client.get(self._url()).context['schedule_analysis']['date_rows']
+        self.assertEqual(rows[0]['date'], self.START)
+        self.assertEqual(rows[1]['date'], self.NEXT)
+
+    def test_date_row_tier_count_correct(self):
+        p = self._add_players(4)
+        self._match(p[0], p[1], date=self.START)
+        self._match(p[2], p[3], date=self.START)
+        rows = self.client.get(self._url()).context['schedule_analysis']['date_rows']
+        self.assertEqual(rows[0]['tier_counts'], [2])
+        self.assertEqual(rows[0]['total'], 2)
+
+    def test_match_with_null_date_excluded_from_date_rows(self):
+        p = self._add_players(4)
+        Match.objects.create(
+            season=self.season, player1=p[0], player2=p[1],
+            tier=1, round=Match.ROUND_REGULAR,
+            scheduled_date=None, status=Match.STATUS_SCHEDULED,
+        )
+        resp = self.client.get(self._url())
+        self.assertIsNone(resp.context['schedule_analysis'])
+
+    # ── Totals ────────────────────────────────────────────────────────────────
+
+    def test_totals_sum_across_all_dates(self):
+        p = self._add_players(4)
+        self._match(p[0], p[1], date=self.START)
+        self._match(p[2], p[3], date=self.START)
+        self._match(p[0], p[2], date=self.NEXT)
+        analysis = self.client.get(self._url()).context['schedule_analysis']
+        self.assertEqual(analysis['totals'], [3])
+
+    def test_grand_total_equals_all_matches(self):
+        p = self._add_players(4)
+        self._match(p[0], p[1], date=self.START)
+        self._match(p[2], p[3], date=self.START)
+        self._match(p[0], p[2], date=self.NEXT)
+        analysis = self.client.get(self._url()).context['schedule_analysis']
+        self.assertEqual(analysis['grand_total'], 3)
+
+    # ── Single vs multi-tier ──────────────────────────────────────────────────
+
+    def test_multi_tier_false_for_single_tier(self):
+        p = self._add_players(4)
+        self._match(p[0], p[1])
+        analysis = self.client.get(self._url()).context['schedule_analysis']
+        self.assertFalse(analysis['multi_tier'])
+
+    def test_multi_tier_true_for_multiple_tiers(self):
+        s = make_season(name='Multi Sched', year=2025)
+        Tier.objects.create(season=s, number=1, name='Tier 1')
+        Tier.objects.create(season=s, number=2, name='Tier 2')
+        t1 = self._add_players(4, tier=1, season=s)
+        t2 = self._add_players(4, tier=2, season=s)
+        self._match(t1[0], t1[1], tier=1, season=s)
+        self._match(t2[0], t2[1], tier=2, season=s)
+        analysis = self.client.get(self._url(season=s)).context['schedule_analysis']
+        self.assertTrue(analysis['multi_tier'])
+
+    def test_multi_tier_tier_counts_per_date(self):
+        s = make_season(name='Multi Sched2', year=2025)
+        Tier.objects.create(season=s, number=1, name='Tier 1')
+        Tier.objects.create(season=s, number=2, name='Tier 2')
+        t1 = self._add_players(4, tier=1, season=s)
+        t2 = self._add_players(4, tier=2, season=s)
+        self._match(t1[0], t1[1], tier=1, date=self.START, season=s)
+        self._match(t1[2], t1[3], tier=1, date=self.START, season=s)
+        self._match(t2[0], t2[1], tier=2, date=self.START, season=s)
+        rows = self.client.get(self._url(season=s)).context['schedule_analysis']['date_rows']
+        self.assertEqual(rows[0]['tier_counts'], [2, 1])
+        self.assertEqual(rows[0]['total'], 3)
+
+    def test_multi_tier_totals_per_tier(self):
+        s = make_season(name='Multi Sched3', year=2025)
+        Tier.objects.create(season=s, number=1, name='Tier 1')
+        Tier.objects.create(season=s, number=2, name='Tier 2')
+        t1 = self._add_players(4, tier=1, season=s)
+        t2 = self._add_players(4, tier=2, season=s)
+        self._match(t1[0], t1[1], tier=1, season=s)
+        self._match(t1[2], t1[3], tier=1, season=s)
+        self._match(t2[0], t2[1], tier=2, date=self.NEXT, season=s)
+        analysis = self.client.get(self._url(season=s)).context['schedule_analysis']
+        self.assertEqual(analysis['totals'], [2, 1])
+        self.assertEqual(analysis['grand_total'], 3)
+
+    # ── Behind players ────────────────────────────────────────────────────────
+
+    def test_no_behind_players_when_all_equal(self):
+        p = self._add_players(4)
+        self._match(p[0], p[1], date=self.START)
+        self._match(p[2], p[3], date=self.START)
+        analysis = self.client.get(self._url()).context['schedule_analysis']
+        self.assertEqual(analysis['behind_by_tier'], [])
+
+    def test_behind_players_identified_correctly(self):
+        p = self._add_players(4)
+        self._match(p[0], p[1], date=self.START)   # p0=1, p1=1
+        self._match(p[2], p[3], date=self.START)   # p2=1, p3=1
+        self._match(p[0], p[2], date=self.NEXT)    # p0=2, p2=2; p1 and p3 stay at 1
+        behind_by_tier = self.client.get(self._url()).context['schedule_analysis']['behind_by_tier']
+        self.assertEqual(len(behind_by_tier), 1)
+        behind_ids = {item['player'].pk for item in behind_by_tier[0]['players']}
+        self.assertEqual(behind_ids, {p[1].pk, p[3].pk})
+
+    def test_behind_player_deficit_correct(self):
+        p = self._add_players(4)
+        self._match(p[0], p[1], date=self.START)
+        self._match(p[2], p[3], date=self.START)
+        self._match(p[0], p[2], date=self.NEXT)
+        behind = self.client.get(self._url()).context['schedule_analysis']['behind_by_tier'][0]['players']
+        deficits = {item['player'].pk: item['deficit'] for item in behind}
+        self.assertEqual(deficits[p[1].pk], 1)
+        self.assertEqual(deficits[p[3].pk], 1)
+
+    def test_behind_max_count_reported_correctly(self):
+        p = self._add_players(4)
+        self._match(p[0], p[1], date=self.START)
+        self._match(p[2], p[3], date=self.START)
+        self._match(p[0], p[2], date=self.NEXT)
+        entry = self.client.get(self._url()).context['schedule_analysis']['behind_by_tier'][0]
+        self.assertEqual(entry['max_count'], 2)
+
+    # ── Template rendering ────────────────────────────────────────────────────
+
+    def test_template_renders_scheduled_date(self):
+        p = self._add_players(4)
+        self._match(p[0], p[1], date=datetime.date(2025, 4, 7))
+        resp = self.client.get(self._url())
+        self.assertContains(resp, 'Apr 7, 2025')
+
+    def test_template_shows_behind_player_name(self):
+        p = self._add_players(4)
+        self._match(p[0], p[1], date=self.START)
+        self._match(p[2], p[3], date=self.START)
+        self._match(p[0], p[2], date=self.NEXT)
+        resp = self.client.get(self._url())
+        self.assertContains(resp, p[1].get_full_name())
+
+    def test_template_shows_equal_message_when_no_behind(self):
+        p = self._add_players(4)
+        self._match(p[0], p[1], date=self.START)
+        self._match(p[2], p[3], date=self.START)
+        resp = self.client.get(self._url())
+        self.assertContains(resp, 'equal number of scheduled matches')
+
+    # ── POST – generate further rounds ────────────────────────────────────────
+
+    def test_post_generates_matches_and_redirects(self):
+        self._add_players(4)
+        resp = self.client.post(self._url(), {'start_date': '2025-04-07', 'num_rounds': '1'})
+        self.assertRedirects(resp, reverse('admin:leagues_season_change', args=[self.season.pk]))
+        self.assertEqual(Match.objects.filter(season=self.season).count(), 2)
+
+    def test_post_second_call_adds_new_rounds(self):
+        p = self._add_players(4)
+        self._match(p[0], p[1], date=self.START)
+        self._match(p[2], p[3], date=self.START)
+        self.client.post(self._url(), {'start_date': '2025-04-14', 'num_rounds': '2'})
+        self.assertEqual(Match.objects.filter(season=self.season).count(), 6)
+
+    def test_post_invalid_date_shows_error(self):
+        self._add_players(4)
+        resp = self.client.post(self._url(), {'start_date': 'notadate', 'num_rounds': '1'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'valid start date')
+
+    def test_post_invalid_rounds_shows_error(self):
+        self._add_players(4)
+        resp = self.client.post(self._url(), {'start_date': '2025-04-07', 'num_rounds': '0'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'positive integer')
