@@ -345,7 +345,7 @@
       <div id="dm-matches-section" style="display:none;margin-bottom:1.25rem;">
         <label for="dm-match-select" class="sched-label" style="display:block;">Match</label>
         <select id="dm-match-select" onchange="dmSelectMatch(this)"
-                style="width:100%;padding:0.7rem 0.85rem;border:1px solid #c0cdd8;border-radius:6px;font-size:0.9rem;line-height:1.6;background:#fff;color:#1a1a1a;cursor:pointer;">
+                style="width:100%;padding:0.9rem 0.9rem;border:1px solid #c0cdd8;border-radius:6px;font-size:0.9rem;line-height:1.5;min-height:3rem;background:#fff;color:#1a1a1a;cursor:pointer;">
           <option value="">— select a match —</option>
         </select>
         <p id="dm-empty-msg" style="display:none;margin:0.5rem 0 0;font-size:0.82rem;color:#aaa;font-style:italic;">No scheduled matches in this tier.</p>
@@ -378,6 +378,7 @@
     matchups: '{% url "admin:leagues_season_schedule_match_matchups" season.pk %}',
     create: '{% url "admin:leagues_season_schedule_match" season.pk %}',
   };
+  const smSeasonKey = 'sm_tier_{{ season.pk }}';
 
   const smState = { tier: null, player1Id: null, player1Name: null, player2Id: null, player2Name: null };
 
@@ -421,6 +422,8 @@
   }
 
   window.smSelectTier = function (tier) {
+    if (tier) localStorage.setItem(smSeasonKey, tier);
+    else localStorage.removeItem(smSeasonKey);
     Object.assign(smState, { tier, player1Id: null, player1Name: null, player2Id: null, player2Name: null });
     document.getElementById('sm-players-section').style.display = 'none';
     document.getElementById('sm-matchups-section').style.display = 'none';
@@ -527,13 +530,12 @@
     });
   };
 
-  // Auto-load players if only one tier
-  {% if tier_info|length == 1 %}
   window.addEventListener('DOMContentLoaded', function () {
     const sel = document.getElementById('sm-tier-select');
-    smSelectTier(sel.value);
+    const saved = localStorage.getItem(smSeasonKey);
+    if (saved && sel.querySelector('option[value="' + saved + '"]')) sel.value = saved;
+    if (sel.value) smSelectTier(sel.value);
   });
-  {% endif %}
 }());
 
 (function () {
@@ -541,10 +543,13 @@
     matches: '{% url "admin:leagues_season_delete_match_matches" season.pk %}',
     delete: '{% url "admin:leagues_season_delete_match" season.pk %}',
   };
+  const dmSeasonKey = 'dm_tier_{{ season.pk }}';
 
   let dmMatchId = null;
 
   window.dmSelectTier = function (tier) {
+    if (tier) localStorage.setItem(dmSeasonKey, tier);
+    else localStorage.removeItem(dmSeasonKey);
     dmMatchId = null;
     const matchesSection = document.getElementById('dm-matches-section');
     const confirmPanel = document.getElementById('dm-confirm-panel');
@@ -627,13 +632,12 @@
     document.getElementById('dm-confirm-panel').style.display = 'none';
   };
 
-  // Auto-load matches if only one tier
-  {% if tier_info|length == 1 %}
   window.addEventListener('DOMContentLoaded', function () {
     const sel = document.getElementById('dm-tier-select');
-    dmSelectTier(sel.value);
+    const saved = localStorage.getItem(dmSeasonKey);
+    if (saved && sel.querySelector('option[value="' + saved + '"]')) sel.value = saved;
+    if (sel.value) dmSelectTier(sel.value);
   });
-  {% endif %}
 }());
 </script>
 {% endblock %}
