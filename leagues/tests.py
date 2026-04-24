@@ -2097,3 +2097,226 @@ class ScheduleMatchCreateViewTest(TestCase):
         data = json.loads(resp.content)
         self.assertIn('match_id', data)
         self.assertTrue(Match.objects.filter(pk=data['match_id']).exists())
+
+
+# ─── Delete Match endpoints ───────────────────────────────────────────────────
+
+class DeleteMatchMatchesViewTest(TestCase):
+    """Tests for the matches JSON endpoint used by the Delete a Match UI."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser('dmladmin', password='pass')
+        self.client.force_login(self.admin)
+        self.season = make_season(name='DM Matches Test', year=2025)
+        Tier.objects.create(season=self.season, number=1, name='Tier 1')
+        self.p1 = make_player('dml_p1', first='Alice', last='Able')
+        self.p2 = make_player('dml_p2', first='Bob', last='Baker')
+        enroll(self.season, self.p1, tier=1)
+        enroll(self.season, self.p2, tier=1)
+
+    def _url(self, season=None):
+        return reverse('admin:leagues_season_delete_match_matches', args=[(season or self.season).pk])
+
+    def _scheduled(self, p1=None, p2=None, date=None, tier=1):
+        return Match.objects.create(
+            season=self.season, player1=p1 or self.p1, player2=p2 or self.p2,
+            tier=tier, round=Match.ROUND_REGULAR,
+            scheduled_date=date or datetime.date(2025, 5, 1),
+            status=Match.STATUS_SCHEDULED,
+        )
+
+    def test_requires_staff(self):
+        self.client.logout()
+        self.client.force_login(make_player('dml_anon'))
+        resp = self.client.get(self._url(), {'tier': 1})
+        self.assertNotEqual(resp.status_code, 200)
+
+    def test_404_for_unknown_season(self):
+        url = reverse('admin:leagues_season_delete_match_matches', args=[99999])
+        self.assertEqual(self.client.get(url, {'tier': 1}).status_code, 404)
+
+    def test_returns_json_matches(self):
+        import json
+        self._scheduled()
+        data = json.loads(self.client.get(self._url(), {'tier': 1}).content)
+        self.assertIn('matches', data)
+        self.assertEqual(len(data['matches']), 1)
+
+    def test_match_entry_has_id_and_label(self):
+        import json
+        m = self._scheduled()
+        data = json.loads(self.client.get(self._url(), {'tier': 1}).content)
+        entry = data['matches'][0]
+        self.assertEqual(entry['id'], m.id)
+        self.assertIn('label', entry)
+
+    def test_label_includes_player_names(self):
+        import json
+        self._scheduled()
+        data = json.loads(self.client.get(self._url(), {'tier': 1}).content)
+        label = data['matches'][0]['label']
+        self.assertIn('Alice', label)
+        self.assertIn('Bob', label)
+
+    def test_only_scheduled_status_returned(self):
+        import json
+        self._scheduled()
+        Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            tier=1, round=Match.ROUND_REGULAR,
+            scheduled_date=datetime.date(2025, 5, 2),
+            status=Match.STATUS_COMPLETED,
+        )
+        data = json.loads(self.client.get(self._url(), {'tier': 1}).content)
+        self.assertEqual(len(data['matches']), 1)
+
+    def test_only_regular_round_returned(self):
+        import json
+        self._scheduled()
+        Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            tier=1, round=Match.ROUND_R16,
+            scheduled_date=datetime.date(2025, 5, 3),
+            status=Match.STATUS_SCHEDULED,
+        )
+        data = json.loads(self.client.get(self._url(), {'tier': 1}).content)
+        self.assertEqual(len(data['matches']), 1)
+
+    def test_matches_from_other_tier_excluded(self):
+        import json
+        Tier.objects.create(season=self.season, number=2, name='Tier 2')
+        p3 = make_player('dml_p3', first='Carol', last='Cross')
+        p4 = make_player('dml_p4', first='Dan', last='Dale')
+        enroll(self.season, p3, tier=2)
+        enroll(self.season, p4, tier=2)
+        self._scheduled()
+        Match.objects.create(
+            season=self.season, player1=p3, player2=p4,
+            tier=2, round=Match.ROUND_REGULAR,
+            scheduled_date=datetime.date(2025, 5, 1), status=Match.STATUS_SCHEDULED,
+        )
+        data = json.loads(self.client.get(self._url(), {'tier': 1}).content)
+        self.assertEqual(len(data['matches']), 1)
+
+    def test_matches_ordered_by_date(self):
+        import json
+        p3 = make_player('dml_p3b', first='Carol', last='Cross')
+        enroll(self.season, p3, tier=1)
+        self._scheduled(date=datetime.date(2025, 5, 10))
+        Match.objects.create(
+            season=self.season, player1=self.p1, player2=p3,
+            tier=1, round=Match.ROUND_REGULAR,
+            scheduled_date=datetime.date(2025, 5, 3), status=Match.STATUS_SCHEDULED,
+        )
+        data = json.loads(self.client.get(self._url(), {'tier': 1}).content)
+        dates_in_labels = [e['label'] for e in data['matches']]
+        self.assertIn('May 3', dates_in_labels[0])
+        self.assertIn('May 10', dates_in_labels[1])
+
+    def test_empty_tier_returns_empty_list(self):
+        import json
+        data = json.loads(self.client.get(self._url(), {'tier': 1}).content)
+        self.assertEqual(data['matches'], [])
+
+    def test_invalid_tier_returns_400(self):
+        self.assertEqual(self.client.get(self._url(), {'tier': 'bad'}).status_code, 400)
+
+    def test_missing_tier_returns_400(self):
+        self.assertEqual(self.client.get(self._url()).status_code, 400)
+
+
+class DeleteMatchViewTest(TestCase):
+    """Tests for the POST endpoint that deletes a single scheduled match."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser('dmadmin', password='pass')
+        self.client.force_login(self.admin)
+        self.season = make_season(name='DM Delete Test', year=2025)
+        Tier.objects.create(season=self.season, number=1, name='Tier 1')
+        self.p1 = make_player('dm_p1', first='Eve', last='East')
+        self.p2 = make_player('dm_p2', first='Frank', last='Ford')
+        enroll(self.season, self.p1, tier=1)
+        enroll(self.season, self.p2, tier=1)
+
+    def _url(self, season=None):
+        return reverse('admin:leagues_season_delete_match', args=[(season or self.season).pk])
+
+    def _scheduled(self):
+        return Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            tier=1, round=Match.ROUND_REGULAR,
+            scheduled_date=datetime.date(2025, 5, 1),
+            status=Match.STATUS_SCHEDULED,
+        )
+
+    def test_requires_staff(self):
+        self.client.logout()
+        self.client.force_login(make_player('dm_anon'))
+        m = self._scheduled()
+        self.assertNotEqual(self.client.post(self._url(), {'match_id': m.pk}).status_code, 200)
+
+    def test_get_returns_405(self):
+        self.assertEqual(self.client.get(self._url()).status_code, 405)
+
+    def test_deletes_match(self):
+        import json
+        m = self._scheduled()
+        resp = self.client.post(self._url(), {'match_id': m.pk})
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        self.assertTrue(data['success'])
+        self.assertFalse(Match.objects.filter(pk=m.pk).exists())
+
+    def test_404_for_unknown_season(self):
+        m = self._scheduled()
+        url = reverse('admin:leagues_season_delete_match', args=[99999])
+        self.assertEqual(self.client.post(url, {'match_id': m.pk}).status_code, 404)
+
+    def test_cannot_delete_completed_match(self):
+        import json
+        m = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            tier=1, round=Match.ROUND_REGULAR,
+            scheduled_date=datetime.date(2025, 5, 1),
+            status=Match.STATUS_COMPLETED,
+        )
+        resp = self.client.post(self._url(), {'match_id': m.pk})
+        self.assertEqual(resp.status_code, 400)
+        self.assertTrue(Match.objects.filter(pk=m.pk).exists())
+
+    def test_cannot_delete_playoff_match(self):
+        import json
+        m = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            tier=1, round=Match.ROUND_R16,
+            scheduled_date=datetime.date(2025, 5, 1),
+            status=Match.STATUS_SCHEDULED,
+        )
+        resp = self.client.post(self._url(), {'match_id': m.pk})
+        self.assertEqual(resp.status_code, 400)
+        self.assertTrue(Match.objects.filter(pk=m.pk).exists())
+
+    def test_cannot_delete_match_from_another_season(self):
+        other_season = make_season(name='Other', year=2024)
+        Tier.objects.create(season=other_season, number=1, name='Tier 1')
+        op1 = make_player('dm_op1')
+        op2 = make_player('dm_op2')
+        enroll(other_season, op1, tier=1)
+        enroll(other_season, op2, tier=1)
+        m = Match.objects.create(
+            season=other_season, player1=op1, player2=op2,
+            tier=1, round=Match.ROUND_REGULAR,
+            scheduled_date=datetime.date(2025, 5, 1),
+            status=Match.STATUS_SCHEDULED,
+        )
+        resp = self.client.post(self._url(), {'match_id': m.pk})
+        self.assertEqual(resp.status_code, 400)
+        self.assertTrue(Match.objects.filter(pk=m.pk).exists())
+
+    def test_invalid_match_id_returns_400(self):
+        resp = self.client.post(self._url(), {'match_id': 'bad'})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_nonexistent_match_id_returns_400(self):
+        resp = self.client.post(self._url(), {'match_id': 99999})
+        self.assertEqual(resp.status_code, 400)

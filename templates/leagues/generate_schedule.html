@@ -321,6 +321,54 @@
     </div>
   </div>
 
+  <!-- Delete a Match -->
+  <div style="border-top:2px solid #e4e4e4;padding-top:1.75rem;margin-top:1.75rem;">
+    <h2 style="font-size:1rem;font-weight:700;margin:0 0 1.5rem;color:#333;letter-spacing:0.01em;">Delete a Match</h2>
+
+    <div style="max-width:560px;">
+
+      <!-- Tier select -->
+      <div style="margin-bottom:1.25rem;">
+        <label for="dm-tier-select" class="sched-label" style="display:block;">Tier</label>
+        <select id="dm-tier-select" onchange="dmSelectTier(this.value)"
+                style="padding:0.4rem 0.7rem;border:1px solid #c0cdd8;border-radius:5px;font-size:0.875rem;min-width:160px;background:#fff;">
+          {% if tier_info|length > 1 %}
+          <option value="">— select —</option>
+          {% endif %}
+          {% for row in tier_info %}
+          <option value="{{ row.tier }}">{{ row.tier_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Match select -->
+      <div id="dm-matches-section" style="display:none;margin-bottom:1.25rem;">
+        <label for="dm-match-select" class="sched-label" style="display:block;">Match</label>
+        <select id="dm-match-select" onchange="dmSelectMatch(this)"
+                style="width:100%;padding:0.7rem 0.85rem;border:1px solid #c0cdd8;border-radius:6px;font-size:0.9rem;line-height:1.6;background:#fff;color:#1a1a1a;cursor:pointer;">
+          <option value="">— select a match —</option>
+        </select>
+        <p id="dm-empty-msg" style="display:none;margin:0.5rem 0 0;font-size:0.82rem;color:#aaa;font-style:italic;">No scheduled matches in this tier.</p>
+      </div>
+
+      <!-- Confirm panel -->
+      <div id="dm-confirm-panel" style="display:none;display:flex;align-items:center;gap:0.9rem;flex-wrap:wrap;background:#fff8f6;border:1px solid #f0c8bc;border-radius:7px;padding:0.8rem 1rem;">
+        <span id="dm-confirm-label" style="font-size:0.875rem;color:#333;flex:1;min-width:0;"></span>
+        <button type="button" onclick="dmDeleteMatch()"
+                style="background:#c0392b;color:#fff;border:none;border-radius:5px;padding:0.45rem 1rem;font-size:0.85rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:background 0.12s;"
+                onmouseenter="this.style.background='#a93226'" onmouseleave="this.style.background='#c0392b'">
+          Delete
+        </button>
+        <button type="button" onclick="dmCancelDelete()"
+                style="background:none;border:none;font-size:0.82rem;color:#888;cursor:pointer;padding:0.3rem 0.2rem;text-decoration:underline;text-underline-offset:2px;">
+          Cancel
+        </button>
+        <div id="dm-error" style="display:none;width:100%;color:#c04800;font-size:0.82rem;margin-top:0.1rem;"></div>
+      </div>
+
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -484,6 +532,106 @@
   window.addEventListener('DOMContentLoaded', function () {
     const sel = document.getElementById('sm-tier-select');
     smSelectTier(sel.value);
+  });
+  {% endif %}
+}());
+
+(function () {
+  const dmUrls = {
+    matches: '{% url "admin:leagues_season_delete_match_matches" season.pk %}',
+    delete: '{% url "admin:leagues_season_delete_match" season.pk %}',
+  };
+
+  let dmMatchId = null;
+
+  window.dmSelectTier = function (tier) {
+    dmMatchId = null;
+    const matchesSection = document.getElementById('dm-matches-section');
+    const confirmPanel = document.getElementById('dm-confirm-panel');
+    const emptyMsg = document.getElementById('dm-empty-msg');
+    const sel = document.getElementById('dm-match-select');
+
+    confirmPanel.style.display = 'none';
+    matchesSection.style.display = 'none';
+
+    if (!tier) return;
+
+    fetch(dmUrls.matches + '?tier=' + tier)
+      .then(r => r.json())
+      .then(data => {
+        sel.innerHTML = '<option value="">— select a match —</option>';
+        const matches = data.matches || [];
+
+        if (matches.length) {
+          matches.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = m.label;
+            sel.appendChild(opt);
+          });
+          emptyMsg.style.display = 'none';
+          sel.style.display = '';
+        } else {
+          emptyMsg.style.display = 'block';
+          sel.style.display = 'none';
+        }
+
+        matchesSection.style.display = 'block';
+      });
+  };
+
+  window.dmSelectMatch = function (selectEl) {
+    const confirmPanel = document.getElementById('dm-confirm-panel');
+    const label = document.getElementById('dm-confirm-label');
+    const err = document.getElementById('dm-error');
+
+    dmMatchId = selectEl.value || null;
+    err.style.display = 'none';
+
+    if (!dmMatchId) {
+      confirmPanel.style.display = 'none';
+      return;
+    }
+
+    label.textContent = selectEl.options[selectEl.selectedIndex].text;
+    confirmPanel.style.display = 'flex';
+  };
+
+  window.dmDeleteMatch = async function () {
+    const err = document.getElementById('dm-error');
+    err.style.display = 'none';
+    if (!dmMatchId) return;
+
+    const body = new FormData();
+    body.append('csrfmiddlewaretoken', document.getElementById('sm-csrf').value);
+    body.append('match_id', dmMatchId);
+
+    try {
+      const resp = await fetch(dmUrls.delete, { method: 'POST', body });
+      const data = await resp.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        err.textContent = data.error || 'Error deleting match.';
+        err.style.display = 'block';
+      }
+    } catch {
+      err.textContent = 'Network error — please try again.';
+      err.style.display = 'block';
+    }
+  };
+
+  window.dmCancelDelete = function () {
+    dmMatchId = null;
+    document.getElementById('dm-match-select').value = '';
+    document.getElementById('dm-confirm-panel').style.display = 'none';
+  };
+
+  // Auto-load matches if only one tier
+  {% if tier_info|length == 1 %}
+  window.addEventListener('DOMContentLoaded', function () {
+    const sel = document.getElementById('dm-tier-select');
+    dmSelectTier(sel.value);
   });
   {% endif %}
 }());

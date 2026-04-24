@@ -90,6 +90,16 @@ class SeasonAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.schedule_match_matchups_view),
                 name='leagues_season_schedule_match_matchups',
             ),
+            path(
+                '<int:season_id>/delete-match/',
+                self.admin_site.admin_view(self.delete_match_view),
+                name='leagues_season_delete_match',
+            ),
+            path(
+                '<int:season_id>/delete-match/matches/',
+                self.admin_site.admin_view(self.delete_match_matches_view),
+                name='leagues_season_delete_match_matches',
+            ),
         ]
         return custom + urls
 
@@ -320,6 +330,64 @@ class SeasonAdmin(admin.ModelAdmin):
             status=Match.STATUS_SCHEDULED,
         )
         return JsonResponse({'success': True, 'match_id': match.id})
+
+    def delete_match_matches_view(self, request, season_id):
+        from django.http import JsonResponse
+        from matches.models import Match
+
+        season = get_object_or_404(Season, pk=season_id)
+        try:
+            tier = int(request.GET.get('tier', ''))
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid tier'}, status=400)
+
+        matches = (
+            Match.objects.filter(
+                season=season, tier=tier, round=Match.ROUND_REGULAR,
+                status=Match.STATUS_SCHEDULED,
+            )
+            .select_related('player1', 'player2')
+            .order_by('scheduled_date', 'player1__last_name', 'player1__first_name')
+        )
+
+        result = []
+        for m in matches:
+            p1 = m.player1.get_full_name() or m.player1.username
+            p2 = m.player2.get_full_name() or m.player2.username
+            if m.scheduled_date:
+                date_str = m.scheduled_date.strftime('%b %-d, %Y')
+            else:
+                date_str = 'No date'
+            result.append({
+                'id': m.id,
+                'label': f'{date_str} — {p1} vs {p2}',
+            })
+
+        return JsonResponse({'matches': result})
+
+    def delete_match_view(self, request, season_id):
+        from django.http import JsonResponse
+        from matches.models import Match
+
+        season = get_object_or_404(Season, pk=season_id)
+        if request.method != 'POST':
+            return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+        try:
+            match_id = int(request.POST.get('match_id', ''))
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid match ID'}, status=400)
+
+        try:
+            match = Match.objects.get(
+                pk=match_id, season=season,
+                round=Match.ROUND_REGULAR, status=Match.STATUS_SCHEDULED,
+            )
+        except Match.DoesNotExist:
+            return JsonResponse({'error': 'Match not found or cannot be deleted'}, status=400)
+
+        match.delete()
+        return JsonResponse({'success': True})
 
     def _build_schedule_analysis(self, season, tier_range):
         from matches.models import Match
