@@ -9,12 +9,14 @@ from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Count
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
 from django.utils.html import format_html
 
 from .models import Season, SeasonPlayer, SiteConfig, Tier
+from matches.models import Match
+from matches.scheduler import generate_schedule, remaining_rounds_count
 from playoffs.generator import bracket_size_for, generate_bracket
 from playoffs.models import PlayoffBracket
 from standings.calculator import calculate_standings
@@ -126,9 +128,6 @@ class SeasonAdmin(admin.ModelAdmin):
         return super().change_view(request, object_id, form_url, extra_context)
 
     def generate_schedule_view(self, request, season_id):
-        from matches.models import Match
-        from matches.scheduler import generate_schedule, remaining_rounds_count
-
         season = get_object_or_404(Season.objects.prefetch_related('tiers'), pk=season_id)
         tier_range = range(1, season.num_tiers + 1)
 
@@ -199,8 +198,6 @@ class SeasonAdmin(admin.ModelAdmin):
 
     def _match_count_map(self, season, tier, tier_players):
         """Return {player_id: scheduled_match_count} for all players in tier_players."""
-        from matches.models import Match
-
         match_pairs = list(
             Match.objects.filter(season=season, tier=tier, round=Match.ROUND_REGULAR)
             .values_list('player1_id', 'player2_id')
@@ -214,8 +211,6 @@ class SeasonAdmin(admin.ModelAdmin):
         return count_map
 
     def schedule_match_players_view(self, request, season_id):
-        from django.http import JsonResponse
-
         season = get_object_or_404(Season, pk=season_id)
         try:
             tier = int(request.GET.get('tier', ''))
@@ -242,9 +237,6 @@ class SeasonAdmin(admin.ModelAdmin):
         return JsonResponse({'players': players})
 
     def schedule_match_matchups_view(self, request, season_id):
-        from django.http import JsonResponse
-        from matches.models import Match
-
         season = get_object_or_404(Season, pk=season_id)
         try:
             tier = int(request.GET.get('tier', ''))
@@ -291,9 +283,6 @@ class SeasonAdmin(admin.ModelAdmin):
         return JsonResponse({'not_played': not_played, 'already_played': already_played})
 
     def schedule_match_view(self, request, season_id):
-        from django.http import JsonResponse
-        from matches.models import Match
-
         season = get_object_or_404(Season, pk=season_id)
         if request.method != 'POST':
             return JsonResponse({'error': 'Method not allowed'}, status=405)
@@ -339,9 +328,6 @@ class SeasonAdmin(admin.ModelAdmin):
         return JsonResponse({'success': True, 'match_id': match.id})
 
     def delete_match_matches_view(self, request, season_id):
-        from django.http import JsonResponse
-        from matches.models import Match
-
         season = get_object_or_404(Season, pk=season_id)
         try:
             tier = int(request.GET.get('tier', ''))
@@ -374,9 +360,6 @@ class SeasonAdmin(admin.ModelAdmin):
         return JsonResponse({'matches': result})
 
     def delete_match_view(self, request, season_id):
-        from django.http import JsonResponse
-        from matches.models import Match
-
         season = get_object_or_404(Season, pk=season_id)
         if request.method != 'POST':
             return JsonResponse({'error': 'Method not allowed'}, status=405)
@@ -398,8 +381,6 @@ class SeasonAdmin(admin.ModelAdmin):
         return JsonResponse({'success': True})
 
     def _build_schedule_analysis(self, season, tier_range):
-        from matches.models import Match
-
         date_tier_qs = (
             Match.objects.filter(season=season, round=Match.ROUND_REGULAR)
             .exclude(scheduled_date=None)
