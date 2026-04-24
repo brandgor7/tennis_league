@@ -352,7 +352,7 @@
       </div>
 
       <!-- Confirm panel -->
-      <div id="dm-confirm-panel" style="display:none;display:flex;align-items:center;gap:0.9rem;flex-wrap:wrap;background:#fff8f6;border:1px solid #f0c8bc;border-radius:7px;padding:0.8rem 1rem;">
+      <div id="dm-confirm-panel" style="display:none;align-items:center;gap:0.9rem;flex-wrap:wrap;background:#fff8f6;border:1px solid #f0c8bc;border-radius:7px;padding:0.8rem 1rem;">
         <span id="dm-confirm-label" style="font-size:0.875rem;color:#333;flex:1;min-width:0;"></span>
         <button type="button" onclick="dmDeleteMatch()"
                 style="background:#c0392b;color:#fff;border:none;border-radius:5px;padding:0.45rem 1rem;font-size:0.85rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:background 0.12s;"
@@ -430,7 +430,7 @@
     document.getElementById('sm-create-panel').style.display = 'none';
     if (!tier) return;
     fetch(smUrls.players + '?tier=' + tier)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(data => {
         const list = document.getElementById('sm-player-list');
         list.innerHTML = '';
@@ -443,6 +443,9 @@
           list.appendChild(btn);
         });
         document.getElementById('sm-players-section').style.display = 'block';
+      })
+      .catch(() => {
+        document.getElementById('sm-players-section').style.display = 'none';
       });
   };
 
@@ -450,7 +453,7 @@
     Object.assign(smState, { player1Id: id, player1Name: name, player2Id: null, player2Name: null });
     document.getElementById('sm-create-panel').style.display = 'none';
     fetch(smUrls.matchups + '?tier=' + smState.tier + '&player=' + id)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(data => {
         const notPlayed = document.getElementById('sm-not-played');
         const alreadyPlayed = document.getElementById('sm-already-played');
@@ -485,6 +488,9 @@
         }
 
         document.getElementById('sm-matchups-section').style.display = 'block';
+      })
+      .catch(() => {
+        document.getElementById('sm-matchups-section').style.display = 'none';
       });
   }
 
@@ -533,7 +539,7 @@
   window.addEventListener('DOMContentLoaded', function () {
     const sel = document.getElementById('sm-tier-select');
     const saved = localStorage.getItem(smSeasonKey);
-    if (saved && sel.querySelector('option[value="' + saved + '"]')) sel.value = saved;
+    if (saved) { sel.value = saved; if (sel.value !== saved) sel.value = ''; }
     if (sel.value) smSelectTier(sel.value);
   });
 }());
@@ -562,7 +568,7 @@
     if (!tier) return;
 
     fetch(dmUrls.matches + '?tier=' + tier)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(data => {
         sel.innerHTML = '<option value="">— select a match —</option>';
         const matches = data.matches || [];
@@ -582,6 +588,9 @@
         }
 
         matchesSection.style.display = 'block';
+      })
+      .catch(() => {
+        matchesSection.style.display = 'none';
       });
   };
 
@@ -635,7 +644,7 @@
   window.addEventListener('DOMContentLoaded', function () {
     const sel = document.getElementById('dm-tier-select');
     const saved = localStorage.getItem(dmSeasonKey);
-    if (saved && sel.querySelector('option[value="' + saved + '"]')) sel.value = saved;
+    if (saved) { sel.value = saved; if (sel.value !== saved) sel.value = ''; }
     if (sel.value) dmSelectTier(sel.value);
   });
 }());

@@ -197,9 +197,24 @@ class SeasonAdmin(admin.ModelAdmin):
         }
         return render(request, 'leagues/generate_schedule.html', context)
 
+    def _match_count_map(self, season, tier, tier_players):
+        """Return {player_id: scheduled_match_count} for all players in tier_players."""
+        from matches.models import Match
+
+        match_pairs = list(
+            Match.objects.filter(season=season, tier=tier, round=Match.ROUND_REGULAR)
+            .values_list('player1_id', 'player2_id')
+        )
+        count_map = {sp.player_id: 0 for sp in tier_players}
+        for p1_id, p2_id in match_pairs:
+            if p1_id in count_map:
+                count_map[p1_id] += 1
+            if p2_id in count_map:
+                count_map[p2_id] += 1
+        return count_map
+
     def schedule_match_players_view(self, request, season_id):
         from django.http import JsonResponse
-        from matches.models import Match
 
         season = get_object_or_404(Season, pk=season_id)
         try:
@@ -211,16 +226,7 @@ class SeasonAdmin(admin.ModelAdmin):
             SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True)
             .select_related('player')
         )
-        match_pairs = list(
-            Match.objects.filter(season=season, tier=tier, round=Match.ROUND_REGULAR)
-            .values_list('player1_id', 'player2_id')
-        )
-        count_map = {sp.player_id: 0 for sp in tier_players}
-        for p1_id, p2_id in match_pairs:
-            if p1_id in count_map:
-                count_map[p1_id] += 1
-            if p2_id in count_map:
-                count_map[p2_id] += 1
+        count_map = self._match_count_map(season, tier, tier_players)
 
         players = sorted(
             [
@@ -254,17 +260,12 @@ class SeasonAdmin(admin.ModelAdmin):
         if player_id not in player_map:
             return JsonResponse({'error': 'Player not found'}, status=400)
 
-        match_pairs = list(
-            Match.objects.filter(season=season, tier=tier, round=Match.ROUND_REGULAR)
-            .values_list('player1_id', 'player2_id')
-        )
-        count_map = {sp.player_id: 0 for sp in tier_players}
+        count_map = self._match_count_map(season, tier, tier_players)
+
         played_opponents = set()
-        for p1_id, p2_id in match_pairs:
-            if p1_id in count_map:
-                count_map[p1_id] += 1
-            if p2_id in count_map:
-                count_map[p2_id] += 1
+        for p1_id, p2_id in Match.objects.filter(
+            season=season, tier=tier, round=Match.ROUND_REGULAR
+        ).values_list('player1_id', 'player2_id'):
             if player_id == p1_id:
                 played_opponents.add(p2_id)
             elif player_id == p2_id:
@@ -307,9 +308,15 @@ class SeasonAdmin(admin.ModelAdmin):
         if player1_id == player2_id:
             return JsonResponse({'error': 'Cannot schedule a player against themselves'}, status=400)
 
-        if not SeasonPlayer.objects.filter(season=season, player_id=player1_id, tier=tier, is_active=True).exists():
+        valid_ids = set(
+            SeasonPlayer.objects.filter(
+                season=season, player_id__in=[player1_id, player2_id],
+                tier=tier, is_active=True,
+            ).values_list('player_id', flat=True)
+        )
+        if player1_id not in valid_ids:
             return JsonResponse({'error': 'Player 1 not found in tier'}, status=400)
-        if not SeasonPlayer.objects.filter(season=season, player_id=player2_id, tier=tier, is_active=True).exists():
+        if player2_id not in valid_ids:
             return JsonResponse({'error': 'Player 2 not found in tier'}, status=400)
 
         scheduled_date = None
@@ -352,10 +359,11 @@ class SeasonAdmin(admin.ModelAdmin):
 
         result = []
         for m in matches:
-            p1 = m.player1.get_full_name() or m.player1.username
-            p2 = m.player2.get_full_name() or m.player2.username
+            p1 = (m.player1.get_full_name() or m.player1.username) if m.player1 else '?'
+            p2 = (m.player2.get_full_name() or m.player2.username) if m.player2 else '?'
             if m.scheduled_date:
-                date_str = m.scheduled_date.strftime('%b %-d, %Y')
+                d = m.scheduled_date
+                date_str = f'{d.strftime("%b")} {d.day}, {d.year}'
             else:
                 date_str = 'No date'
             result.append({
@@ -433,17 +441,7 @@ class SeasonAdmin(admin.ModelAdmin):
             if not tier_players:
                 continue
 
-            match_pairs = list(
-                Match.objects.filter(season=season, tier=tier, round=Match.ROUND_REGULAR)
-                .values_list('player1_id', 'player2_id')
-            )
-            count_map = {sp.player_id: 0 for sp in tier_players}
-            for p1_id, p2_id in match_pairs:
-                if p1_id in count_map:
-                    count_map[p1_id] += 1
-                if p2_id in count_map:
-                    count_map[p2_id] += 1
-
+            count_map = self._match_count_map(season, tier, tier_players)
             max_count = max(count_map.values()) if count_map else 0
             if max_count == 0:
                 continue

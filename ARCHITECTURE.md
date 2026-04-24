@@ -490,15 +490,27 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
 
 ### Admin: Analyze / Generate Schedule
 
-Custom admin view at `/admin/seasons/<id>/generate-schedule/`. Combines schedule generation and analysis on one page:
+Custom admin view at `/admin/seasons/<id>/generate-schedule/`. Combines schedule generation, analysis, and manual match management on one page:
 
 - **Tier overview table** — active players, total rounds, remaining rounds per tier
 - **Add Rounds form** — start date + number of rounds; hidden when all rounds are exhausted
 - **Schedule Analysis** (shown once any matches exist):
   - *Matches by Date* — match count per date per tier; totals row and grand total
   - *Players with Fewer Scheduled Matches* — per-tier cards showing players whose scheduled match count is below the tier maximum, with deficit badge; replaced by a green confirmation when all players are equal
+- **Schedule a Match** — tier dropdown → player list (sorted by fewest matches) → opponent columns (new matchup / already played) → optional date → creates a single `Match` record
+- **Delete a Match** — tier dropdown → scheduled-matches dropdown (ordered by date, then player name) → inline confirmation → deletes the match
 
-Analysis data is computed by `SeasonAdmin._build_schedule_analysis(season, tier_range)` which returns `None` when no matches exist.
+Analysis data is computed by `SeasonAdmin._build_schedule_analysis(season, tier_range)` which returns `None` when no matches exist. Per-player match counts are computed by `SeasonAdmin._match_count_map(season, tier, tier_players)`, shared across the analysis and the two manual-scheduling endpoints.
+
+Five supporting JSON/POST endpoints on `SeasonAdmin`:
+
+| URL | Method | Purpose |
+|-----|--------|---------|
+| `/admin/seasons/<id>/schedule-match/players/?tier=<n>` | GET | Players in tier with match counts |
+| `/admin/seasons/<id>/schedule-match/matchups/?tier=<n>&player=<id>` | GET | Opponent split: not-played vs already-played |
+| `/admin/seasons/<id>/schedule-match/` | POST | Create a single regular-season match |
+| `/admin/seasons/<id>/delete-match/matches/?tier=<n>` | GET | Scheduled regular-season matches for tier |
+| `/admin/seasons/<id>/delete-match/` | POST | Delete a single scheduled regular-season match |
 
 **Score validation rules:**
 - Normal set: winner must have ≥ 6 games, lead by ≥ 2 (except 7-5)
