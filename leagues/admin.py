@@ -8,12 +8,15 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.http import HttpResponseRedirect
+from django.db.models import Count
+from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
 from django.utils.html import format_html
 
 from .models import Season, SeasonPlayer, SiteConfig, Tier
+from matches.models import Match
+from matches.scheduler import generate_schedule, remaining_rounds_count
 from playoffs.generator import bracket_size_for, generate_bracket
 from playoffs.models import PlayoffBracket
 from standings.calculator import calculate_standings
@@ -74,6 +77,31 @@ class SeasonAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.copy_players_view),
                 name='leagues_season_copy_players',
             ),
+            path(
+                '<int:season_id>/schedule-match/',
+                self.admin_site.admin_view(self.schedule_match_view),
+                name='leagues_season_schedule_match',
+            ),
+            path(
+                '<int:season_id>/schedule-match/players/',
+                self.admin_site.admin_view(self.schedule_match_players_view),
+                name='leagues_season_schedule_match_players',
+            ),
+            path(
+                '<int:season_id>/schedule-match/matchups/',
+                self.admin_site.admin_view(self.schedule_match_matchups_view),
+                name='leagues_season_schedule_match_matchups',
+            ),
+            path(
+                '<int:season_id>/delete-match/',
+                self.admin_site.admin_view(self.delete_match_view),
+                name='leagues_season_delete_match',
+            ),
+            path(
+                '<int:season_id>/delete-match/matches/',
+                self.admin_site.admin_view(self.delete_match_matches_view),
+                name='leagues_season_delete_match_matches',
+            ),
         ]
         return custom + urls
 
@@ -100,23 +128,31 @@ class SeasonAdmin(admin.ModelAdmin):
         return super().change_view(request, object_id, form_url, extra_context)
 
     def generate_schedule_view(self, request, season_id):
-        from matches.models import Match
-        from matches.scheduler import generate_schedule
-
         season = get_object_or_404(Season.objects.prefetch_related('tiers'), pk=season_id)
-        has_matches = Match.objects.filter(season=season, round=Match.ROUND_REGULAR).exists()
+        tier_range = range(1, season.num_tiers + 1)
 
         tier_info = []
-        for tier in range(1, season.num_tiers + 1):
+        for tier in tier_range:
             count = SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True).count()
             max_rounds = count - 1 + count % 2  # N-1 for even N, N for odd N
-            tier_info.append({'tier_name': season.tier_name(tier), 'player_count': count, 'max_rounds': max_rounds})
+            remaining = remaining_rounds_count(season, tier)
+            tier_info.append({
+                'tier': tier,
+                'tier_name': season.tier_name(tier),
+                'player_count': count,
+                'max_rounds': max_rounds,
+                'remaining_rounds': remaining,
+            })
+
+        all_exhausted = all(row['remaining_rounds'] == 0 for row in tier_info)
+
+        schedule_analysis = self._build_schedule_analysis(season, tier_range)
 
         error = None
         start_date_val = ''
         num_rounds_val = ''
 
-        if request.method == 'POST' and not has_matches:
+        if request.method == 'POST':
             start_date_val = request.POST.get('start_date', '')
             num_rounds_val = request.POST.get('num_rounds', '')
             start_date = None
@@ -135,29 +171,289 @@ class SeasonAdmin(admin.ModelAdmin):
                     error = 'Number of rounds must be a positive integer.'
 
             if not error:
-                try:
-                    matches = generate_schedule(season, start_date, num_rounds)
+                matches = generate_schedule(season, start_date, num_rounds)
+                if matches:
                     messages.success(
                         request,
                         f'{len(matches)} match{"es" if len(matches) != 1 else ""} scheduled for {season}.',
                     )
-                    return HttpResponseRedirect(
-                        reverse('admin:leagues_season_change', args=[season_id])
-                    )
-                except ValueError as e:
-                    error = str(e)
+                else:
+                    messages.warning(request, 'No new matches were scheduled — all rounds are already booked.')
+                return HttpResponseRedirect(
+                    reverse('admin:leagues_season_change', args=[season_id])
+                )
 
         context = {
             **self.admin_site.each_context(request),
             'season': season,
-            'has_matches': has_matches,
             'tier_info': tier_info,
+            'all_exhausted': all_exhausted,
+            'schedule_analysis': schedule_analysis,
             'error': error,
             'start_date_val': start_date_val,
             'num_rounds_val': num_rounds_val,
-            'title': f'Generate Schedule — {season.name}',
+            'title': f'Analyze / Generate Schedule — {season.name}',
         }
         return render(request, 'leagues/generate_schedule.html', context)
+
+    def _match_count_map(self, season, tier, tier_players):
+        """Return {player_id: scheduled_match_count} for all players in tier_players."""
+        match_pairs = list(
+            Match.objects.filter(season=season, tier=tier, round=Match.ROUND_REGULAR)
+            .values_list('player1_id', 'player2_id')
+        )
+        count_map = {sp.player_id: 0 for sp in tier_players}
+        for p1_id, p2_id in match_pairs:
+            if p1_id in count_map:
+                count_map[p1_id] += 1
+            if p2_id in count_map:
+                count_map[p2_id] += 1
+        return count_map
+
+    def schedule_match_players_view(self, request, season_id):
+        season = get_object_or_404(Season, pk=season_id)
+        try:
+            tier = int(request.GET.get('tier', ''))
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid tier'}, status=400)
+
+        tier_players = list(
+            SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True)
+            .select_related('player')
+        )
+        count_map = self._match_count_map(season, tier, tier_players)
+
+        players = sorted(
+            [
+                {
+                    'id': sp.player_id,
+                    'name': sp.player.get_full_name() or sp.player.username,
+                    'match_count': count_map[sp.player_id],
+                }
+                for sp in tier_players
+            ],
+            key=lambda x: (x['match_count'], x['name']),
+        )
+        return JsonResponse({'players': players})
+
+    def schedule_match_matchups_view(self, request, season_id):
+        season = get_object_or_404(Season, pk=season_id)
+        try:
+            tier = int(request.GET.get('tier', ''))
+            player_id = int(request.GET.get('player', ''))
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid parameters'}, status=400)
+
+        tier_players = list(
+            SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True)
+            .select_related('player')
+        )
+        player_map = {sp.player_id: sp.player for sp in tier_players}
+        if player_id not in player_map:
+            return JsonResponse({'error': 'Player not found'}, status=400)
+
+        count_map = self._match_count_map(season, tier, tier_players)
+
+        played_opponents = set()
+        for p1_id, p2_id in Match.objects.filter(
+            season=season, tier=tier, round=Match.ROUND_REGULAR
+        ).values_list('player1_id', 'player2_id'):
+            if player_id == p1_id:
+                played_opponents.add(p2_id)
+            elif player_id == p2_id:
+                played_opponents.add(p1_id)
+
+        not_played = []
+        already_played = []
+        for sp in tier_players:
+            if sp.player_id == player_id:
+                continue
+            entry = {
+                'id': sp.player_id,
+                'name': sp.player.get_full_name() or sp.player.username,
+                'match_count': count_map[sp.player_id],
+            }
+            if sp.player_id in played_opponents:
+                already_played.append(entry)
+            else:
+                not_played.append(entry)
+
+        not_played.sort(key=lambda x: (x['match_count'], x['name']))
+        already_played.sort(key=lambda x: (x['match_count'], x['name']))
+        return JsonResponse({'not_played': not_played, 'already_played': already_played})
+
+    def schedule_match_view(self, request, season_id):
+        season = get_object_or_404(Season, pk=season_id)
+        if request.method != 'POST':
+            return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+        try:
+            tier = int(request.POST.get('tier', ''))
+            player1_id = int(request.POST.get('player1', ''))
+            player2_id = int(request.POST.get('player2', ''))
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid parameters'}, status=400)
+
+        if player1_id == player2_id:
+            return JsonResponse({'error': 'Cannot schedule a player against themselves'}, status=400)
+
+        valid_ids = set(
+            SeasonPlayer.objects.filter(
+                season=season, player_id__in=[player1_id, player2_id],
+                tier=tier, is_active=True,
+            ).values_list('player_id', flat=True)
+        )
+        if player1_id not in valid_ids:
+            return JsonResponse({'error': 'Player 1 not found in tier'}, status=400)
+        if player2_id not in valid_ids:
+            return JsonResponse({'error': 'Player 2 not found in tier'}, status=400)
+
+        scheduled_date = None
+        scheduled_date_str = request.POST.get('scheduled_date', '').strip()
+        if scheduled_date_str:
+            try:
+                scheduled_date = datetime.date.fromisoformat(scheduled_date_str)
+            except ValueError:
+                return JsonResponse({'error': 'Invalid date'}, status=400)
+
+        match = Match.objects.create(
+            season=season,
+            player1_id=player1_id,
+            player2_id=player2_id,
+            tier=tier,
+            round=Match.ROUND_REGULAR,
+            scheduled_date=scheduled_date,
+            status=Match.STATUS_SCHEDULED,
+        )
+        return JsonResponse({'success': True, 'match_id': match.id})
+
+    def delete_match_matches_view(self, request, season_id):
+        season = get_object_or_404(Season, pk=season_id)
+        try:
+            tier = int(request.GET.get('tier', ''))
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid tier'}, status=400)
+
+        matches = (
+            Match.objects.filter(
+                season=season, tier=tier, round=Match.ROUND_REGULAR,
+                status=Match.STATUS_SCHEDULED,
+            )
+            .select_related('player1', 'player2')
+            .order_by('scheduled_date', 'player1__last_name', 'player1__first_name')
+        )
+
+        result = []
+        for m in matches:
+            p1 = (m.player1.get_full_name() or m.player1.username) if m.player1 else '?'
+            p2 = (m.player2.get_full_name() or m.player2.username) if m.player2 else '?'
+            if m.scheduled_date:
+                d = m.scheduled_date
+                date_str = f'{d.strftime("%b")} {d.day}, {d.year}'
+            else:
+                date_str = 'No date'
+            result.append({
+                'id': m.id,
+                'label': f'{date_str} — {p1} vs {p2}',
+            })
+
+        return JsonResponse({'matches': result})
+
+    def delete_match_view(self, request, season_id):
+        season = get_object_or_404(Season, pk=season_id)
+        if request.method != 'POST':
+            return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+        try:
+            match_id = int(request.POST.get('match_id', ''))
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid match ID'}, status=400)
+
+        try:
+            match = Match.objects.get(
+                pk=match_id, season=season,
+                round=Match.ROUND_REGULAR, status=Match.STATUS_SCHEDULED,
+            )
+        except Match.DoesNotExist:
+            return JsonResponse({'error': 'Match not found or cannot be deleted'}, status=400)
+
+        match.delete()
+        return JsonResponse({'success': True})
+
+    def _build_schedule_analysis(self, season, tier_range):
+        date_tier_qs = (
+            Match.objects.filter(season=season, round=Match.ROUND_REGULAR)
+            .exclude(scheduled_date=None)
+            .values('scheduled_date', 'tier')
+            .annotate(count=Count('id'))
+            .order_by('scheduled_date', 'tier')
+        )
+
+        date_tier_map = {}
+        for row in date_tier_qs:
+            d = row['scheduled_date']
+            t = row['tier']
+            date_tier_map.setdefault(d, {})[t] = row['count']
+
+        if not date_tier_map:
+            return None
+
+        tier_names = [season.tier_name(t) for t in tier_range]
+        multi_tier = len(tier_names) > 1
+
+        date_rows = []
+        for d in sorted(date_tier_map.keys()):
+            tier_counts = [date_tier_map[d].get(t, 0) for t in tier_range]
+            date_rows.append({
+                'date': d,
+                'tier_counts': tier_counts,
+                'total': sum(tier_counts),
+            })
+
+        totals = [sum(row['tier_counts'][i] for row in date_rows) for i in range(len(tier_names))]
+        grand_total = sum(totals)
+
+        behind_by_tier = []
+        for tier in tier_range:
+            tier_players = list(
+                SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True)
+                .select_related('player')
+            )
+            if not tier_players:
+                continue
+
+            count_map = self._match_count_map(season, tier, tier_players)
+            max_count = max(count_map.values()) if count_map else 0
+            if max_count == 0:
+                continue
+
+            behind = sorted(
+                [
+                    {
+                        'player': sp.player,
+                        'count': count_map[sp.player_id],
+                        'deficit': max_count - count_map[sp.player_id],
+                    }
+                    for sp in tier_players
+                    if count_map[sp.player_id] < max_count
+                ],
+                key=lambda x: (x['count'], x['player'].get_full_name()),
+            )
+            if behind:
+                behind_by_tier.append({
+                    'tier_name': season.tier_name(tier),
+                    'max_count': max_count,
+                    'players': behind,
+                })
+
+        return {
+            'tier_names': tier_names,
+            'multi_tier': multi_tier,
+            'date_rows': date_rows,
+            'totals': totals,
+            'grand_total': grand_total,
+            'behind_by_tier': behind_by_tier,
+        }
 
     def import_players_view(self, request, season_id):
         season = get_object_or_404(Season, pk=season_id)

@@ -47,28 +47,49 @@ def _round_robin_rounds(player_ids):
     return rounds
 
 
+def _existing_pairs(season, tier):
+    """Return the set of already-scheduled regular-season matchup pairs for a tier."""
+    pairs = set()
+    for row in Match.objects.filter(
+        season=season, tier=tier, round=Match.ROUND_REGULAR
+    ).values('player1_id', 'player2_id'):
+        pairs.add(frozenset([row['player1_id'], row['player2_id']]))
+    return pairs
+
+
+def remaining_rounds_count(season, tier):
+    """Return the number of unscheduled rounds remaining for a tier."""
+    player_ids = list(
+        SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True)
+        .values_list('player_id', flat=True)
+    )
+    existing = _existing_pairs(season, tier)
+    count = 0
+    for round_pairs in _round_robin_rounds(player_ids):
+        if any(frozenset([p1, p2]) not in existing for p1, p2 in round_pairs):
+            count += 1
+    return count
+
+
 @transaction.atomic
 def generate_schedule(season, start_date, num_rounds):
     """
     Generate scheduled Match objects for all tiers in a season.
 
-    Builds a round-robin across all active players in each tier so no pair
-    is scheduled more than once. Each round's date is determined by
-    season.schedule_type:
+    Can be called multiple times. Already-scheduled matchup pairs are skipped
+    so no pair is ever duplicated within a season. The start_date and round
+    offsets apply to the first newly-added round (round_index 0).
+
+    Each round's date is determined by season.schedule_type:
       - single_day:        all matches on start_date
       - consecutive_days:  rounds advance one day per round
       - weekly:            rounds advance one week per round
 
-    num_rounds is capped per tier at the maximum number of unique-matchup
-    rounds available for that tier's player count (N players → N-1 rounds max).
+    num_rounds is capped per tier at the remaining unscheduled rounds available.
 
-    Raises ValueError if regular-season matches already exist for the season.
-
-    Returns the list of created Match objects.
+    Returns the list of newly created Match objects (may be empty if all
+    possible rounds are already scheduled).
     """
-    if Match.objects.filter(season=season, round=Match.ROUND_REGULAR).exists():
-        raise ValueError(f'Regular-season matches already exist for {season}.')
-
     is_single_day = season.schedule_type == Season.SCHEDULE_SINGLE_DAY
     offset = _ROUND_OFFSETS[season.schedule_type]
     to_create = []
@@ -79,10 +100,14 @@ def generate_schedule(season, start_date, num_rounds):
             .values_list('player_id', flat=True)
         )
 
-        all_rounds = _round_robin_rounds(player_ids)
-        scheduled_rounds = all_rounds[:num_rounds]
+        existing = _existing_pairs(season, tier)
+        remaining = []
+        for round_pairs in _round_robin_rounds(player_ids):
+            new_pairs = [(p1, p2) for p1, p2 in round_pairs if frozenset([p1, p2]) not in existing]
+            if new_pairs:
+                remaining.append(new_pairs)
 
-        for round_index, pairs in enumerate(scheduled_rounds):
+        for round_index, pairs in enumerate(remaining[:num_rounds]):
             scheduled_date = start_date if is_single_day else start_date + offset * round_index
 
             for player1_id, player2_id in pairs:

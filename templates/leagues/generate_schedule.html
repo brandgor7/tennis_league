@@ -1,68 +1,652 @@
 {% extends "admin/base_site.html" %}
 
+{% block title %}{{ title }} | {{ site_title|default:"Django site admin" }}{% endblock %}
+
 {% block content %}
-<div style="max-width: 640px;">
-  <h1>{{ title }}</h1>
+<style>
+  .sched-section { margin-bottom: 2.25rem; }
+  .sched-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+    margin: 0 0 0.65rem;
+  }
+  .sched-table {
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    width: 100%;
+  }
+  .sched-table thead tr {
+    background: #417690;
+    color: #fff;
+  }
+  .sched-table th {
+    padding: 0.6rem 1.1rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .sched-table th:first-child { text-align: left; }
+  .sched-table th:not(:first-child) { text-align: center; }
+  .sched-table td {
+    padding: 0.55rem 1.1rem;
+    border-bottom: 1px solid #ebebeb;
+  }
+  .sched-table td:first-child { font-weight: 500; white-space: nowrap; }
+  .sched-table td:not(:first-child) { text-align: center; }
+  .sched-table tbody tr:nth-child(even) { background: #f9f9f9; }
+  .sched-table tbody tr:nth-child(odd)  { background: #fff; }
+  .sched-table tfoot tr {
+    background: #eef2f5;
+    border-top: 2px solid #c8d4de;
+    font-weight: 700;
+  }
+  .sched-table .cell-zero { color: #bbb; }
 
-  {% if has_matches %}
-  <div class="alert alert-warning">
-    Regular-season matches already exist for this season.
-    Delete them from the admin before generating a new schedule.
-  </div>
-  <p style="margin-top: 1rem;"><a href="../">&lsaquo; Back to season</a></p>
+  .player-chip {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    background: #fff;
+    border: 1px solid #f0c040;
+    border-radius: 7px;
+    padding: 0.5rem 0.8rem;
+    min-width: 130px;
+  }
+  .player-chip-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    white-space: nowrap;
+  }
+  .player-chip-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .player-chip-count { font-size: 0.8rem; color: #666; }
+  .player-chip-deficit {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #c04800;
+    background: #fff0e2;
+    border-radius: 10px;
+    padding: 0.1rem 0.45rem;
+  }
+  .behind-block {
+    background: #fffcf0;
+    border: 1px solid #edd060;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.875rem;
+  }
+  .behind-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.8rem;
+  }
+  .behind-block-tier { font-weight: 700; font-size: 0.9rem; }
+  .behind-block-max {
+    font-size: 0.78rem;
+    color: #7a6500;
+    background: #f5de80;
+    border-radius: 12px;
+    padding: 0.2rem 0.65rem;
+  }
+  .behind-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+</style>
 
-  {% else %}
+<div style="max-width: 860px;">
 
   {% if error %}
-  <div class="alert alert-error" style="margin-bottom: 1rem;">{{ error }}</div>
+  <div class="errornote" style="margin-bottom: 1.25rem;">{{ error }}</div>
   {% endif %}
 
-  <table class="table table-sm" style="max-width: 400px; margin-bottom: 1.5rem;">
-    <thead>
-      <tr><th>Tier</th><th>Active players</th><th>Max rounds</th></tr>
-    </thead>
-    <tbody>
-      {% for row in tier_info %}
-      <tr>
-        <td>{{ row.tier_name }}</td>
-        <td>{{ row.player_count }}</td>
-        <td>{{ row.max_rounds }}</td>
-      </tr>
+  <!-- Tier Overview -->
+  <div class="sched-section" style="max-width: 520px;">
+    <p class="sched-label">Tier Overview</p>
+    <table class="sched-table">
+      <thead>
+        <tr>
+          <th>Tier</th>
+          <th>Players</th>
+          <th>Total Rounds</th>
+          <th>Remaining</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in tier_info %}
+        <tr>
+          <td>{{ row.tier_name }}</td>
+          <td>{{ row.player_count }}</td>
+          <td>{{ row.max_rounds }}</td>
+          <td>
+            {% if row.remaining_rounds == 0 %}
+            <span style="color:#aaa;font-size:0.8rem;font-style:italic;">complete</span>
+            {% else %}
+            <strong style="color:#2e7d32;">{{ row.remaining_rounds }}</strong>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p style="margin-top:0.65rem;font-size:0.82rem;color:#888;">
+      Schedule type: <strong style="color:#444;">{{ season.get_schedule_type_display }}</strong>
+    </p>
+  </div>
+
+  <!-- Generate Form -->
+  {% if all_exhausted %}
+  <div style="background:#f8f8e8;border:1px solid #ddd88a;border-radius:7px;padding:0.9rem 1.2rem;margin-bottom:1.75rem;color:#666600;font-size:0.9rem;">
+    All possible rounds have been scheduled. No further matches can be generated.
+  </div>
+  {% else %}
+  <div class="sched-section" style="background:#f4f7fa;border:1px solid #dce4ec;border-radius:8px;padding:1.4rem 1.5rem;max-width:420px;">
+    <p class="sched-label" style="margin-bottom:1rem;">Add Rounds</p>
+    <form method="post">
+      {% csrf_token %}
+      <div style="margin-bottom:0.9rem;">
+        <label for="id_start_date" style="display:block;font-weight:600;font-size:0.85rem;margin-bottom:0.3rem;color:#333;">
+          Start date
+        </label>
+        <input type="date" id="id_start_date" name="start_date"
+               value="{{ start_date_val }}" required
+               style="padding:0.45rem 0.6rem;border:1px solid #c0cdd8;border-radius:5px;font-size:0.875rem;">
+      </div>
+      <div style="margin-bottom:1.1rem;">
+        <label for="id_num_rounds" style="display:block;font-weight:600;font-size:0.85rem;margin-bottom:0.3rem;color:#333;">
+          Number of rounds
+        </label>
+        <input type="number" id="id_num_rounds" name="num_rounds" min="1"
+               value="{{ num_rounds_val }}" required
+               style="width:84px;padding:0.45rem 0.6rem;border:1px solid #c0cdd8;border-radius:5px;font-size:0.875rem;">
+        <p style="margin:0.3rem 0 0;font-size:0.78rem;color:#999;">
+          Already-scheduled matchups are skipped. Capped at remaining rounds per tier.
+        </p>
+      </div>
+      <button type="submit" class="button default" onclick="this.disabled=true;this.form.submit();">
+        Generate Schedule
+      </button>
+      <a href="../" class="button cancel-link" style="margin-left:0.75rem;">Cancel</a>
+    </form>
+  </div>
+  {% endif %}
+
+  <!-- Schedule Analysis -->
+  {% if schedule_analysis %}
+  <div style="border-top:2px solid #e4e4e4;padding-top:1.75rem;">
+    <h2 style="font-size:1rem;font-weight:700;margin:0 0 1.5rem;color:#333;letter-spacing:0.01em;">Schedule Analysis</h2>
+
+    <!-- Matches by Date -->
+    <div class="sched-section">
+      <p class="sched-label">Matches by Date</p>
+      <div style="overflow-x:auto;">
+        <table class="sched-table" style="max-width:680px;">
+          <thead>
+            <tr>
+              <th>Date</th>
+              {% for name in schedule_analysis.tier_names %}
+              <th>{{ name }}</th>
+              {% endfor %}
+              {% if schedule_analysis.multi_tier %}
+              <th>Total</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in schedule_analysis.date_rows %}
+            <tr>
+              <td>{{ row.date|date:"M j, Y" }}</td>
+              {% for count in row.tier_counts %}
+              <td {% if count == 0 %}class="cell-zero"{% endif %}>
+                {% if count == 0 %}—{% else %}{{ count }}{% endif %}
+              </td>
+              {% endfor %}
+              {% if schedule_analysis.multi_tier %}
+              <td style="color:#555;">{{ row.total }}</td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>Total</td>
+              {% for total in schedule_analysis.totals %}
+              <td>{{ total }}</td>
+              {% endfor %}
+              {% if schedule_analysis.multi_tier %}
+              <td>{{ schedule_analysis.grand_total }}</td>
+              {% endif %}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Behind Players -->
+    {% if schedule_analysis.behind_by_tier %}
+    <div class="sched-section">
+      <p class="sched-label" style="color:#b05800;">Players with Fewer Scheduled Matches</p>
+      {% for tier_data in schedule_analysis.behind_by_tier %}
+      <div class="behind-block">
+        <div class="behind-block-header">
+          <span class="behind-block-tier">{{ tier_data.tier_name }}</span>
+          <span class="behind-block-max">max {{ tier_data.max_count }} match{{ tier_data.max_count|pluralize }}</span>
+        </div>
+        <div class="behind-chips">
+          {% for p in tier_data.players %}
+          <div class="player-chip">
+            <span class="player-chip-name">{{ p.player.get_full_name }}</span>
+            <div class="player-chip-meta">
+              <span class="player-chip-count">{{ p.count }} match{{ p.count|pluralize }}</span>
+              <span class="player-chip-deficit">−{{ p.deficit }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
       {% endfor %}
-    </tbody>
-  </table>
-
-  <p>
-    Schedule type: <strong>{{ season.get_schedule_type_display }}</strong>
-  </p>
-
-  <form method="post" style="margin-top: 1.5rem;">
-    {% csrf_token %}
-    <div style="margin-bottom: 1rem;">
-      <label for="id_start_date" style="display: block; font-weight: bold; margin-bottom: 0.25rem;">
-        Start date
-      </label>
-      <input type="date" id="id_start_date" name="start_date"
-             value="{{ start_date_val }}" required
-             style="padding: 0.4rem 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
     </div>
-    <div style="margin-bottom: 1.5rem;">
-      <label for="id_num_rounds" style="display: block; font-weight: bold; margin-bottom: 0.25rem;">
-        Number of rounds
-      </label>
-      <input type="number" id="id_num_rounds" name="num_rounds" min="1"
-             value="{{ num_rounds_val }}" required
-             style="width: 100px; padding: 0.4rem 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
-      <p class="help" style="margin-top: 0.25rem;">
-        Capped automatically at the maximum available rounds per tier.
-      </p>
+    {% else %}
+    <div style="display:flex;align-items:center;gap:0.5rem;color:#2e7d32;font-size:0.875rem;padding:0.75rem 1rem;background:#f0faf0;border:1px solid #b8e0b8;border-radius:6px;max-width:420px;">
+      <span style="font-size:1rem;">✓</span>
+      All players have an equal number of scheduled matches.
     </div>
-    <button type="submit" class="button default" onclick="this.disabled=true;this.form.submit();">
-      Generate Schedule
-    </button>
-    <a href="../" class="button cancel-link" style="margin-left: 0.75rem;">Cancel</a>
-  </form>
+    {% endif %}
 
+  </div>
   {% endif %}
+
+  {% if not schedule_analysis %}
+  <p style="margin-top:0.5rem;"><a href="../" style="color:#666;">‹ Back to season</a></p>
+  {% endif %}
+
+  <!-- Schedule a Match -->
+  <div style="border-top:2px solid #e4e4e4;padding-top:1.75rem;margin-top:1.75rem;">
+    <h2 style="font-size:1rem;font-weight:700;margin:0 0 1.5rem;color:#333;letter-spacing:0.01em;">Schedule a Match</h2>
+
+    <input type="hidden" id="sm-csrf" value="{{ csrf_token }}">
+
+    <div style="max-width:680px;">
+
+      <!-- Tier select -->
+      <div style="margin-bottom:1.5rem;">
+        <label for="sm-tier-select" class="sched-label" style="display:block;">Tier</label>
+        <select id="sm-tier-select" onchange="smSelectTier(this.value)"
+                style="padding:0.4rem 0.7rem;border:1px solid #c0cdd8;border-radius:5px;font-size:0.875rem;min-width:160px;background:#fff;">
+          {% if tier_info|length > 1 %}
+          <option value="">— select —</option>
+          {% endif %}
+          {% for row in tier_info %}
+          <option value="{{ row.tier }}">{{ row.tier_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Player list -->
+      <div id="sm-players-section" style="display:none;margin-bottom:1.5rem;">
+        <p class="sched-label">Select a player</p>
+        <div id="sm-player-list" style="display:flex;flex-wrap:wrap;gap:0.45rem;"></div>
+      </div>
+
+      <!-- Matchup columns -->
+      <div id="sm-matchups-section" style="display:none;margin-bottom:1.25rem;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;">
+          <div>
+            <p class="sched-label" style="color:#2e7d32;">New matchup</p>
+            <div id="sm-not-played" style="display:flex;flex-direction:column;gap:0.3rem;"></div>
+          </div>
+          <div>
+            <p class="sched-label">Already played</p>
+            <div id="sm-already-played" style="display:flex;flex-direction:column;gap:0.3rem;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Create panel -->
+      <div id="sm-create-panel" style="display:none;background:#f4f7fa;border:1px solid #dce4ec;border-radius:8px;padding:1rem 1.25rem;max-width:460px;margin-top:0.5rem;">
+        <p id="sm-create-label" style="font-weight:600;font-size:0.9rem;margin:0 0 0.75rem;color:#333;"></p>
+        <div style="display:flex;align-items:center;gap:0.65rem;flex-wrap:wrap;">
+          <input type="date" id="sm-date"
+                 style="padding:0.4rem 0.6rem;border:1px solid #c0cdd8;border-radius:5px;font-size:0.875rem;">
+          <button type="button" class="button default" onclick="smCreateMatch()">Create Match</button>
+          <button type="button" class="button cancel-link" onclick="smCancelCreate()">Cancel</button>
+        </div>
+        <div id="sm-create-error" style="display:none;color:#c04800;font-size:0.82rem;margin-top:0.5rem;"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Delete a Match -->
+  <div style="border-top:2px solid #e4e4e4;padding-top:1.75rem;margin-top:1.75rem;">
+    <h2 style="font-size:1rem;font-weight:700;margin:0 0 1.5rem;color:#333;letter-spacing:0.01em;">Delete a Match</h2>
+
+    <div style="max-width:560px;">
+
+      <!-- Tier select -->
+      <div style="margin-bottom:1.25rem;">
+        <label for="dm-tier-select" class="sched-label" style="display:block;">Tier</label>
+        <select id="dm-tier-select" onchange="dmSelectTier(this.value)"
+                style="padding:0.4rem 0.7rem;border:1px solid #c0cdd8;border-radius:5px;font-size:0.875rem;min-width:160px;background:#fff;">
+          {% if tier_info|length > 1 %}
+          <option value="">— select —</option>
+          {% endif %}
+          {% for row in tier_info %}
+          <option value="{{ row.tier }}">{{ row.tier_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Match select -->
+      <div id="dm-matches-section" style="display:none;margin-bottom:1.25rem;">
+        <label for="dm-match-select" class="sched-label" style="display:block;">Match</label>
+        <select id="dm-match-select" onchange="dmSelectMatch(this)"
+                style="width:100%;padding:0.9rem 0.9rem;border:1px solid #c0cdd8;border-radius:6px;font-size:0.9rem;line-height:1.5;min-height:3rem;background:#fff;color:#1a1a1a;cursor:pointer;">
+          <option value="">— select a match —</option>
+        </select>
+        <p id="dm-empty-msg" style="display:none;margin:0.5rem 0 0;font-size:0.82rem;color:#aaa;font-style:italic;">No scheduled matches in this tier.</p>
+      </div>
+
+      <!-- Confirm panel -->
+      <div id="dm-confirm-panel" style="display:none;align-items:center;gap:0.9rem;flex-wrap:wrap;background:#fff8f6;border:1px solid #f0c8bc;border-radius:7px;padding:0.8rem 1rem;">
+        <span id="dm-confirm-label" style="font-size:0.875rem;color:#333;flex:1;min-width:0;"></span>
+        <button type="button" onclick="dmDeleteMatch()"
+                style="background:#c0392b;color:#fff;border:none;border-radius:5px;padding:0.45rem 1rem;font-size:0.85rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:background 0.12s;"
+                onmouseenter="this.style.background='#a93226'" onmouseleave="this.style.background='#c0392b'">
+          Delete
+        </button>
+        <button type="button" onclick="dmCancelDelete()"
+                style="background:none;border:none;font-size:0.82rem;color:#888;cursor:pointer;padding:0.3rem 0.2rem;text-decoration:underline;text-underline-offset:2px;">
+          Cancel
+        </button>
+        <div id="dm-error" style="display:none;width:100%;color:#c04800;font-size:0.82rem;margin-top:0.1rem;"></div>
+      </div>
+
+    </div>
+  </div>
+
 </div>
+
+<script>
+(function () {
+  const smUrls = {
+    players: '{% url "admin:leagues_season_schedule_match_players" season.pk %}',
+    matchups: '{% url "admin:leagues_season_schedule_match_matchups" season.pk %}',
+    create: '{% url "admin:leagues_season_schedule_match" season.pk %}',
+  };
+  const smSeasonKey = 'sm_tier_{{ season.pk }}';
+
+  const smState = { tier: null, player1Id: null, player1Name: null, player2Id: null, player2Name: null };
+
+  function smBtn(text, subtext, muted, onclick) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.onclick = onclick;
+    btn.style.cssText = [
+      'display:flex;align-items:baseline;gap:0.45rem;',
+      'background:#fff;border:1px solid ' + (muted ? '#ddd' : '#c8d4de') + ';border-radius:6px;',
+      'padding:0.45rem 0.8rem;text-align:left;cursor:pointer;',
+      'font-size:0.875rem;color:' + (muted ? '#999' : '#1a1a1a') + ';',
+      'transition:border-color 0.12s,background 0.12s;',
+    ].join('');
+    btn.onmouseenter = () => { if (!btn.classList.contains('sm-active')) btn.style.borderColor = '#417690'; };
+    btn.onmouseleave = () => { if (!btn.classList.contains('sm-active')) btn.style.borderColor = muted ? '#ddd' : '#c8d4de'; };
+    const nameSpan = document.createElement('span');
+    nameSpan.style.fontWeight = '600';
+    nameSpan.textContent = text;
+    btn.appendChild(nameSpan);
+    if (subtext) {
+      const sub = document.createElement('span');
+      sub.style.cssText = 'font-size:0.78rem;color:#999;';
+      sub.textContent = subtext;
+      btn.appendChild(sub);
+    }
+    return btn;
+  }
+
+  function smSetActive(container, btn) {
+    container.querySelectorAll('button').forEach(b => {
+      b.classList.remove('sm-active');
+      b.style.background = '#fff';
+      b.style.borderColor = b.dataset.muted === '1' ? '#ddd' : '#c8d4de';
+      b.style.color = b.dataset.muted === '1' ? '#999' : '#1a1a1a';
+    });
+    btn.classList.add('sm-active');
+    btn.style.background = '#e8f0f6';
+    btn.style.borderColor = '#417690';
+    btn.style.color = '#1a1a1a';
+  }
+
+  window.smSelectTier = function (tier) {
+    if (tier) localStorage.setItem(smSeasonKey, tier);
+    else localStorage.removeItem(smSeasonKey);
+    Object.assign(smState, { tier, player1Id: null, player1Name: null, player2Id: null, player2Name: null });
+    document.getElementById('sm-players-section').style.display = 'none';
+    document.getElementById('sm-matchups-section').style.display = 'none';
+    document.getElementById('sm-create-panel').style.display = 'none';
+    if (!tier) return;
+    fetch(smUrls.players + '?tier=' + tier)
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(data => {
+        const list = document.getElementById('sm-player-list');
+        list.innerHTML = '';
+        (data.players || []).forEach(p => {
+          const label = p.match_count + ' match' + (p.match_count !== 1 ? 'es' : '');
+          const btn = smBtn(p.name, label, false, function () {
+            smSetActive(list, btn);
+            smSelectPlayer(p.id, p.name);
+          });
+          list.appendChild(btn);
+        });
+        document.getElementById('sm-players-section').style.display = 'block';
+      })
+      .catch(() => {
+        document.getElementById('sm-players-section').style.display = 'none';
+      });
+  };
+
+  function smSelectPlayer(id, name) {
+    Object.assign(smState, { player1Id: id, player1Name: name, player2Id: null, player2Name: null });
+    document.getElementById('sm-create-panel').style.display = 'none';
+    fetch(smUrls.matchups + '?tier=' + smState.tier + '&player=' + id)
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(data => {
+        const notPlayed = document.getElementById('sm-not-played');
+        const alreadyPlayed = document.getElementById('sm-already-played');
+        notPlayed.innerHTML = '';
+        alreadyPlayed.innerHTML = '';
+
+        if (data.not_played && data.not_played.length) {
+          data.not_played.forEach(p => {
+            const label = p.match_count + ' match' + (p.match_count !== 1 ? 'es' : '');
+            const btn = smBtn(p.name, label, false, function () {
+              smSetActive(document.getElementById('sm-matchups-section'), btn);
+              smSelectOpponent(p.id, p.name);
+            });
+            notPlayed.appendChild(btn);
+          });
+        } else {
+          notPlayed.innerHTML = '<span style="font-size:0.82rem;color:#aaa;font-style:italic;">All matchups played</span>';
+        }
+
+        if (data.already_played && data.already_played.length) {
+          data.already_played.forEach(p => {
+            const label = p.match_count + ' match' + (p.match_count !== 1 ? 'es' : '');
+            const btn = smBtn(p.name, label, true, function () {
+              smSetActive(document.getElementById('sm-matchups-section'), btn);
+              smSelectOpponent(p.id, p.name);
+            });
+            btn.dataset.muted = '1';
+            alreadyPlayed.appendChild(btn);
+          });
+        } else {
+          alreadyPlayed.innerHTML = '<span style="font-size:0.82rem;color:#aaa;font-style:italic;">None</span>';
+        }
+
+        document.getElementById('sm-matchups-section').style.display = 'block';
+      })
+      .catch(() => {
+        document.getElementById('sm-matchups-section').style.display = 'none';
+      });
+  }
+
+  function smSelectOpponent(id, name) {
+    Object.assign(smState, { player2Id: id, player2Name: name });
+    document.getElementById('sm-create-label').textContent = smState.player1Name + ' vs ' + name;
+    document.getElementById('sm-create-error').style.display = 'none';
+    document.getElementById('sm-create-panel').style.display = 'block';
+  }
+
+  window.smCreateMatch = async function () {
+    const err = document.getElementById('sm-create-error');
+    err.style.display = 'none';
+    const body = new FormData();
+    body.append('csrfmiddlewaretoken', document.getElementById('sm-csrf').value);
+    body.append('tier', smState.tier);
+    body.append('player1', smState.player1Id);
+    body.append('player2', smState.player2Id);
+    const date = document.getElementById('sm-date').value;
+    if (date) body.append('scheduled_date', date);
+    try {
+      const resp = await fetch(smUrls.create, { method: 'POST', body });
+      const data = await resp.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        err.textContent = data.error || 'Error creating match.';
+        err.style.display = 'block';
+      }
+    } catch {
+      err.textContent = 'Network error — please try again.';
+      err.style.display = 'block';
+    }
+  };
+
+  window.smCancelCreate = function () {
+    Object.assign(smState, { player2Id: null, player2Name: null });
+    document.getElementById('sm-create-panel').style.display = 'none';
+    document.getElementById('sm-matchups-section').querySelectorAll('button').forEach(b => {
+      b.classList.remove('sm-active');
+      b.style.background = '#fff';
+      b.style.borderColor = b.dataset.muted === '1' ? '#ddd' : '#c8d4de';
+    });
+  };
+
+  window.addEventListener('DOMContentLoaded', function () {
+    const sel = document.getElementById('sm-tier-select');
+    const saved = localStorage.getItem(smSeasonKey);
+    if (saved) { sel.value = saved; if (sel.value !== saved) sel.value = ''; }
+    if (sel.value) smSelectTier(sel.value);
+  });
+}());
+
+(function () {
+  const dmUrls = {
+    matches: '{% url "admin:leagues_season_delete_match_matches" season.pk %}',
+    delete: '{% url "admin:leagues_season_delete_match" season.pk %}',
+  };
+  const dmSeasonKey = 'dm_tier_{{ season.pk }}';
+
+  let dmMatchId = null;
+
+  window.dmSelectTier = function (tier) {
+    if (tier) localStorage.setItem(dmSeasonKey, tier);
+    else localStorage.removeItem(dmSeasonKey);
+    dmMatchId = null;
+    const matchesSection = document.getElementById('dm-matches-section');
+    const confirmPanel = document.getElementById('dm-confirm-panel');
+    const emptyMsg = document.getElementById('dm-empty-msg');
+    const sel = document.getElementById('dm-match-select');
+
+    confirmPanel.style.display = 'none';
+    matchesSection.style.display = 'none';
+
+    if (!tier) return;
+
+    fetch(dmUrls.matches + '?tier=' + tier)
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(data => {
+        sel.innerHTML = '<option value="">— select a match —</option>';
+        const matches = data.matches || [];
+
+        if (matches.length) {
+          matches.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = m.label;
+            sel.appendChild(opt);
+          });
+          emptyMsg.style.display = 'none';
+          sel.style.display = '';
+        } else {
+          emptyMsg.style.display = 'block';
+          sel.style.display = 'none';
+        }
+
+        matchesSection.style.display = 'block';
+      })
+      .catch(() => {
+        matchesSection.style.display = 'none';
+      });
+  };
+
+  window.dmSelectMatch = function (selectEl) {
+    const confirmPanel = document.getElementById('dm-confirm-panel');
+    const label = document.getElementById('dm-confirm-label');
+    const err = document.getElementById('dm-error');
+
+    dmMatchId = selectEl.value || null;
+    err.style.display = 'none';
+
+    if (!dmMatchId) {
+      confirmPanel.style.display = 'none';
+      return;
+    }
+
+    label.textContent = selectEl.options[selectEl.selectedIndex].text;
+    confirmPanel.style.display = 'flex';
+  };
+
+  window.dmDeleteMatch = async function () {
+    const err = document.getElementById('dm-error');
+    err.style.display = 'none';
+    if (!dmMatchId) return;
+
+    const body = new FormData();
+    body.append('csrfmiddlewaretoken', document.getElementById('sm-csrf').value);
+    body.append('match_id', dmMatchId);
+
+    try {
+      const resp = await fetch(dmUrls.delete, { method: 'POST', body });
+      const data = await resp.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        err.textContent = data.error || 'Error deleting match.';
+        err.style.display = 'block';
+      }
+    } catch {
+      err.textContent = 'Network error — please try again.';
+      err.style.display = 'block';
+    }
+  };
+
+  window.dmCancelDelete = function () {
+    dmMatchId = null;
+    document.getElementById('dm-match-select').value = '';
+    document.getElementById('dm-confirm-panel').style.display = 'none';
+  };
+
+  window.addEventListener('DOMContentLoaded', function () {
+    const sel = document.getElementById('dm-tier-select');
+    const saved = localStorage.getItem(dmSeasonKey);
+    if (saved) { sel.value = saved; if (sel.value !== saved) sel.value = ''; }
+    if (sel.value) dmSelectTier(sel.value);
+  });
+}());
+</script>
 {% endblock %}
