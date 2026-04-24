@@ -75,6 +75,21 @@ class SeasonAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.copy_players_view),
                 name='leagues_season_copy_players',
             ),
+            path(
+                '<int:season_id>/schedule-match/',
+                self.admin_site.admin_view(self.schedule_match_view),
+                name='leagues_season_schedule_match',
+            ),
+            path(
+                '<int:season_id>/schedule-match/players/',
+                self.admin_site.admin_view(self.schedule_match_players_view),
+                name='leagues_season_schedule_match_players',
+            ),
+            path(
+                '<int:season_id>/schedule-match/matchups/',
+                self.admin_site.admin_view(self.schedule_match_matchups_view),
+                name='leagues_season_schedule_match_matchups',
+            ),
         ]
         return custom + urls
 
@@ -113,6 +128,7 @@ class SeasonAdmin(admin.ModelAdmin):
             max_rounds = count - 1 + count % 2  # N-1 for even N, N for odd N
             remaining = remaining_rounds_count(season, tier)
             tier_info.append({
+                'tier': tier,
                 'tier_name': season.tier_name(tier),
                 'player_count': count,
                 'max_rounds': max_rounds,
@@ -170,6 +186,140 @@ class SeasonAdmin(admin.ModelAdmin):
             'title': f'Analyze / Generate Schedule — {season.name}',
         }
         return render(request, 'leagues/generate_schedule.html', context)
+
+    def schedule_match_players_view(self, request, season_id):
+        from django.http import JsonResponse
+        from matches.models import Match
+
+        season = get_object_or_404(Season, pk=season_id)
+        try:
+            tier = int(request.GET.get('tier', ''))
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid tier'}, status=400)
+
+        tier_players = list(
+            SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True)
+            .select_related('player')
+        )
+        match_pairs = list(
+            Match.objects.filter(season=season, tier=tier, round=Match.ROUND_REGULAR)
+            .values_list('player1_id', 'player2_id')
+        )
+        count_map = {sp.player_id: 0 for sp in tier_players}
+        for p1_id, p2_id in match_pairs:
+            if p1_id in count_map:
+                count_map[p1_id] += 1
+            if p2_id in count_map:
+                count_map[p2_id] += 1
+
+        players = sorted(
+            [
+                {
+                    'id': sp.player_id,
+                    'name': sp.player.get_full_name() or sp.player.username,
+                    'match_count': count_map[sp.player_id],
+                }
+                for sp in tier_players
+            ],
+            key=lambda x: (x['match_count'], x['name']),
+        )
+        return JsonResponse({'players': players})
+
+    def schedule_match_matchups_view(self, request, season_id):
+        from django.http import JsonResponse
+        from matches.models import Match
+
+        season = get_object_or_404(Season, pk=season_id)
+        try:
+            tier = int(request.GET.get('tier', ''))
+            player_id = int(request.GET.get('player', ''))
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid parameters'}, status=400)
+
+        tier_players = list(
+            SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True)
+            .select_related('player')
+        )
+        player_map = {sp.player_id: sp.player for sp in tier_players}
+        if player_id not in player_map:
+            return JsonResponse({'error': 'Player not found'}, status=400)
+
+        match_pairs = list(
+            Match.objects.filter(season=season, tier=tier, round=Match.ROUND_REGULAR)
+            .values_list('player1_id', 'player2_id')
+        )
+        count_map = {sp.player_id: 0 for sp in tier_players}
+        played_opponents = set()
+        for p1_id, p2_id in match_pairs:
+            if p1_id in count_map:
+                count_map[p1_id] += 1
+            if p2_id in count_map:
+                count_map[p2_id] += 1
+            if player_id == p1_id:
+                played_opponents.add(p2_id)
+            elif player_id == p2_id:
+                played_opponents.add(p1_id)
+
+        not_played = []
+        already_played = []
+        for sp in tier_players:
+            if sp.player_id == player_id:
+                continue
+            entry = {
+                'id': sp.player_id,
+                'name': sp.player.get_full_name() or sp.player.username,
+                'match_count': count_map[sp.player_id],
+            }
+            if sp.player_id in played_opponents:
+                already_played.append(entry)
+            else:
+                not_played.append(entry)
+
+        not_played.sort(key=lambda x: (x['match_count'], x['name']))
+        already_played.sort(key=lambda x: (x['match_count'], x['name']))
+        return JsonResponse({'not_played': not_played, 'already_played': already_played})
+
+    def schedule_match_view(self, request, season_id):
+        from django.http import JsonResponse
+        from matches.models import Match
+
+        season = get_object_or_404(Season, pk=season_id)
+        if request.method != 'POST':
+            return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+        try:
+            tier = int(request.POST.get('tier', ''))
+            player1_id = int(request.POST.get('player1', ''))
+            player2_id = int(request.POST.get('player2', ''))
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid parameters'}, status=400)
+
+        if player1_id == player2_id:
+            return JsonResponse({'error': 'Cannot schedule a player against themselves'}, status=400)
+
+        if not SeasonPlayer.objects.filter(season=season, player_id=player1_id, tier=tier, is_active=True).exists():
+            return JsonResponse({'error': 'Player 1 not found in tier'}, status=400)
+        if not SeasonPlayer.objects.filter(season=season, player_id=player2_id, tier=tier, is_active=True).exists():
+            return JsonResponse({'error': 'Player 2 not found in tier'}, status=400)
+
+        scheduled_date = None
+        scheduled_date_str = request.POST.get('scheduled_date', '').strip()
+        if scheduled_date_str:
+            try:
+                scheduled_date = datetime.date.fromisoformat(scheduled_date_str)
+            except ValueError:
+                return JsonResponse({'error': 'Invalid date'}, status=400)
+
+        match = Match.objects.create(
+            season=season,
+            player1_id=player1_id,
+            player2_id=player2_id,
+            tier=tier,
+            round=Match.ROUND_REGULAR,
+            scheduled_date=scheduled_date,
+            status=Match.STATUS_SCHEDULED,
+        )
+        return JsonResponse({'success': True, 'match_id': match.id})
 
     def _build_schedule_analysis(self, season, tier_range):
         from matches.models import Match

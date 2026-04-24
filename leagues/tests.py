@@ -1795,3 +1795,305 @@ class GenerateScheduleViewTest(TestCase):
         resp = self.client.post(self._url(), {'start_date': '2025-04-07', 'num_rounds': '0'})
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'positive integer')
+
+    def test_tier_info_includes_tier_number(self):
+        resp = self.client.get(self._url())
+        tier_info = resp.context['tier_info']
+        self.assertEqual(tier_info[0]['tier'], 1)
+
+
+# ─── Schedule Match endpoints ─────────────────────────────────────────────────
+
+class ScheduleMatchPlayersViewTest(TestCase):
+    """Tests for the players JSON endpoint used by the Schedule a Match UI."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser('smpadmin', password='pass')
+        self.client.force_login(self.admin)
+        self.season = make_season(name='SM Players Test', year=2025)
+        Tier.objects.create(season=self.season, number=1, name='Tier 1')
+
+    def _url(self, season=None):
+        return reverse('admin:leagues_season_schedule_match_players', args=[(season or self.season).pk])
+
+    def _enroll_with_matches(self, count, tier=1):
+        players = []
+        for i in range(count):
+            p = make_player(f'smp_p{i}_{self.season.pk}', first='P', last=str(i))
+            enroll(self.season, p, tier=tier)
+            players.append(p)
+        return players
+
+    def test_requires_staff(self):
+        self.client.logout()
+        self.client.force_login(make_player('smp_anon'))
+        resp = self.client.get(self._url(), {'tier': 1})
+        self.assertNotEqual(resp.status_code, 200)
+
+    def test_404_for_unknown_season(self):
+        url = reverse('admin:leagues_season_schedule_match_players', args=[99999])
+        resp = self.client.get(url, {'tier': 1})
+        self.assertEqual(resp.status_code, 404)
+
+    def test_returns_json_players(self):
+        import json
+        players = self._enroll_with_matches(3)
+        resp = self.client.get(self._url(), {'tier': 1})
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        self.assertIn('players', data)
+        self.assertEqual(len(data['players']), 3)
+
+    def test_players_include_id_name_match_count(self):
+        import json
+        p = self._enroll_with_matches(2)
+        data = json.loads(self.client.get(self._url(), {'tier': 1}).content)
+        keys = set(data['players'][0].keys())
+        self.assertIn('id', keys)
+        self.assertIn('name', keys)
+        self.assertIn('match_count', keys)
+
+    def test_match_count_reflects_scheduled_matches(self):
+        import json
+        p = self._enroll_with_matches(3)
+        Match.objects.create(
+            season=self.season, player1=p[0], player2=p[1],
+            tier=1, round=Match.ROUND_REGULAR,
+            scheduled_date=datetime.date(2025, 4, 7), status=Match.STATUS_SCHEDULED,
+        )
+        data = json.loads(self.client.get(self._url(), {'tier': 1}).content)
+        count_by_id = {entry['id']: entry['match_count'] for entry in data['players']}
+        self.assertEqual(count_by_id[p[0].pk], 1)
+        self.assertEqual(count_by_id[p[1].pk], 1)
+        self.assertEqual(count_by_id[p[2].pk], 0)
+
+    def test_players_sorted_by_fewest_matches_first(self):
+        import json
+        p = self._enroll_with_matches(3)
+        Match.objects.create(
+            season=self.season, player1=p[0], player2=p[1],
+            tier=1, round=Match.ROUND_REGULAR,
+            scheduled_date=datetime.date(2025, 4, 7), status=Match.STATUS_SCHEDULED,
+        )
+        data = json.loads(self.client.get(self._url(), {'tier': 1}).content)
+        counts = [entry['match_count'] for entry in data['players']]
+        self.assertEqual(counts, sorted(counts))
+
+    def test_inactive_players_excluded(self):
+        import json
+        p = self._enroll_with_matches(2)
+        inactive = make_player('smp_inactive')
+        SeasonPlayer.objects.create(season=self.season, player=inactive, tier=1, is_active=False)
+        data = json.loads(self.client.get(self._url(), {'tier': 1}).content)
+        ids = {entry['id'] for entry in data['players']}
+        self.assertNotIn(inactive.pk, ids)
+
+    def test_players_from_other_tier_excluded(self):
+        import json
+        Tier.objects.create(season=self.season, number=2, name='Tier 2')
+        p_t1 = self._enroll_with_matches(2, tier=1)
+        p_t2 = make_player('smp_t2')
+        enroll(self.season, p_t2, tier=2)
+        data = json.loads(self.client.get(self._url(), {'tier': 1}).content)
+        ids = {entry['id'] for entry in data['players']}
+        self.assertNotIn(p_t2.pk, ids)
+
+    def test_invalid_tier_returns_400(self):
+        resp = self.client.get(self._url(), {'tier': 'bad'})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_missing_tier_returns_400(self):
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 400)
+
+
+class ScheduleMatchMatchupsViewTest(TestCase):
+    """Tests for the matchups JSON endpoint used by the Schedule a Match UI."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser('smmadmin', password='pass')
+        self.client.force_login(self.admin)
+        self.season = make_season(name='SM Matchups Test', year=2025)
+        Tier.objects.create(season=self.season, number=1, name='Tier 1')
+        self.players = []
+        for i in range(4):
+            p = make_player(f'smm_p{i}_{self.season.pk}', first='M', last=str(i))
+            enroll(self.season, p, tier=1)
+            self.players.append(p)
+
+    def _url(self, season=None):
+        return reverse('admin:leagues_season_schedule_match_matchups', args=[(season or self.season).pk])
+
+    def _match(self, p1, p2):
+        return Match.objects.create(
+            season=self.season, player1=p1, player2=p2,
+            tier=1, round=Match.ROUND_REGULAR,
+            scheduled_date=datetime.date(2025, 4, 7), status=Match.STATUS_SCHEDULED,
+        )
+
+    def test_requires_staff(self):
+        self.client.logout()
+        self.client.force_login(make_player('smm_anon'))
+        resp = self.client.get(self._url(), {'tier': 1, 'player': self.players[0].pk})
+        self.assertNotEqual(resp.status_code, 200)
+
+    def test_404_for_unknown_season(self):
+        url = reverse('admin:leagues_season_schedule_match_matchups', args=[99999])
+        resp = self.client.get(url, {'tier': 1, 'player': self.players[0].pk})
+        self.assertEqual(resp.status_code, 404)
+
+    def test_returns_not_played_and_already_played_keys(self):
+        import json
+        resp = self.client.get(self._url(), {'tier': 1, 'player': self.players[0].pk})
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        self.assertIn('not_played', data)
+        self.assertIn('already_played', data)
+
+    def test_no_matches_all_opponents_in_not_played(self):
+        import json
+        data = json.loads(self.client.get(self._url(), {'tier': 1, 'player': self.players[0].pk}).content)
+        self.assertEqual(len(data['not_played']), 3)
+        self.assertEqual(len(data['already_played']), 0)
+
+    def test_played_opponent_moves_to_already_played(self):
+        import json
+        self._match(self.players[0], self.players[1])
+        data = json.loads(self.client.get(self._url(), {'tier': 1, 'player': self.players[0].pk}).content)
+        already_ids = {e['id'] for e in data['already_played']}
+        not_ids = {e['id'] for e in data['not_played']}
+        self.assertIn(self.players[1].pk, already_ids)
+        self.assertNotIn(self.players[1].pk, not_ids)
+
+    def test_selected_player_not_in_results(self):
+        import json
+        data = json.loads(self.client.get(self._url(), {'tier': 1, 'player': self.players[0].pk}).content)
+        all_ids = {e['id'] for e in data['not_played']} | {e['id'] for e in data['already_played']}
+        self.assertNotIn(self.players[0].pk, all_ids)
+
+    def test_match_detected_regardless_of_player_order(self):
+        import json
+        self._match(self.players[1], self.players[0])
+        data = json.loads(self.client.get(self._url(), {'tier': 1, 'player': self.players[0].pk}).content)
+        already_ids = {e['id'] for e in data['already_played']}
+        self.assertIn(self.players[1].pk, already_ids)
+
+    def test_invalid_player_returns_400(self):
+        resp = self.client.get(self._url(), {'tier': 1, 'player': 99999})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_invalid_tier_returns_400(self):
+        resp = self.client.get(self._url(), {'tier': 'x', 'player': self.players[0].pk})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_not_played_sorted_by_fewest_matches(self):
+        import json
+        self._match(self.players[1], self.players[2])
+        data = json.loads(self.client.get(self._url(), {'tier': 1, 'player': self.players[0].pk}).content)
+        counts = [e['match_count'] for e in data['not_played']]
+        self.assertEqual(counts, sorted(counts))
+
+
+class ScheduleMatchCreateViewTest(TestCase):
+    """Tests for the POST endpoint that creates a single scheduled match."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser('smcadmin', password='pass')
+        self.client.force_login(self.admin)
+        self.season = make_season(name='SM Create Test', year=2025)
+        Tier.objects.create(season=self.season, number=1, name='Tier 1')
+        self.p1 = make_player('smc_p1', first='Alice', last='One')
+        self.p2 = make_player('smc_p2', first='Bob', last='Two')
+        enroll(self.season, self.p1, tier=1)
+        enroll(self.season, self.p2, tier=1)
+
+    def _url(self, season=None):
+        return reverse('admin:leagues_season_schedule_match', args=[(season or self.season).pk])
+
+    def _post(self, **kwargs):
+        data = {'tier': 1, 'player1': self.p1.pk, 'player2': self.p2.pk}
+        data.update(kwargs)
+        return self.client.post(self._url(), data)
+
+    def test_requires_staff(self):
+        self.client.logout()
+        self.client.force_login(make_player('smc_anon'))
+        resp = self._post()
+        self.assertNotEqual(resp.status_code, 200)
+
+    def test_get_returns_405(self):
+        import json
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 405)
+
+    def test_creates_match(self):
+        import json
+        resp = self._post()
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        self.assertTrue(data['success'])
+        self.assertTrue(Match.objects.filter(season=self.season, player1=self.p1, player2=self.p2).exists())
+
+    def test_match_has_correct_tier_and_round(self):
+        import json
+        self._post()
+        match = Match.objects.get(season=self.season, player1=self.p1, player2=self.p2)
+        self.assertEqual(match.tier, 1)
+        self.assertEqual(match.round, Match.ROUND_REGULAR)
+        self.assertEqual(match.status, Match.STATUS_SCHEDULED)
+
+    def test_creates_match_with_date(self):
+        import json
+        self._post(scheduled_date='2025-06-15')
+        match = Match.objects.get(season=self.season, player1=self.p1, player2=self.p2)
+        self.assertEqual(match.scheduled_date, datetime.date(2025, 6, 15))
+
+    def test_creates_match_without_date(self):
+        import json
+        self._post()
+        match = Match.objects.get(season=self.season, player1=self.p1, player2=self.p2)
+        self.assertIsNone(match.scheduled_date)
+
+    def test_404_for_unknown_season(self):
+        url = reverse('admin:leagues_season_schedule_match', args=[99999])
+        resp = self.client.post(url, {'tier': 1, 'player1': self.p1.pk, 'player2': self.p2.pk})
+        self.assertEqual(resp.status_code, 404)
+
+    def test_same_player_returns_400(self):
+        import json
+        resp = self._post(player2=self.p1.pk)
+        self.assertEqual(resp.status_code, 400)
+        data = json.loads(resp.content)
+        self.assertIn('error', data)
+
+    def test_player_not_in_season_returns_400(self):
+        import json
+        outsider = make_player('smc_outsider')
+        resp = self._post(player2=outsider.pk)
+        self.assertEqual(resp.status_code, 400)
+
+    def test_inactive_player_returns_400(self):
+        import json
+        inactive = make_player('smc_inactive')
+        SeasonPlayer.objects.create(season=self.season, player=inactive, tier=1, is_active=False)
+        resp = self._post(player2=inactive.pk)
+        self.assertEqual(resp.status_code, 400)
+
+    def test_invalid_date_returns_400(self):
+        import json
+        resp = self._post(scheduled_date='not-a-date')
+        self.assertEqual(resp.status_code, 400)
+        data = json.loads(resp.content)
+        self.assertIn('error', data)
+
+    def test_invalid_tier_returns_400(self):
+        import json
+        resp = self._post(tier='bad')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_response_includes_match_id(self):
+        import json
+        resp = self._post()
+        data = json.loads(resp.content)
+        self.assertIn('match_id', data)
+        self.assertTrue(Match.objects.filter(pk=data['match_id']).exists())
