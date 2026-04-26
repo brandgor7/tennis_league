@@ -2,7 +2,6 @@ import base64
 import csv
 import datetime
 import io
-import json
 import re
 
 from django import forms
@@ -631,7 +630,6 @@ class SeasonAdmin(admin.ModelAdmin):
 
     def _save_one_result(self, request, season, match_id=None, player2_id=None,
                          winner_id=None, winner_score=None, loser_score=None):
-        """Save a single result. Returns (winner, loser) on success or raises ValueError."""
         if match_id:
             match = Match.objects.select_related('player1', 'player2').get(
                 pk=match_id, season=season,
@@ -795,20 +793,19 @@ class SeasonAdmin(admin.ModelAdmin):
                         'raw': raw,
                         'display': f'{winner_name} d. {loser_name} {winner_score}–{loser_score}',
                     })
-                except (Match.DoesNotExist, ValueError, Exception):
+                except Exception:
                     unsaved_entries.append({'raw': raw, 'match': None, 'winner_id': None, 'winner_score': 0, 'loser_score': 0})
 
-            tier_info = json.dumps([
-                {'tier': t, 'tier_name': season.tier_name(t)}
-                for t in range(1, season.num_tiers + 1)
-            ])
             context = {
                 **self.admin_site.each_context(request),
                 'season': season,
                 'done': True,
                 'saved_entries': saved_entries,
                 'unsaved_entries': unsaved_entries,
-                'tier_info_json': tier_info,
+                'tier_info': [
+                    {'tier': t, 'tier_name': season.tier_name(t)}
+                    for t in range(1, season.num_tiers + 1)
+                ],
                 'post_one_url': reverse('admin:leagues_season_bulk_results_post_one', args=[season_id]),
                 'players_url': reverse('admin:leagues_season_schedule_match_players', args=[season_id]),
                 'opponents_url': reverse('admin:leagues_season_bulk_results_opponents', args=[season_id]),

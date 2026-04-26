@@ -211,12 +211,13 @@
 
 {% if done %}
 <input type="hidden" id="rw-csrf" value="{{ csrf_token }}">
+{{ tier_info|json_script:"rw-tier-info" }}
 <script>
 (function () {
   const POST_ONE_URL  = '{{ post_one_url }}';
   const PLAYERS_URL   = '{{ players_url }}';
   const OPPONENTS_URL = '{{ opponents_url }}';
-  const TIER_INFO     = {{ tier_info_json|safe }};
+  const TIER_INFO     = JSON.parse(document.getElementById('rw-tier-info').textContent);
 
   function rwBtn(text, subtext) {
     const btn = document.createElement('button');
@@ -307,10 +308,20 @@
         const data = await resp.json();
         if (data.success) {
           const row = container.closest('.unposted-row');
-          const origText = (row.querySelector('.br-orig') || {}).textContent || '';
-          row.innerHTML = (origText ? '<p class="br-orig" style="margin:0 0 0.4rem;">' + origText + '</p>' : '') +
-            '<span style="color:#1a7a1a;font-weight:600;">✓ ' +
-            data.winner_name + ' d. ' + data.loser_name + ' ' + ws + '–' + ls + '</span>';
+          const origEl = row.querySelector('.br-orig');
+          const origText = origEl ? origEl.textContent : '';
+          row.replaceChildren();
+          if (origText) {
+            const p = document.createElement('p');
+            p.className = 'br-orig';
+            p.style.margin = '0 0 0.4rem';
+            p.textContent = origText;
+            row.appendChild(p);
+          }
+          const result = document.createElement('span');
+          result.style.cssText = 'color:#1a7a1a;font-weight:600;';
+          result.textContent = '✓ ' + data.winner_name + ' d. ' + data.loser_name + ' ' + ws + '–' + ls;
+          row.appendChild(result);
         } else {
           errEl.textContent = data.error || 'Error posting result.';
           errEl.style.display = 'block';
