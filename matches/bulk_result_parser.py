@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Optional
 
@@ -50,8 +51,12 @@ def parse_whatsapp_messages(text: str) -> list:
     return results
 
 
+def _strip_format_chars(s: str) -> str:
+    return ''.join(c for c in s if unicodedata.category(c) != 'Cf')
+
+
 def _parse_line(line: str) -> Optional[ParsedMessage]:
-    line = line.strip()
+    line = _strip_format_chars(line).strip()
     if not line:
         return None
 

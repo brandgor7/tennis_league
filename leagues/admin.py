@@ -693,7 +693,10 @@ class SeasonAdmin(admin.ModelAdmin):
             raw_text = request.POST.get('messages', '').strip()
             if raw_text:
                 parsed = parse_whatsapp_messages(raw_text)
-                resolved = resolve_results(parsed, season)
+                if not parsed:
+                    messages.warning(request, 'No results could be parsed from the pasted text. Check the message format and try again.')
+                else:
+                    resolved = resolve_results(parsed, season)
 
         context = {
             **self.admin_site.each_context(request),
