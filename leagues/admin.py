@@ -8,7 +8,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
@@ -108,6 +108,16 @@ class SeasonAdmin(admin.ModelAdmin):
                 '<int:season_id>/bulk-results/',
                 self.admin_site.admin_view(self.bulk_results_view),
                 name='leagues_season_bulk_results',
+            ),
+            path(
+                '<int:season_id>/bulk-results/post-one/',
+                self.admin_site.admin_view(self.bulk_results_post_one_view),
+                name='leagues_season_bulk_results_post_one',
+            ),
+            path(
+                '<int:season_id>/bulk-results/opponents/',
+                self.admin_site.admin_view(self.bulk_results_opponents_view),
+                name='leagues_season_bulk_results_opponents',
             ),
         ]
         return custom + urls
@@ -618,74 +628,193 @@ class SeasonAdmin(admin.ModelAdmin):
         }
         return render(request, 'leagues/copy_players_from_season.html', context)
 
+    def _save_one_result(self, request, season, match_id=None, player2_id=None,
+                         winner_id=None, winner_score=None, loser_score=None):
+        if match_id:
+            match = Match.objects.select_related('player1', 'player2').get(
+                pk=match_id, season=season,
+                status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED],
+            )
+        else:
+            match = Match.objects.select_related('player1', 'player2').filter(
+                season=season,
+                status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED],
+            ).filter(
+                Q(player1_id=winner_id, player2_id=player2_id) |
+                Q(player1_id=player2_id, player2_id=winner_id)
+            ).order_by('scheduled_date', 'created_at').first()
+            if not match:
+                raise ValueError('No scheduled match found for these players')
+
+        if match.player1_id == winner_id:
+            p1_games, p2_games, winner, loser = winner_score, loser_score, match.player1, match.player2
+        elif match.player2_id == winner_id:
+            p1_games, p2_games, winner, loser = loser_score, winner_score, match.player2, match.player1
+        else:
+            raise ValueError('Winner not in match')
+
+        with transaction.atomic():
+            match.sets.all().delete()
+            MatchSet.objects.create(
+                match=match, set_number=1,
+                player1_games=p1_games, player2_games=p2_games,
+            )
+            match.winner = winner
+            match.status = Match.STATUS_COMPLETED
+            match.entered_by = request.user
+            match.confirmed_by = request.user
+            match.played_date = datetime.date.today()
+            match.save()
+        _audit_match(request.user, match, f'Bulk result entered: {p1_games}–{p2_games}.')
+        return winner, loser
+
+    def bulk_results_post_one_view(self, request, season_id):
+        season = get_object_or_404(Season, pk=season_id)
+        if request.method != 'POST':
+            return JsonResponse({'error': 'Method not allowed'}, status=405)
+        try:
+            winner_id = int(request.POST.get('winner_id', ''))
+            winner_score = int(request.POST.get('winner_score', ''))
+            loser_score = int(request.POST.get('loser_score', ''))
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid parameters'}, status=400)
+        if winner_score <= loser_score:
+            return JsonResponse({'error': 'Winner score must exceed loser score'}, status=400)
+
+        match_id_str = request.POST.get('match_id', '')
+        player2_id_str = request.POST.get('player2_id', '')
+        try:
+            match_id = int(match_id_str) if match_id_str else None
+            player2_id = int(player2_id_str) if player2_id_str else None
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid parameters'}, status=400)
+        if not match_id and not player2_id:
+            return JsonResponse({'error': 'match_id or player2_id required'}, status=400)
+
+        try:
+            winner, loser = self._save_one_result(
+                request, season,
+                match_id=match_id, player2_id=player2_id,
+                winner_id=winner_id, winner_score=winner_score, loser_score=loser_score,
+            )
+            return JsonResponse({
+                'success': True,
+                'winner_name': winner.get_full_name() or winner.username,
+                'loser_name': loser.get_full_name() or loser.username,
+            })
+        except (Match.DoesNotExist, ValueError) as e:
+            return JsonResponse({'error': str(e)}, status=400)
+        except Exception:
+            return JsonResponse({'error': 'Save failed'}, status=500)
+
+    def bulk_results_opponents_view(self, request, season_id):
+        season = get_object_or_404(Season, pk=season_id)
+        try:
+            tier = int(request.GET.get('tier', ''))
+            player_id = int(request.GET.get('player', ''))
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid parameters'}, status=400)
+
+        matches = (
+            Match.objects.filter(
+                season=season,
+                tier=tier,
+                status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED],
+            )
+            .filter(Q(player1_id=player_id) | Q(player2_id=player_id))
+            .select_related('player1', 'player2')
+            .order_by('scheduled_date', 'created_at')
+        )
+        opponents = []
+        for m in matches:
+            opp = m.player2 if m.player1_id == player_id else m.player1
+            if opp:
+                opponents.append({
+                    'id': opp.pk,
+                    'name': opp.get_full_name() or opp.username,
+                    'match_id': m.pk,
+                })
+        return JsonResponse({'opponents': opponents})
+
     def bulk_results_view(self, request, season_id):
         season = get_object_or_404(Season, pk=season_id)
         action = request.POST.get('action', '')
 
         if request.method == 'POST' and action == 'confirm':
             count = min(int(request.POST.get('result_count', 0) or 0), 500)
-            saved = 0
-            errors = []
+            saved_entries = []
+            unsaved_entries = []
+
             for i in range(count):
+                raw = request.POST.get(f'result_{i}_raw', '')
+                match_id_str = request.POST.get(f'result_{i}_match_id', '')
+                winner_id_str = request.POST.get(f'result_{i}_winner_id', '')
+                winner_score_str = request.POST.get(f'result_{i}_winner_score', '')
+                loser_score_str = request.POST.get(f'result_{i}_loser_score', '')
+
                 if not request.POST.get(f'result_{i}_confirm'):
+                    entry = {'raw': raw, 'match': None, 'winner_id': None, 'winner_score': 0, 'loser_score': 0}
+                    if match_id_str:
+                        try:
+                            entry['match'] = Match.objects.select_related('player1', 'player2').get(
+                                pk=int(match_id_str), season=season,
+                                status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED],
+                            )
+                            entry['winner_id'] = int(winner_id_str) if winner_id_str else None
+                            entry['winner_score'] = int(winner_score_str) if winner_score_str else 0
+                            entry['loser_score'] = int(loser_score_str) if loser_score_str else 0
+                        except (Match.DoesNotExist, ValueError, TypeError):
+                            pass
+                    unsaved_entries.append(entry)
                     continue
+
                 try:
-                    match_id = int(request.POST.get(f'result_{i}_match_id', ''))
-                    winner_id = int(request.POST.get(f'result_{i}_winner_id', ''))
-                    winner_score = int(request.POST.get(f'result_{i}_winner_score', ''))
-                    loser_score = int(request.POST.get(f'result_{i}_loser_score', ''))
+                    match_id = int(match_id_str)
+                    winner_id = int(winner_id_str)
+                    winner_score = int(winner_score_str)
+                    loser_score = int(loser_score_str)
                 except (ValueError, TypeError):
-                    errors.append(f'Result {i + 1}: invalid data — skipped.')
+                    unsaved_entries.append({'raw': raw, 'match': None, 'winner_id': None, 'winner_score': 0, 'loser_score': 0})
                     continue
 
                 if winner_score <= loser_score:
-                    errors.append(f'Result {i + 1}: winner score must exceed loser score — skipped.')
+                    unsaved_entries.append({'raw': raw, 'match': None, 'winner_id': None, 'winner_score': 0, 'loser_score': 0})
                     continue
 
                 try:
-                    match = Match.objects.select_related('player1', 'player2').get(
-                        pk=match_id, season=season,
-                        status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED],
+                    winner, loser = self._save_one_result(
+                        request, season,
+                        match_id=match_id, winner_id=winner_id,
+                        winner_score=winner_score, loser_score=loser_score,
                     )
-                except Match.DoesNotExist:
-                    errors.append(f'Result {i + 1}: match not found or already completed — skipped.')
-                    continue
-
-                if match.player1_id == winner_id:
-                    p1_games, p2_games = winner_score, loser_score
-                    winner = match.player1
-                elif match.player2_id == winner_id:
-                    p1_games, p2_games = loser_score, winner_score
-                    winner = match.player2
-                else:
-                    errors.append(f'Result {i + 1}: winner not in match — skipped.')
-                    continue
-
-                try:
-                    with transaction.atomic():
-                        match.sets.all().delete()
-                        MatchSet.objects.create(
-                            match=match,
-                            set_number=1,
-                            player1_games=p1_games,
-                            player2_games=p2_games,
-                        )
-                        match.winner = winner
-                        match.status = Match.STATUS_COMPLETED
-                        match.entered_by = request.user
-                        match.confirmed_by = request.user
-                        match.played_date = datetime.date.today()
-                        match.save()
-                    _audit_match(request.user, match, f'Bulk result entered: {p1_games}–{p2_games}.')
-                    saved += 1
+                    winner_name = winner.get_full_name() or winner.username
+                    loser_name = loser.get_full_name() or loser.username
+                    saved_entries.append({
+                        'raw': raw,
+                        'display': f'{winner_name} d. {loser_name} {winner_score}–{loser_score}',
+                    })
                 except Exception:
-                    errors.append(f'Result {i + 1}: save failed — skipped.')
+                    unsaved_entries.append({'raw': raw, 'match': None, 'winner_id': None, 'winner_score': 0, 'loser_score': 0})
 
-            if errors:
-                for err in errors:
-                    messages.warning(request, err)
-            messages.success(request, f'{saved} result{"s" if saved != 1 else ""} saved.')
-            return HttpResponseRedirect(reverse('admin:leagues_season_change', args=[season_id]))
+            context = {
+                **self.admin_site.each_context(request),
+                'season': season,
+                'done': True,
+                'saved_entries': saved_entries,
+                'unsaved_entries': unsaved_entries,
+                'tier_info': [
+                    {'tier': t, 'tier_name': season.tier_name(t)}
+                    for t in range(1, season.num_tiers + 1)
+                ],
+                'post_one_url': reverse('admin:leagues_season_bulk_results_post_one', args=[season_id]),
+                'players_url': reverse('admin:leagues_season_schedule_match_players', args=[season_id]),
+                'opponents_url': reverse('admin:leagues_season_bulk_results_opponents', args=[season_id]),
+                'resolved': None,
+                'raw_text': '',
+                'title': f'Bulk Add Results — {season.name}',
+                'back_url': reverse('admin:leagues_season_change', args=[season_id]),
+            }
+            return render(request, 'leagues/bulk_results.html', context)
 
         resolved = None
         raw_text = ''
