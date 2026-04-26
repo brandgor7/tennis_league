@@ -1,0 +1,134 @@
+{% extends "admin/base_site.html" %}
+
+{% block title %}{{ title }} | {{ site_title|default:"Django site admin" }}{% endblock %}
+
+{% block content %}
+<style>
+  .br-section { margin-bottom: 2rem; }
+  .br-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+    margin: 0 0 0.65rem;
+  }
+  .br-table {
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    width: 100%;
+  }
+  .br-table thead tr { background: #417690; color: #fff; }
+  .br-table th { padding: 0.6rem 1rem; font-weight: 600; text-align: left; }
+  .br-table td { padding: 0.55rem 1rem; border-bottom: 1px solid #ebebeb; vertical-align: top; }
+  .br-table tbody tr:nth-child(even) { background: #f9f9f9; }
+  .br-table tbody tr:nth-child(odd)  { background: #fff; }
+  .br-orig { color: #666; font-size: 0.8rem; font-style: italic; }
+  .br-conf-high  { color: #1a7a1a; font-weight: 600; }
+  .br-conf-med   { color: #b07000; }
+  .br-conf-low   { color: #c0392b; }
+  .br-error { color: #c0392b; font-size: 0.8rem; }
+  .br-actions { margin-top: 1.5rem; display: flex; gap: 1rem; }
+  textarea.br-input {
+    width: 100%;
+    min-height: 220px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    padding: 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+</style>
+
+<p><a href="{{ back_url }}">&larr; Back to season</a></p>
+
+{% if not resolved %}
+<div class="br-section">
+  <p class="br-label">Paste WhatsApp messages</p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="parse">
+    <textarea name="messages" class="br-input" placeholder="Paste messages here…">{{ raw_text }}</textarea>
+    <div class="br-actions">
+      <input type="submit" value="Parse Messages" class="default">
+    </div>
+  </form>
+</div>
+{% else %}
+<div class="br-section">
+  <p class="br-label">Parsed Results — review and confirm</p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="confirm">
+    <input type="hidden" name="result_count" value="{{ resolved|length }}">
+    <table class="br-table">
+      <thead>
+        <tr>
+          <th>Original message</th>
+          <th>Winner</th>
+          <th>Loser</th>
+          <th>Score</th>
+          <th>Match found</th>
+          <th>Confidence</th>
+          <th>Confirm</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in resolved %}
+        <tr>
+          <td class="br-orig">{{ r.parsed.raw }}</td>
+          <td>
+            {% if r.winner %}{{ r.winner.get_full_name|default:r.winner.username }}{% else %}<span class="br-error">—</span>{% endif %}
+          </td>
+          <td>
+            {% if r.loser %}{{ r.loser.get_full_name|default:r.loser.username }}{% else %}<span class="br-error">—</span>{% endif %}
+          </td>
+          <td>
+            {% if r.winner %}{{ r.winner_score }}–{{ r.loser_score }}{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if r.match %}
+              {{ r.match.player1.get_full_name|default:r.match.player1.username }}
+              vs
+              {{ r.match.player2.get_full_name|default:r.match.player2.username }}
+              {% if r.match.scheduled_date %}({{ r.match.scheduled_date }}){% endif %}
+            {% elif r.error %}
+              <span class="br-error">{{ r.error }}</span>
+            {% else %}
+              <span class="br-error">No match found</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if r.confidence >= 70 %}
+              <span class="br-conf-high">{{ r.confidence }}%</span>
+            {% elif r.confidence >= 40 %}
+              <span class="br-conf-med">{{ r.confidence }}%</span>
+            {% else %}
+              <span class="br-conf-low">{{ r.confidence }}%</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if r.match and r.winner and r.loser %}
+              <input type="hidden" name="result_{{ forloop.counter0 }}_match_id" value="{{ r.match.pk }}">
+              <input type="hidden" name="result_{{ forloop.counter0 }}_winner_id" value="{{ r.winner.pk }}">
+              <input type="hidden" name="result_{{ forloop.counter0 }}_winner_score" value="{{ r.winner_score }}">
+              <input type="hidden" name="result_{{ forloop.counter0 }}_loser_score" value="{{ r.loser_score }}">
+              <input type="checkbox" name="result_{{ forloop.counter0 }}_confirm"
+                {% if r.confidence >= 60 %}checked{% endif %}>
+            {% else %}
+              <span style="color:#aaa">N/A</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="br-actions">
+      <input type="submit" value="Save Confirmed Results" class="default">
+      <a href="?" style="line-height:2.2">Re-paste messages</a>
+    </div>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
