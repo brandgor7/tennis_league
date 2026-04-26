@@ -384,7 +384,7 @@
 
       playersSec = document.createElement('div');
       playersSec.className = 'rw-players-sec';
-      playersSec.appendChild(rwLabel('Select player'));
+      playersSec.appendChild(rwLabel('Select winner'));
       const list = document.createElement('div');
       list.style.cssText = 'display:flex;flex-wrap:wrap;gap:0.45rem;';
       playersSec.appendChild(list);
@@ -410,7 +410,7 @@
 
       opponentsSec = document.createElement('div');
       opponentsSec.className = 'rw-opponents-sec';
-      opponentsSec.appendChild(rwLabel('Select opponent'));
+      opponentsSec.appendChild(rwLabel('Select loser'));
       const list = document.createElement('div');
       list.style.cssText = 'display:flex;flex-wrap:wrap;gap:0.45rem;';
       opponentsSec.appendChild(list);
@@ -473,12 +473,12 @@
         selectedLoserId:  null, selectedLoserName:  null,
       };
 
-      function onMatchPicked(matchId, p1Id, p1Name, p2Id, p2Name) {
+      function onMatchPicked(matchId, winnerId, winnerName, loserId, loserName) {
         state.matchId = matchId;
-        state.p1Id = p1Id; state.p1Name = p1Name;
-        state.p2Id = p2Id; state.p2Name = p2Name;
-        state.winnerId = null; state.winnerScore = 0; state.loserScore = 0;
-        renderWinnerSection(container, state);
+        state.selectedWinnerId = winnerId; state.selectedWinnerName = winnerName;
+        state.selectedLoserId  = loserId;  state.selectedLoserName  = loserName;
+        state.winnerScore = 0; state.loserScore = 0;
+        showScorePanel(container, state);
       }
 
       if (state.matchId) {
