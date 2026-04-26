@@ -97,6 +97,7 @@
     {% if u.match %}
     <div class="rw-widget"
          data-match-id="{{ u.match.pk }}"
+         data-tier="{{ u.match.tier|default:'' }}"
          data-p1-id="{{ u.match.player1.pk }}"
          data-p1-name="{{ u.match.player1.get_full_name|default:u.match.player1.username }}"
          data-p2-id="{{ u.match.player2.pk }}"
@@ -106,7 +107,7 @@
          data-loser-score="{{ u.loser_score }}">
     </div>
     {% else %}
-    <div class="rw-widget rw-needs-lookup"></div>
+    <div class="rw-widget"></div>
     {% endif %}
   </div>
   {% endfor %}
@@ -212,10 +213,10 @@
 <input type="hidden" id="rw-csrf" value="{{ csrf_token }}">
 <script>
 (function () {
-  const POST_ONE_URL = '{{ post_one_url }}';
-  const PLAYERS_URL  = '{{ players_url }}';
-  const MATCHUPS_URL = '{{ matchups_url }}';
-  const TIER_INFO    = {{ tier_info_json|safe }};
+  const POST_ONE_URL  = '{{ post_one_url }}';
+  const PLAYERS_URL   = '{{ players_url }}';
+  const OPPONENTS_URL = '{{ opponents_url }}';
+  const TIER_INFO     = {{ tier_info_json|safe }};
 
   function rwBtn(text, subtext) {
     const btn = document.createElement('button');
@@ -234,8 +235,8 @@
     return btn;
   }
 
-  function rwSetActive(container, btn) {
-    container.querySelectorAll('.rw-btn').forEach(b => b.classList.remove('rw-active'));
+  function rwSetActive(row, btn) {
+    row.querySelectorAll('.rw-btn').forEach(b => b.classList.remove('rw-active'));
     btn.classList.add('rw-active');
   }
 
@@ -247,9 +248,11 @@
     return p;
   }
 
+  // Score panel — appended to container; replaced on re-render
   function showScorePanel(container, state) {
     let panel = container.querySelector('.rw-score-panel');
     if (panel) panel.remove();
+
     panel = document.createElement('div');
     panel.className = 'rw-score-panel';
     panel.style.cssText = 'display:flex;align-items:center;gap:0.65rem;flex-wrap:wrap;margin-top:0.9rem;';
@@ -265,13 +268,13 @@
     const sep = document.createElement('span');
     sep.style.color = '#888'; sep.textContent = '–';
 
-    const wLabel = document.createElement('span');
-    wLabel.style.cssText = 'font-size:0.875rem;color:#333;font-weight:600;';
-    wLabel.textContent = state.selectedWinnerName;
+    const wLbl = document.createElement('span');
+    wLbl.style.cssText = 'font-size:0.875rem;font-weight:600;color:#333;';
+    wLbl.textContent = state.selectedWinnerName;
 
-    const lLabel = document.createElement('span');
-    lLabel.style.cssText = 'font-size:0.875rem;color:#666;';
-    lLabel.textContent = state.selectedLoserName;
+    const lLbl = document.createElement('span');
+    lLbl.style.cssText = 'font-size:0.875rem;color:#666;';
+    lLbl.textContent = state.selectedLoserName;
 
     const postBtn = document.createElement('button');
     postBtn.type = 'button'; postBtn.className = 'button default';
@@ -280,7 +283,7 @@
     const errEl = document.createElement('div');
     errEl.style.cssText = 'display:none;color:#c04800;font-size:0.82rem;width:100%;margin-top:0.25rem;';
 
-    panel.append(wLabel, wScoreEl, sep, lScoreEl, lLabel, postBtn, errEl);
+    panel.append(wLbl, wScoreEl, sep, lScoreEl, lLbl, postBtn, errEl);
     container.appendChild(panel);
 
     postBtn.onclick = async () => {
@@ -297,11 +300,7 @@
       body.append('winner_id', state.selectedWinnerId);
       body.append('winner_score', ws);
       body.append('loser_score', ls);
-      if (state.matchId) {
-        body.append('match_id', state.matchId);
-      } else {
-        body.append('player2_id', state.selectedLoserId);
-      }
+      body.append('match_id', state.matchId);
       postBtn.disabled = true;
       try {
         const resp = await fetch(POST_ONE_URL, { method: 'POST', body });
@@ -323,8 +322,17 @@
     };
   }
 
-  function renderWinnerSelector(container, state) {
-    container.appendChild(rwLabel('Select winner'));
+  // Winner selector — shows two player buttons; clicking one reveals score panel
+  function renderWinnerSection(container, state) {
+    let sec = container.querySelector('.rw-winner-sec');
+    if (sec) sec.remove();
+    let sp = container.querySelector('.rw-score-panel');
+    if (sp) sp.remove();
+
+    sec = document.createElement('div');
+    sec.className = 'rw-winner-sec';
+    sec.appendChild(rwLabel('Select winner'));
+
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:0.45rem;flex-wrap:wrap;';
 
@@ -334,147 +342,126 @@
     b1.onclick = () => {
       rwSetActive(row, b1);
       Object.assign(state, { selectedWinnerId: state.p1Id, selectedWinnerName: state.p1Name,
-                              selectedLoserId: state.p2Id,  selectedLoserName: state.p2Name });
+                              selectedLoserId:  state.p2Id, selectedLoserName:  state.p2Name });
       showScorePanel(container, state);
     };
     b2.onclick = () => {
       rwSetActive(row, b2);
       Object.assign(state, { selectedWinnerId: state.p2Id, selectedWinnerName: state.p2Name,
-                              selectedLoserId: state.p1Id,  selectedLoserName: state.p1Name });
+                              selectedLoserId:  state.p1Id, selectedLoserName:  state.p1Name });
       showScorePanel(container, state);
     };
 
     row.append(b1, b2);
-    container.appendChild(row);
+    sec.appendChild(row);
+    container.appendChild(sec);
 
-    if (state.winnerId && String(state.winnerId) === String(state.p1Id)) {
-      b1.click();
-    } else if (state.winnerId && String(state.winnerId) === String(state.p2Id)) {
-      b2.click();
-    }
+    if (state.winnerId && String(state.winnerId) === String(state.p1Id)) b1.click();
+    else if (state.winnerId && String(state.winnerId) === String(state.p2Id)) b2.click();
   }
 
-  function renderFullLookup(container, state) {
+  // Match selector — tier → player → opponent (only existing scheduled matches)
+  // Calls onPicked(matchId, p1Id, p1Name, p2Id, p2Name) when opponent is chosen
+  function renderMatchSelector(container, state, onPicked) {
+    let sec = container.querySelector('.rw-selector-sec');
+    if (sec) sec.remove();
+    let winnerSec = container.querySelector('.rw-winner-sec');
+    if (winnerSec) winnerSec.remove();
+    let sp = container.querySelector('.rw-score-panel');
+    if (sp) sp.remove();
+
+    sec = document.createElement('div');
+    sec.className = 'rw-selector-sec';
+    container.appendChild(sec);
+
+    function loadPlayers(tier) {
+      state.tier = tier;
+      let playersSec = sec.querySelector('.rw-players-sec');
+      if (playersSec) playersSec.remove();
+      let opponentsSec = sec.querySelector('.rw-opponents-sec');
+      if (opponentsSec) opponentsSec.remove();
+      if (!tier) return;
+
+      playersSec = document.createElement('div');
+      playersSec.className = 'rw-players-sec';
+      playersSec.appendChild(rwLabel('Select player'));
+      const list = document.createElement('div');
+      list.style.cssText = 'display:flex;flex-wrap:wrap;gap:0.45rem;';
+      playersSec.appendChild(list);
+      sec.appendChild(playersSec);
+
+      fetch(PLAYERS_URL + '?tier=' + tier)
+        .then(r => r.json())
+        .then(data => {
+          (data.players || []).forEach(p => {
+            const btn = rwBtn(p.name);
+            btn.onclick = () => {
+              rwSetActive(list, btn);
+              loadOpponents(tier, p.id, p.name);
+            };
+            list.appendChild(btn);
+          });
+        });
+    }
+
+    function loadOpponents(tier, playerId, playerName) {
+      let opponentsSec = sec.querySelector('.rw-opponents-sec');
+      if (opponentsSec) opponentsSec.remove();
+
+      opponentsSec = document.createElement('div');
+      opponentsSec.className = 'rw-opponents-sec';
+      opponentsSec.appendChild(rwLabel('Select opponent'));
+      const list = document.createElement('div');
+      list.style.cssText = 'display:flex;flex-wrap:wrap;gap:0.45rem;';
+      opponentsSec.appendChild(list);
+      sec.appendChild(opponentsSec);
+
+      fetch(OPPONENTS_URL + '?tier=' + tier + '&player=' + playerId)
+        .then(r => r.json())
+        .then(data => {
+          const opps = data.opponents || [];
+          if (opps.length) {
+            opps.forEach(opp => {
+              const btn = rwBtn(opp.name);
+              btn.onclick = () => {
+                rwSetActive(list, btn);
+                onPicked(opp.match_id, playerId, playerName, opp.id, opp.name);
+              };
+              list.appendChild(btn);
+            });
+          } else {
+            list.innerHTML = '<span style="font-size:0.82rem;color:#aaa;font-style:italic;">No scheduled matches found</span>';
+          }
+        });
+    }
+
     if (TIER_INFO.length > 1) {
-      container.appendChild(rwLabel('Tier'));
+      sec.appendChild(rwLabel('Tier'));
       const tierSel = document.createElement('select');
       tierSel.style.cssText = 'padding:0.4rem 0.7rem;border:1px solid #c0cdd8;border-radius:5px;font-size:0.875rem;min-width:160px;background:#fff;';
-      const blankOpt = document.createElement('option');
-      blankOpt.value = ''; blankOpt.textContent = '— select —';
-      tierSel.appendChild(blankOpt);
+      const blank = document.createElement('option');
+      blank.value = ''; blank.textContent = '— select —';
+      tierSel.appendChild(blank);
       TIER_INFO.forEach(t => {
         const o = document.createElement('option');
         o.value = t.tier; o.textContent = t.tier_name;
         tierSel.appendChild(o);
       });
-      container.appendChild(tierSel);
-      tierSel.onchange = () => loadPlayers(container, state, tierSel.value);
+      if (state.tier) tierSel.value = state.tier;
+      tierSel.onchange = () => loadPlayers(tierSel.value);
+      sec.appendChild(tierSel);
+      if (state.tier) loadPlayers(state.tier);
     } else if (TIER_INFO.length === 1) {
       state.tier = TIER_INFO[0].tier;
-      loadPlayers(container, state, state.tier);
+      loadPlayers(state.tier);
     }
-  }
-
-  function loadPlayers(container, state, tier) {
-    state.tier = tier;
-    let playersSec = container.querySelector('.rw-players-sec');
-    if (playersSec) playersSec.remove();
-    let opponentsSec = container.querySelector('.rw-opponents-sec');
-    if (opponentsSec) opponentsSec.remove();
-    let winnerSec = container.querySelector('.rw-winner-sec');
-    if (winnerSec) winnerSec.remove();
-    let scorePanel = container.querySelector('.rw-score-panel');
-    if (scorePanel) scorePanel.remove();
-    if (!tier) return;
-
-    playersSec = document.createElement('div');
-    playersSec.className = 'rw-players-sec';
-    playersSec.appendChild(rwLabel('Select player'));
-    const playersList = document.createElement('div');
-    playersList.style.cssText = 'display:flex;flex-wrap:wrap;gap:0.45rem;';
-    playersSec.appendChild(playersList);
-    container.appendChild(playersSec);
-
-    fetch(PLAYERS_URL + '?tier=' + tier)
-      .then(r => r.json())
-      .then(data => {
-        (data.players || []).forEach(p => {
-          const btn = rwBtn(p.name, p.match_count + ' match' + (p.match_count !== 1 ? 'es' : ''));
-          btn.onclick = () => {
-            rwSetActive(playersList, btn);
-            state.p1Id = p.id; state.p1Name = p.name;
-            loadOpponents(container, state);
-          };
-          playersList.appendChild(btn);
-        });
-      });
-  }
-
-  function loadOpponents(container, state) {
-    let opponentsSec = container.querySelector('.rw-opponents-sec');
-    if (opponentsSec) opponentsSec.remove();
-    let winnerSec = container.querySelector('.rw-winner-sec');
-    if (winnerSec) winnerSec.remove();
-    let scorePanel = container.querySelector('.rw-score-panel');
-    if (scorePanel) scorePanel.remove();
-
-    opponentsSec = document.createElement('div');
-    opponentsSec.className = 'rw-opponents-sec';
-    opponentsSec.appendChild(rwLabel('Select opponent'));
-
-    const grid = document.createElement('div');
-    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:1rem;';
-
-    const newCol = document.createElement('div');
-    const newColLabel = document.createElement('p');
-    newColLabel.className = 'br-label'; newColLabel.style.color = '#2e7d32';
-    newColLabel.textContent = 'New matchup';
-    const newList = document.createElement('div');
-    newList.style.cssText = 'display:flex;flex-direction:column;gap:0.3rem;';
-    newCol.append(newColLabel, newList);
-
-    const playedCol = document.createElement('div');
-    const playedColLabel = document.createElement('p');
-    playedColLabel.className = 'br-label';
-    playedColLabel.textContent = 'Already played';
-    const playedList = document.createElement('div');
-    playedList.style.cssText = 'display:flex;flex-direction:column;gap:0.3rem;';
-    playedCol.append(playedColLabel, playedList);
-
-    grid.append(newCol, playedCol);
-    opponentsSec.appendChild(grid);
-    container.appendChild(opponentsSec);
-
-    fetch(MATCHUPS_URL + '?tier=' + state.tier + '&player=' + state.p1Id)
-      .then(r => r.json())
-      .then(data => {
-        const addOpp = (list, p) => {
-          const btn = rwBtn(p.name);
-          btn.onclick = () => {
-            rwSetActive(grid, btn);
-            state.p2Id = p.id; state.p2Name = p.name;
-            let winnerSec2 = container.querySelector('.rw-winner-sec');
-            if (winnerSec2) winnerSec2.remove();
-            let scorePanel2 = container.querySelector('.rw-score-panel');
-            if (scorePanel2) scorePanel2.remove();
-            winnerSec2 = document.createElement('div');
-            winnerSec2.className = 'rw-winner-sec';
-            container.appendChild(winnerSec2);
-            renderWinnerSelector(winnerSec2, state);
-          };
-          list.appendChild(btn);
-        };
-        (data.not_played || []).forEach(p => addOpp(newList, p));
-        (data.already_played || []).forEach(p => addOpp(playedList, p));
-        if (!data.not_played?.length) newList.innerHTML = '<span style="font-size:0.82rem;color:#aaa;font-style:italic;">None</span>';
-        if (!data.already_played?.length) playedList.innerHTML = '<span style="font-size:0.82rem;color:#aaa;font-style:italic;">None</span>';
-      });
   }
 
   document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('.rw-widget').forEach(container => {
       const state = {
         matchId:    container.dataset.matchId || null,
+        tier:       container.dataset.tier || (TIER_INFO.length === 1 ? String(TIER_INFO[0].tier) : null),
         p1Id:       container.dataset.p1Id || null,
         p1Name:     container.dataset.p1Name || '',
         p2Id:       container.dataset.p2Id || null,
@@ -484,12 +471,43 @@
         loserScore:  parseInt(container.dataset.loserScore)  || 0,
         selectedWinnerId: null, selectedWinnerName: null,
         selectedLoserId:  null, selectedLoserName:  null,
-        tier: null,
       };
+
+      function onMatchPicked(matchId, p1Id, p1Name, p2Id, p2Name) {
+        state.matchId = matchId;
+        state.p1Id = p1Id; state.p1Name = p1Name;
+        state.p2Id = p2Id; state.p2Name = p2Name;
+        state.winnerId = null; state.winnerScore = 0; state.loserScore = 0;
+        renderWinnerSection(container, state);
+      }
+
       if (state.matchId) {
-        renderWinnerSelector(container, state);
+        // Known match: show players + Change link, then winner selector
+        const header = document.createElement('div');
+        header.className = 'rw-match-header';
+        header.style.cssText = 'display:flex;align-items:center;gap:1rem;margin-bottom:0.25rem;';
+
+        const matchLbl = document.createElement('span');
+        matchLbl.style.cssText = 'font-size:0.875rem;font-weight:600;color:#333;';
+        matchLbl.textContent = state.p1Name + ' vs ' + state.p2Name;
+
+        const changeLink = document.createElement('a');
+        changeLink.href = '#';
+        changeLink.style.cssText = 'font-size:0.8rem;color:#417690;';
+        changeLink.textContent = 'Change match';
+        changeLink.onclick = e => {
+          e.preventDefault();
+          header.remove();
+          state.matchId = null;
+          state.winnerId = null;
+          renderMatchSelector(container, state, onMatchPicked);
+        };
+
+        header.append(matchLbl, changeLink);
+        container.appendChild(header);
+        renderWinnerSection(container, state);
       } else {
-        renderFullLookup(container, state);
+        renderMatchSelector(container, state, onMatchPicked);
       }
     });
   });

@@ -115,6 +115,11 @@ class SeasonAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.bulk_results_post_one_view),
                 name='leagues_season_bulk_results_post_one',
             ),
+            path(
+                '<int:season_id>/bulk-results/opponents/',
+                self.admin_site.admin_view(self.bulk_results_opponents_view),
+                name='leagues_season_bulk_results_opponents',
+            ),
         ]
         return custom + urls
 
@@ -704,6 +709,35 @@ class SeasonAdmin(admin.ModelAdmin):
         except Exception:
             return JsonResponse({'error': 'Save failed'}, status=500)
 
+    def bulk_results_opponents_view(self, request, season_id):
+        season = get_object_or_404(Season, pk=season_id)
+        try:
+            tier = int(request.GET.get('tier', ''))
+            player_id = int(request.GET.get('player', ''))
+        except (ValueError, TypeError):
+            return JsonResponse({'error': 'Invalid parameters'}, status=400)
+
+        matches = (
+            Match.objects.filter(
+                season=season,
+                tier=tier,
+                status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED],
+            )
+            .filter(Q(player1_id=player_id) | Q(player2_id=player_id))
+            .select_related('player1', 'player2')
+            .order_by('scheduled_date', 'created_at')
+        )
+        opponents = []
+        for m in matches:
+            opp = m.player2 if m.player1_id == player_id else m.player1
+            if opp:
+                opponents.append({
+                    'id': opp.pk,
+                    'name': opp.get_full_name() or opp.username,
+                    'match_id': m.pk,
+                })
+        return JsonResponse({'opponents': opponents})
+
     def bulk_results_view(self, request, season_id):
         season = get_object_or_404(Season, pk=season_id)
         action = request.POST.get('action', '')
@@ -777,7 +811,7 @@ class SeasonAdmin(admin.ModelAdmin):
                 'tier_info_json': tier_info,
                 'post_one_url': reverse('admin:leagues_season_bulk_results_post_one', args=[season_id]),
                 'players_url': reverse('admin:leagues_season_schedule_match_players', args=[season_id]),
-                'matchups_url': reverse('admin:leagues_season_schedule_match_matchups', args=[season_id]),
+                'opponents_url': reverse('admin:leagues_season_bulk_results_opponents', args=[season_id]),
                 'resolved': None,
                 'raw_text': '',
                 'title': f'Bulk Add Results — {season.name}',
