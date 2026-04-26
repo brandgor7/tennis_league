@@ -15,8 +15,10 @@ from django.urls import path, reverse
 from django.utils.html import format_html
 
 from .models import Season, SeasonPlayer, SiteConfig, Tier
-from matches.models import Match
+from matches.models import Match, MatchSet
+from matches.bulk_result_parser import parse_whatsapp_messages, resolve_results
 from matches.scheduler import generate_schedule, remaining_rounds_count
+from matches.views import _audit_match
 from playoffs.generator import bracket_size_for, generate_bracket
 from playoffs.models import PlayoffBracket
 from standings.calculator import calculate_standings
@@ -102,6 +104,11 @@ class SeasonAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.delete_match_matches_view),
                 name='leagues_season_delete_match_matches',
             ),
+            path(
+                '<int:season_id>/bulk-results/',
+                self.admin_site.admin_view(self.bulk_results_view),
+                name='leagues_season_bulk_results',
+            ),
         ]
         return custom + urls
 
@@ -124,6 +131,9 @@ class SeasonAdmin(admin.ModelAdmin):
         )
         extra_context['copy_players_url'] = reverse(
             'admin:leagues_season_copy_players', args=[object_id]
+        )
+        extra_context['bulk_results_url'] = reverse(
+            'admin:leagues_season_bulk_results', args=[object_id]
         )
         return super().change_view(request, object_id, form_url, extra_context)
 
@@ -607,6 +617,96 @@ class SeasonAdmin(admin.ModelAdmin):
             'title': f'Copy Players — {season.name}',
         }
         return render(request, 'leagues/copy_players_from_season.html', context)
+
+    def bulk_results_view(self, request, season_id):
+        season = get_object_or_404(Season, pk=season_id)
+        action = request.POST.get('action', '')
+
+        if request.method == 'POST' and action == 'confirm':
+            count = min(int(request.POST.get('result_count', 0) or 0), 500)
+            saved = 0
+            errors = []
+            for i in range(count):
+                if not request.POST.get(f'result_{i}_confirm'):
+                    continue
+                try:
+                    match_id = int(request.POST.get(f'result_{i}_match_id', ''))
+                    winner_id = int(request.POST.get(f'result_{i}_winner_id', ''))
+                    winner_score = int(request.POST.get(f'result_{i}_winner_score', ''))
+                    loser_score = int(request.POST.get(f'result_{i}_loser_score', ''))
+                except (ValueError, TypeError):
+                    errors.append(f'Result {i + 1}: invalid data — skipped.')
+                    continue
+
+                if winner_score <= loser_score:
+                    errors.append(f'Result {i + 1}: winner score must exceed loser score — skipped.')
+                    continue
+
+                try:
+                    match = Match.objects.select_related('player1', 'player2').get(
+                        pk=match_id, season=season,
+                        status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED],
+                    )
+                except Match.DoesNotExist:
+                    errors.append(f'Result {i + 1}: match not found or already completed — skipped.')
+                    continue
+
+                if match.player1_id == winner_id:
+                    p1_games, p2_games = winner_score, loser_score
+                    winner = match.player1
+                elif match.player2_id == winner_id:
+                    p1_games, p2_games = loser_score, winner_score
+                    winner = match.player2
+                else:
+                    errors.append(f'Result {i + 1}: winner not in match — skipped.')
+                    continue
+
+                try:
+                    with transaction.atomic():
+                        match.sets.all().delete()
+                        MatchSet.objects.create(
+                            match=match,
+                            set_number=1,
+                            player1_games=p1_games,
+                            player2_games=p2_games,
+                        )
+                        match.winner = winner
+                        match.status = Match.STATUS_COMPLETED
+                        match.entered_by = request.user
+                        match.confirmed_by = request.user
+                        match.played_date = datetime.date.today()
+                        match.save()
+                    _audit_match(request.user, match, f'Bulk result entered: {p1_games}–{p2_games}.')
+                    saved += 1
+                except Exception:
+                    errors.append(f'Result {i + 1}: save failed — skipped.')
+
+            if errors:
+                for err in errors:
+                    messages.warning(request, err)
+            messages.success(request, f'{saved} result{"s" if saved != 1 else ""} saved.')
+            return HttpResponseRedirect(reverse('admin:leagues_season_change', args=[season_id]))
+
+        resolved = None
+        raw_text = ''
+        if request.method == 'POST' and action == 'parse':
+            raw_text = request.POST.get('messages', '').strip()
+            if raw_text:
+                parsed = parse_whatsapp_messages(raw_text)
+                if not parsed:
+                    messages.warning(request, 'No results could be parsed from the pasted text. Check the message format and try again.')
+                else:
+                    resolved = resolve_results(parsed, season)
+
+        context = {
+            **self.admin_site.each_context(request),
+            'season': season,
+            'resolved': resolved,
+            'raw_text': raw_text,
+            'title': f'Bulk Add Results — {season.name}',
+            'back_url': reverse('admin:leagues_season_change', args=[season_id]),
+        }
+        return render(request, 'leagues/bulk_results.html', context)
 
     def generate_playoffs_view(self, request, season_id, tier):
         season = get_object_or_404(Season, pk=season_id)

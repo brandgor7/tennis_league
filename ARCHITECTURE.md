@@ -502,6 +502,11 @@ Custom admin view at `/admin/seasons/<id>/generate-schedule/`. Combines schedule
 
 Analysis data is computed by `SeasonAdmin._build_schedule_analysis(season, tier_range)` which returns `None` when no matches exist. Per-player match counts are computed by `SeasonAdmin._match_count_map(season, tier, tier_players)`, shared across the analysis and the two manual-scheduling endpoints.
 
+A **Bulk Add Results** button on the season change page opens a two-step flow:
+
+1. **Parse step** — admin pastes raw WhatsApp-style messages into a textarea and submits. `matches/bulk_result_parser.py` parses each line to extract winner, loser, and score. The parser handles WhatsApp message headers (sender name or phone number), `@⁨~Name⁩` mention tags, tier prefixes (`T1`, `Tier 2`, etc.), and verb variants (`d`, `d.`, `def`, `defeated`, `beat`, `over`, `wins`, `won`). Scores can be `N-M` or `N:M`. If the opponent is referred to as "me", the poster name is used to identify them; if the poster is unknown (phone-only), the resolver infers the opponent from the player's next scheduled match.
+2. **Review step** — parsed results are matched against the season's scheduled/postponed matches and active players using fuzzy name scoring. The admin sees a table of original messages alongside the guessed match, winner, score, and confidence. Rows with a match found have a pre-checked confirm checkbox; rows with errors show the reason. Submitting saves only the checked rows: creates a single `MatchSet`, marks the match completed, and auto-confirms it (admin privilege).
+
 Five supporting JSON/POST endpoints on `SeasonAdmin`:
 
 | URL | Method | Purpose |
@@ -511,6 +516,7 @@ Five supporting JSON/POST endpoints on `SeasonAdmin`:
 | `/admin/seasons/<id>/schedule-match/` | POST | Create a single regular-season match |
 | `/admin/seasons/<id>/delete-match/matches/?tier=<n>` | GET | Scheduled regular-season matches for tier |
 | `/admin/seasons/<id>/delete-match/` | POST | Delete a single scheduled regular-season match |
+| `/admin/seasons/<id>/bulk-results/` | GET/POST | Paste + parse WhatsApp messages → review → bulk save results |
 
 **Score validation rules:**
 - Normal set: winner must have ≥ 6 games, lead by ≥ 2 (except 7-5)

@@ -17,6 +17,11 @@
     <a href="{{ copy_players_url }}" class="historylink">Copy Players from Season</a>
   </li>
   {% endif %}
+  {% if bulk_results_url %}
+  <li>
+    <a href="{{ bulk_results_url }}" class="historylink">Bulk Add Results</a>
+  </li>
+  {% endif %}
   {% if generate_playoff_urls %}
   <li>
     <a href="#" class="historylink" id="playoffs-toggle">Generate Playoffs ▾</a>
