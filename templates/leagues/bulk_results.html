@@ -307,7 +307,9 @@
         const data = await resp.json();
         if (data.success) {
           const row = container.closest('.unposted-row');
-          row.innerHTML = '<span style="color:#1a7a1a;font-weight:600;">✓ ' +
+          const origText = (row.querySelector('.br-orig') || {}).textContent || '';
+          row.innerHTML = (origText ? '<p class="br-orig" style="margin:0 0 0.4rem;">' + origText + '</p>' : '') +
+            '<span style="color:#1a7a1a;font-weight:600;">✓ ' +
             data.winner_name + ' d. ' + data.loser_name + ' ' + ws + '–' + ls + '</span>';
         } else {
           errEl.textContent = data.error || 'Error posting result.';
