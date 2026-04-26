@@ -39,23 +39,85 @@
     border-radius: 4px;
     box-sizing: border-box;
   }
+  .rw-btn {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.45rem;
+    background: #fff;
+    border: 1px solid #c8d4de;
+    border-radius: 6px;
+    padding: 0.45rem 0.8rem;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #1a1a1a;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .rw-btn:hover { border-color: #417690; }
+  .rw-btn.rw-active { background: #e8f0f6; border-color: #417690; }
+  .rw-score-input {
+    width: 52px;
+    padding: 0.3rem;
+    border: 1px solid #c0cdd8;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 0.875rem;
+  }
 </style>
 
 <p><a href="{{ back_url }}">&larr; Back to season</a></p>
 
-{% if not resolved %}
+{% if done %}
+
+{% if saved_entries %}
 <div class="br-section">
-  <p class="br-label">Paste WhatsApp messages</p>
-  <form method="post">
-    {% csrf_token %}
-    <input type="hidden" name="action" value="parse">
-    <textarea name="messages" class="br-input" placeholder="Paste messages here…">{{ raw_text }}</textarea>
-    <div class="br-actions">
-      <input type="submit" value="Parse Messages" class="default">
-    </div>
-  </form>
+  <p class="br-label">Saved ({{ saved_entries|length }})</p>
+  <table class="br-table">
+    <thead>
+      <tr><th>Original message</th><th>Result posted</th></tr>
+    </thead>
+    <tbody>
+      {% for s in saved_entries %}
+      <tr>
+        <td class="br-orig">{{ s.raw }}</td>
+        <td class="br-conf-high">{{ s.display }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
-{% else %}
+{% endif %}
+
+{% if unsaved_entries %}
+<div class="br-section">
+  <p class="br-label">Not posted ({{ unsaved_entries|length }})</p>
+  {% for u in unsaved_entries %}
+  <div class="unposted-row" style="background:#fff;border:1px solid #e0e0e0;border-radius:7px;padding:1rem 1.25rem;margin-bottom:0.75rem;max-width:700px;">
+    <p class="br-orig" style="margin:0 0 0.9rem;">{{ u.raw }}</p>
+    {% if u.match %}
+    <div class="rw-widget"
+         data-match-id="{{ u.match.pk }}"
+         data-p1-id="{{ u.match.player1.pk }}"
+         data-p1-name="{{ u.match.player1.get_full_name|default:u.match.player1.username }}"
+         data-p2-id="{{ u.match.player2.pk }}"
+         data-p2-name="{{ u.match.player2.get_full_name|default:u.match.player2.username }}"
+         data-winner-id="{{ u.winner_id|default:'' }}"
+         data-winner-score="{{ u.winner_score }}"
+         data-loser-score="{{ u.loser_score }}">
+    </div>
+    {% else %}
+    <div class="rw-widget rw-needs-lookup"></div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if not unsaved_entries and not saved_entries %}
+<p style="color:#888;font-style:italic;">Nothing to show.</p>
+{% endif %}
+
+{% elif resolved is not None %}
 <div class="br-section">
   <p class="br-label">Parsed Results — review and confirm</p>
   <form method="post">
@@ -109,6 +171,7 @@
             {% endif %}
           </td>
           <td>
+            <input type="hidden" name="result_{{ forloop.counter0 }}_raw" value="{{ r.parsed.raw }}">
             {% if r.match and r.winner and r.loser %}
               <input type="hidden" name="result_{{ forloop.counter0 }}_match_id" value="{{ r.match.pk }}">
               <input type="hidden" name="result_{{ forloop.counter0 }}_winner_id" value="{{ r.winner.pk }}">
@@ -130,5 +193,308 @@
     </div>
   </form>
 </div>
+
+{% else %}
+<div class="br-section">
+  <p class="br-label">Paste WhatsApp messages</p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="parse">
+    <textarea name="messages" class="br-input" placeholder="Paste messages here…">{{ raw_text }}</textarea>
+    <div class="br-actions">
+      <input type="submit" value="Parse Messages" class="default">
+    </div>
+  </form>
+</div>
 {% endif %}
+
+{% if done %}
+<input type="hidden" id="rw-csrf" value="{{ csrf_token }}">
+<script>
+(function () {
+  const POST_ONE_URL = '{{ post_one_url }}';
+  const PLAYERS_URL  = '{{ players_url }}';
+  const MATCHUPS_URL = '{{ matchups_url }}';
+  const TIER_INFO    = {{ tier_info_json|safe }};
+
+  function rwBtn(text, subtext) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'rw-btn';
+    const nameSpan = document.createElement('span');
+    nameSpan.style.fontWeight = '600';
+    nameSpan.textContent = text;
+    btn.appendChild(nameSpan);
+    if (subtext) {
+      const sub = document.createElement('span');
+      sub.style.cssText = 'font-size:0.78rem;color:#999;';
+      sub.textContent = subtext;
+      btn.appendChild(sub);
+    }
+    return btn;
+  }
+
+  function rwSetActive(container, btn) {
+    container.querySelectorAll('.rw-btn').forEach(b => b.classList.remove('rw-active'));
+    btn.classList.add('rw-active');
+  }
+
+  function rwLabel(text) {
+    const p = document.createElement('p');
+    p.className = 'br-label';
+    p.style.marginTop = '0.8rem';
+    p.textContent = text;
+    return p;
+  }
+
+  function showScorePanel(container, state) {
+    let panel = container.querySelector('.rw-score-panel');
+    if (panel) panel.remove();
+    panel = document.createElement('div');
+    panel.className = 'rw-score-panel';
+    panel.style.cssText = 'display:flex;align-items:center;gap:0.65rem;flex-wrap:wrap;margin-top:0.9rem;';
+
+    const wScoreEl = document.createElement('input');
+    wScoreEl.type = 'number'; wScoreEl.className = 'rw-score-input';
+    wScoreEl.min = '0'; wScoreEl.max = '30'; wScoreEl.value = state.winnerScore || 0;
+
+    const lScoreEl = document.createElement('input');
+    lScoreEl.type = 'number'; lScoreEl.className = 'rw-score-input';
+    lScoreEl.min = '0'; lScoreEl.max = '30'; lScoreEl.value = state.loserScore || 0;
+
+    const sep = document.createElement('span');
+    sep.style.color = '#888'; sep.textContent = '–';
+
+    const wLabel = document.createElement('span');
+    wLabel.style.cssText = 'font-size:0.875rem;color:#333;font-weight:600;';
+    wLabel.textContent = state.selectedWinnerName;
+
+    const lLabel = document.createElement('span');
+    lLabel.style.cssText = 'font-size:0.875rem;color:#666;';
+    lLabel.textContent = state.selectedLoserName;
+
+    const postBtn = document.createElement('button');
+    postBtn.type = 'button'; postBtn.className = 'button default';
+    postBtn.textContent = 'Post Result';
+
+    const errEl = document.createElement('div');
+    errEl.style.cssText = 'display:none;color:#c04800;font-size:0.82rem;width:100%;margin-top:0.25rem;';
+
+    panel.append(wLabel, wScoreEl, sep, lScoreEl, lLabel, postBtn, errEl);
+    container.appendChild(panel);
+
+    postBtn.onclick = async () => {
+      errEl.style.display = 'none';
+      const ws = parseInt(wScoreEl.value);
+      const ls = parseInt(lScoreEl.value);
+      if (isNaN(ws) || isNaN(ls) || ws <= ls) {
+        errEl.textContent = 'Winner score must exceed loser score.';
+        errEl.style.display = 'block';
+        return;
+      }
+      const body = new FormData();
+      body.append('csrfmiddlewaretoken', document.getElementById('rw-csrf').value);
+      body.append('winner_id', state.selectedWinnerId);
+      body.append('winner_score', ws);
+      body.append('loser_score', ls);
+      if (state.matchId) {
+        body.append('match_id', state.matchId);
+      } else {
+        body.append('player2_id', state.selectedLoserId);
+      }
+      postBtn.disabled = true;
+      try {
+        const resp = await fetch(POST_ONE_URL, { method: 'POST', body });
+        const data = await resp.json();
+        if (data.success) {
+          const row = container.closest('.unposted-row');
+          row.innerHTML = '<span style="color:#1a7a1a;font-weight:600;">✓ ' +
+            data.winner_name + ' d. ' + data.loser_name + ' ' + ws + '–' + ls + '</span>';
+        } else {
+          errEl.textContent = data.error || 'Error posting result.';
+          errEl.style.display = 'block';
+          postBtn.disabled = false;
+        }
+      } catch {
+        errEl.textContent = 'Network error — please try again.';
+        errEl.style.display = 'block';
+        postBtn.disabled = false;
+      }
+    };
+  }
+
+  function renderWinnerSelector(container, state) {
+    container.appendChild(rwLabel('Select winner'));
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:0.45rem;flex-wrap:wrap;';
+
+    const b1 = rwBtn(state.p1Name);
+    const b2 = rwBtn(state.p2Name);
+
+    b1.onclick = () => {
+      rwSetActive(row, b1);
+      Object.assign(state, { selectedWinnerId: state.p1Id, selectedWinnerName: state.p1Name,
+                              selectedLoserId: state.p2Id,  selectedLoserName: state.p2Name });
+      showScorePanel(container, state);
+    };
+    b2.onclick = () => {
+      rwSetActive(row, b2);
+      Object.assign(state, { selectedWinnerId: state.p2Id, selectedWinnerName: state.p2Name,
+                              selectedLoserId: state.p1Id,  selectedLoserName: state.p1Name });
+      showScorePanel(container, state);
+    };
+
+    row.append(b1, b2);
+    container.appendChild(row);
+
+    if (state.winnerId && String(state.winnerId) === String(state.p1Id)) {
+      b1.click();
+    } else if (state.winnerId && String(state.winnerId) === String(state.p2Id)) {
+      b2.click();
+    }
+  }
+
+  function renderFullLookup(container, state) {
+    if (TIER_INFO.length > 1) {
+      container.appendChild(rwLabel('Tier'));
+      const tierSel = document.createElement('select');
+      tierSel.style.cssText = 'padding:0.4rem 0.7rem;border:1px solid #c0cdd8;border-radius:5px;font-size:0.875rem;min-width:160px;background:#fff;';
+      const blankOpt = document.createElement('option');
+      blankOpt.value = ''; blankOpt.textContent = '— select —';
+      tierSel.appendChild(blankOpt);
+      TIER_INFO.forEach(t => {
+        const o = document.createElement('option');
+        o.value = t.tier; o.textContent = t.tier_name;
+        tierSel.appendChild(o);
+      });
+      container.appendChild(tierSel);
+      tierSel.onchange = () => loadPlayers(container, state, tierSel.value);
+    } else if (TIER_INFO.length === 1) {
+      state.tier = TIER_INFO[0].tier;
+      loadPlayers(container, state, state.tier);
+    }
+  }
+
+  function loadPlayers(container, state, tier) {
+    state.tier = tier;
+    let playersSec = container.querySelector('.rw-players-sec');
+    if (playersSec) playersSec.remove();
+    let opponentsSec = container.querySelector('.rw-opponents-sec');
+    if (opponentsSec) opponentsSec.remove();
+    let winnerSec = container.querySelector('.rw-winner-sec');
+    if (winnerSec) winnerSec.remove();
+    let scorePanel = container.querySelector('.rw-score-panel');
+    if (scorePanel) scorePanel.remove();
+    if (!tier) return;
+
+    playersSec = document.createElement('div');
+    playersSec.className = 'rw-players-sec';
+    playersSec.appendChild(rwLabel('Select player'));
+    const playersList = document.createElement('div');
+    playersList.style.cssText = 'display:flex;flex-wrap:wrap;gap:0.45rem;';
+    playersSec.appendChild(playersList);
+    container.appendChild(playersSec);
+
+    fetch(PLAYERS_URL + '?tier=' + tier)
+      .then(r => r.json())
+      .then(data => {
+        (data.players || []).forEach(p => {
+          const btn = rwBtn(p.name, p.match_count + ' match' + (p.match_count !== 1 ? 'es' : ''));
+          btn.onclick = () => {
+            rwSetActive(playersList, btn);
+            state.p1Id = p.id; state.p1Name = p.name;
+            loadOpponents(container, state);
+          };
+          playersList.appendChild(btn);
+        });
+      });
+  }
+
+  function loadOpponents(container, state) {
+    let opponentsSec = container.querySelector('.rw-opponents-sec');
+    if (opponentsSec) opponentsSec.remove();
+    let winnerSec = container.querySelector('.rw-winner-sec');
+    if (winnerSec) winnerSec.remove();
+    let scorePanel = container.querySelector('.rw-score-panel');
+    if (scorePanel) scorePanel.remove();
+
+    opponentsSec = document.createElement('div');
+    opponentsSec.className = 'rw-opponents-sec';
+    opponentsSec.appendChild(rwLabel('Select opponent'));
+
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:1rem;';
+
+    const newCol = document.createElement('div');
+    const newColLabel = document.createElement('p');
+    newColLabel.className = 'br-label'; newColLabel.style.color = '#2e7d32';
+    newColLabel.textContent = 'New matchup';
+    const newList = document.createElement('div');
+    newList.style.cssText = 'display:flex;flex-direction:column;gap:0.3rem;';
+    newCol.append(newColLabel, newList);
+
+    const playedCol = document.createElement('div');
+    const playedColLabel = document.createElement('p');
+    playedColLabel.className = 'br-label';
+    playedColLabel.textContent = 'Already played';
+    const playedList = document.createElement('div');
+    playedList.style.cssText = 'display:flex;flex-direction:column;gap:0.3rem;';
+    playedCol.append(playedColLabel, playedList);
+
+    grid.append(newCol, playedCol);
+    opponentsSec.appendChild(grid);
+    container.appendChild(opponentsSec);
+
+    fetch(MATCHUPS_URL + '?tier=' + state.tier + '&player=' + state.p1Id)
+      .then(r => r.json())
+      .then(data => {
+        const addOpp = (list, p) => {
+          const btn = rwBtn(p.name);
+          btn.onclick = () => {
+            rwSetActive(grid, btn);
+            state.p2Id = p.id; state.p2Name = p.name;
+            let winnerSec2 = container.querySelector('.rw-winner-sec');
+            if (winnerSec2) winnerSec2.remove();
+            let scorePanel2 = container.querySelector('.rw-score-panel');
+            if (scorePanel2) scorePanel2.remove();
+            winnerSec2 = document.createElement('div');
+            winnerSec2.className = 'rw-winner-sec';
+            container.appendChild(winnerSec2);
+            renderWinnerSelector(winnerSec2, state);
+          };
+          list.appendChild(btn);
+        };
+        (data.not_played || []).forEach(p => addOpp(newList, p));
+        (data.already_played || []).forEach(p => addOpp(playedList, p));
+        if (!data.not_played?.length) newList.innerHTML = '<span style="font-size:0.82rem;color:#aaa;font-style:italic;">None</span>';
+        if (!data.already_played?.length) playedList.innerHTML = '<span style="font-size:0.82rem;color:#aaa;font-style:italic;">None</span>';
+      });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.rw-widget').forEach(container => {
+      const state = {
+        matchId:    container.dataset.matchId || null,
+        p1Id:       container.dataset.p1Id || null,
+        p1Name:     container.dataset.p1Name || '',
+        p2Id:       container.dataset.p2Id || null,
+        p2Name:     container.dataset.p2Name || '',
+        winnerId:   container.dataset.winnerId || null,
+        winnerScore: parseInt(container.dataset.winnerScore) || 0,
+        loserScore:  parseInt(container.dataset.loserScore)  || 0,
+        selectedWinnerId: null, selectedWinnerName: null,
+        selectedLoserId:  null, selectedLoserName:  null,
+        tier: null,
+      };
+      if (state.matchId) {
+        renderWinnerSelector(container, state);
+      } else {
+        renderFullLookup(container, state);
+      }
+    });
+  });
+}());
+</script>
+{% endif %}
+
 {% endblock %}
