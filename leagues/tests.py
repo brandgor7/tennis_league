@@ -178,6 +178,18 @@ class SeasonModelTest(TestCase):
         Tier.objects.create(season=season, number=1, name='Premier')
         self.assertEqual(season.tier_name(2), 'Tier 2')
 
+    def test_clean_raises_when_preseason_is_self(self):
+        season = Season.objects.create(name='Spring', year=2025)
+        season.preseason = season
+        with self.assertRaises(ValidationError) as ctx:
+            season.clean()
+        self.assertIn('preseason', ctx.exception.message_dict)
+
+    def test_clean_allows_different_preseason(self):
+        pre = Season.objects.create(name='Winter', year=2024)
+        season = Season.objects.create(name='Spring', year=2025, preseason=pre)
+        season.clean()  # must not raise
+
 
 class TierModelTest(TestCase):
     def setUp(self):
@@ -1992,6 +2004,22 @@ class ScheduleMatchMatchupsViewTest(TestCase):
         data = json.loads(self.client.get(self._url(), {'tier': 1, 'player': self.players[0].pk}).content)
         counts = [e['match_count'] for e in data['not_played']]
         self.assertEqual(counts, sorted(counts))
+
+    def test_preseason_match_appears_in_already_played(self):
+        import json
+        preseason = make_season(name='Winter', year=2024, status=Season.STATUS_COMPLETED)
+        Tier.objects.create(season=preseason, number=1, name='Tier 1')
+        self.season.preseason = preseason
+        self.season.save()
+        Match.objects.create(
+            season=preseason, player1=self.players[0], player2=self.players[1],
+            tier=1, round=Match.ROUND_REGULAR, status=Match.STATUS_COMPLETED,
+        )
+        data = json.loads(self.client.get(self._url(), {'tier': 1, 'player': self.players[0].pk}).content)
+        already_ids = {e['id'] for e in data['already_played']}
+        not_ids = {e['id'] for e in data['not_played']}
+        self.assertIn(self.players[1].pk, already_ids)
+        self.assertNotIn(self.players[1].pk, not_ids)
 
 
 class ScheduleMatchCreateViewTest(TestCase):

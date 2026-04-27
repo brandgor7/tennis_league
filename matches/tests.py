@@ -10,7 +10,7 @@ from django.urls import reverse
 from leagues.models import Season, SeasonPlayer, Tier
 from .models import Match, MatchSet
 from .forms import MatchScheduleForm, ResultEntryForm, WalkoverForm, PostponeForm
-from .scheduler import _round_robin_rounds, generate_schedule
+from .scheduler import _round_robin_rounds, existing_pairs, generate_schedule
 
 User = get_user_model()
 
@@ -1997,6 +1997,142 @@ class GenerateScheduleTest(TestCase):
         matches = generate_schedule(season, self.START, 5)
         involved = {m.player1_id for m in matches} | {m.player2_id for m in matches}
         self.assertNotIn(inactive.pk, involved)
+
+    def test_preseason_pairs_skipped(self):
+        # Players who met in the preseason must not be re-paired in the new season.
+        preseason = self._season()
+        players = self._add_players(preseason, 4)
+        generate_schedule(preseason, self.START, 3)  # all 6 pairs now exist in preseason
+
+        season = self._season()
+        season.preseason = preseason
+        season.save()
+        for p in players:
+            SeasonPlayer.objects.create(season=season, player=p, tier=1)
+
+        new_matches = generate_schedule(season, self.START, 99)
+        self.assertEqual(len(new_matches), 0, 'All pairs already occurred in the preseason')
+
+    def test_preseason_pairs_skipped_partial(self):
+        # Only pre_p0 vs pre_p1 occurred in the preseason; new_p0 vs new_p1 is fresh.
+        preseason = self._season()
+        pre_p0 = User.objects.create_user(username='preseas_p0')
+        pre_p1 = User.objects.create_user(username='preseas_p1')
+        SeasonPlayer.objects.create(season=preseason, player=pre_p0, tier=1)
+        SeasonPlayer.objects.create(season=preseason, player=pre_p1, tier=1)
+        Match.objects.create(
+            season=preseason, player1=pre_p0, player2=pre_p1,
+            tier=1, round=Match.ROUND_REGULAR, status=Match.STATUS_SCHEDULED,
+        )
+
+        season = self._season()
+        season.preseason = preseason
+        season.save()
+        new_p0 = User.objects.create_user(username='newseas_p0')
+        new_p1 = User.objects.create_user(username='newseas_p1')
+        for p in [pre_p0, pre_p1, new_p0, new_p1]:
+            SeasonPlayer.objects.create(season=season, player=p, tier=1)
+
+        new_matches = generate_schedule(season, self.START, 99)
+        new_pairs = {frozenset([m.player1_id, m.player2_id]) for m in new_matches}
+        self.assertNotIn(frozenset([pre_p0.pk, pre_p1.pk]), new_pairs)
+
+
+class ExistingPairsTest(TestCase):
+    START = datetime.date(2025, 3, 1)
+
+    def _season(self):
+        s = Season.objects.create(name='Existing Pairs', year=2025)
+        Tier.objects.create(season=s, number=1, name='Tier 1')
+        return s
+
+    def _players(self, n, prefix='ep'):
+        players = []
+        for i in range(n):
+            u = User.objects.create_user(username=f'{prefix}_{i}')
+            players.append(u)
+        return players
+
+    def _match(self, season, p1, p2):
+        return Match.objects.create(
+            season=season, player1=p1, player2=p2,
+            tier=1, round=Match.ROUND_REGULAR,
+            status=Match.STATUS_SCHEDULED,
+        )
+
+    def test_empty_season_returns_empty_set(self):
+        season = self._season()
+        self.assertEqual(existing_pairs(season, 1), set())
+
+    def test_current_season_pair_included(self):
+        season = self._season()
+        p1, p2 = self._players(2, 'ep_cur')
+        self._match(season, p1, p2)
+        pairs = existing_pairs(season, 1)
+        self.assertIn(frozenset([p1.pk, p2.pk]), pairs)
+
+    def test_no_preseason_only_current_pairs(self):
+        season = self._season()
+        other = self._season()
+        p1, p2 = self._players(2, 'ep_other')
+        self._match(other, p1, p2)
+        pairs = existing_pairs(season, 1)
+        self.assertNotIn(frozenset([p1.pk, p2.pk]), pairs)
+
+    def test_preseason_pair_included(self):
+        preseason = self._season()
+        season = self._season()
+        season.preseason = preseason
+        season.save()
+        p1, p2 = self._players(2, 'ep_pre')
+        self._match(preseason, p1, p2)
+        pairs = existing_pairs(season, 1)
+        self.assertIn(frozenset([p1.pk, p2.pk]), pairs)
+
+    def test_preseason_set_but_empty_returns_current_only(self):
+        preseason = self._season()
+        season = self._season()
+        season.preseason = preseason
+        season.save()
+        p1, p2 = self._players(2, 'ep_cur2')
+        self._match(season, p1, p2)
+        pairs = existing_pairs(season, 1)
+        self.assertEqual(len(pairs), 1)
+        self.assertIn(frozenset([p1.pk, p2.pk]), pairs)
+
+    def test_playoff_matches_excluded(self):
+        season = self._season()
+        p1, p2 = self._players(2, 'ep_playoff')
+        Match.objects.create(
+            season=season, player1=p1, player2=p2,
+            tier=1, round=Match.ROUND_QF,
+            status=Match.STATUS_SCHEDULED,
+        )
+        self.assertEqual(existing_pairs(season, 1), set())
+
+    def test_different_tier_excluded(self):
+        season = self._season()
+        Tier.objects.create(season=season, number=2, name='Tier 2')
+        p1, p2 = self._players(2, 'ep_t2')
+        Match.objects.create(
+            season=season, player1=p1, player2=p2,
+            tier=2, round=Match.ROUND_REGULAR,
+            status=Match.STATUS_SCHEDULED,
+        )
+        self.assertEqual(existing_pairs(season, 1), set())
+
+    def test_combined_current_and_preseason_pairs(self):
+        preseason = self._season()
+        season = self._season()
+        season.preseason = preseason
+        season.save()
+        p1, p2, p3, p4 = self._players(4, 'ep_combo')
+        self._match(preseason, p1, p2)
+        self._match(season, p3, p4)
+        pairs = existing_pairs(season, 1)
+        self.assertIn(frozenset([p1.pk, p2.pk]), pairs)
+        self.assertIn(frozenset([p3.pk, p4.pk]), pairs)
+        self.assertEqual(len(pairs), 2)
 
 
 class MatchAuditLogTest(TestCase):

@@ -55,15 +55,14 @@ def existing_pairs(season, tier):
     from the attached preseason — so players who already met in the preseason
     are also excluded from the new schedule.
     """
-    seasons_to_check = [season]
+    season_ids = [season.pk]
     if season.preseason_id:
-        seasons_to_check.append(season.preseason)
+        season_ids.append(season.preseason_id)
     pairs = set()
-    for s in seasons_to_check:
-        for row in Match.objects.filter(
-            season=s, tier=tier, round=Match.ROUND_REGULAR
-        ).values('player1_id', 'player2_id'):
-            pairs.add(frozenset([row['player1_id'], row['player2_id']]))
+    for row in Match.objects.filter(
+        season_id__in=season_ids, tier=tier, round=Match.ROUND_REGULAR
+    ).values('player1_id', 'player2_id'):
+        pairs.add(frozenset([row['player1_id'], row['player2_id']]))
     return pairs
 
 

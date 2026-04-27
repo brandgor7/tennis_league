@@ -175,6 +175,10 @@ class Season(models.Model):
                 raise ValidationError(
                     {'status': 'Only one season can be active at a time.'}
                 )
+        if self.pk and self.preseason_id == self.pk:
+            raise ValidationError(
+                {'preseason': 'A season cannot be its own preseason.'}
+            )
 
     @property
     def num_tiers(self):
