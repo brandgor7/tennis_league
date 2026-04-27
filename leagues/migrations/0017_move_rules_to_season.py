@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('leagues', '0015_siteconfig_rules'),
+        ('leagues', '0016_merge_20260427_0102'),
     ]
 
     operations = [
