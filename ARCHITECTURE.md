@@ -233,7 +233,7 @@ tennis-scores-app/
 ### `matches`
 - `Match` model — scheduling, status, players, result
 - `MatchSet` model — individual set scores (supports tiebreak scores)
-- `scheduler.py` — `generate_schedule(season, start_date, num_rounds)`: round-robin schedule generation across all tiers; idempotent across calls — already-scheduled matchup pairs are filtered out so no pair is ever duplicated within a season, enabling batch scheduling (e.g. schedule first 3 rounds, then 3 more later). `remaining_rounds_count(season, tier)` returns how many rounds remain schedulable for a tier.
+- `scheduler.py` — `generate_schedule(season, start_date, num_rounds)`: round-robin schedule generation across all tiers; idempotent across calls — already-scheduled matchup pairs are filtered out so no pair is ever duplicated within a season, enabling batch scheduling (e.g. schedule first 3 rounds, then 3 more later). `remaining_rounds_count(season, tier)` returns how many rounds remain schedulable for a tier. `existing_pairs(season, tier)` is the single authoritative function for "which pairs must not be re-scheduled" — it checks the current season and, if `season.preseason` is set, the attached preseason.
 - Result entry view (for a player in the match)
 - Result confirmation view (for the opponent)
 - Walkover and postponement views (admin or player)
@@ -288,6 +288,7 @@ schedule_display_mode     CharField       all | current_day | current_week | nex
 schedule_display_days     IntegerField    default 7; days ahead to show when schedule_display_mode=next_x_days
 display                   BooleanField    default True; if False, season is hidden from the dropdown for non-staff users not enrolled in it (direct URL access still works for anyone)
 playoffs_enabled          BooleanField    default True; controls visibility of the Playoffs navbar tab and admin playoff actions for this season
+preseason                 FK → Season (nullable, self-referential)  if set, matchups from the linked season are also excluded when generating the schedule, preventing rematches across seasons
 created_at                DateTimeField
 ```
 

@@ -123,6 +123,17 @@ class Season(models.Model):
         default=True,
         help_text='Show playoff bracket tab and admin playoff actions for this season',
     )
+    preseason = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='postseasons',
+        help_text=(
+            'Attach a previous season here to prevent rematches when generating the schedule — '
+            'any matchup that already occurred in the attached season will be skipped.'
+        ),
+    )
     display = models.BooleanField(
         default=True,
         help_text='Show this season in the dropdown for non-admin users who are not part of this season',
@@ -164,6 +175,10 @@ class Season(models.Model):
                 raise ValidationError(
                     {'status': 'Only one season can be active at a time.'}
                 )
+        if self.pk and self.preseason_id == self.pk:
+            raise ValidationError(
+                {'preseason': 'A season cannot be its own preseason.'}
+            )
 
     @property
     def num_tiers(self):
