@@ -17,7 +17,7 @@ from django.utils.html import format_html
 from .models import Season, SeasonPlayer, SiteConfig, Tier
 from matches.models import Match, MatchSet
 from matches.bulk_result_parser import parse_whatsapp_messages, resolve_results
-from matches.scheduler import generate_schedule, remaining_rounds_count
+from matches.scheduler import existing_pairs, generate_schedule, remaining_rounds_count
 from matches.views import _audit_match
 from playoffs.generator import bracket_size_for, generate_bracket
 from playoffs.models import PlayoffBracket
@@ -53,7 +53,7 @@ class SeasonAdmin(admin.ModelAdmin):
     }
     fieldsets = (
         (None, {'fields': ('name', 'year', 'status', 'display')}),
-        ('Schedule', {'fields': ('schedule_type', 'schedule_display_mode', 'schedule_display_days')}),
+        ('Schedule', {'fields': ('schedule_type', 'schedule_display_mode', 'schedule_display_days', 'preseason')}),
         ('Match Format', {'fields': ('sets_to_win', 'games_to_win_set', 'final_set_format')}),
         ('Playoffs', {'fields': ('playoffs_enabled', 'playoff_qualifiers_count')}),
         ('Points', {'fields': ('points_for_win', 'points_for_loss', 'points_for_walkover_loss')}),
@@ -302,14 +302,11 @@ class SeasonAdmin(admin.ModelAdmin):
 
         count_map = self._match_count_map(season, tier, tier_players)
 
+        played_pairs = existing_pairs(season, tier)
         played_opponents = set()
-        for p1_id, p2_id in Match.objects.filter(
-            season=season, tier=tier, round=Match.ROUND_REGULAR
-        ).values_list('player1_id', 'player2_id'):
-            if player_id == p1_id:
-                played_opponents.add(p2_id)
-            elif player_id == p2_id:
-                played_opponents.add(p1_id)
+        for pair in played_pairs:
+            if player_id in pair:
+                played_opponents.update(pair - frozenset([player_id]))
 
         not_played = []
         already_played = []
