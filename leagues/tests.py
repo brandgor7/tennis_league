@@ -682,6 +682,104 @@ class SeasonPlayerDetailViewTest(TestCase):
         self.assertContains(response, 'Alice Smith')
 
 
+# ─── SeasonPlayerDetailView schedule display filter tests ────────────────────
+
+class SeasonPlayerDetailDisplayFilterTest(TestCase):
+    """schedule_display_mode filtering on the player detail upcoming list."""
+
+    def setUp(self):
+        self.season = make_season()
+        self.player = make_player('pfilter')
+        self.opponent = make_player('ofilter')
+        enroll(self.season, self.player, tier=1)
+        enroll(self.season, self.opponent, tier=1)
+        self.url = reverse('leagues:player_detail', kwargs={
+            'slug': self.season.slug, 'username': self.player.username,
+        })
+        self.today = datetime.date.today()
+
+    def _match(self, **kwargs):
+        defaults = dict(
+            season=self.season, player1=self.player, player2=self.opponent,
+            tier=1, status=Match.STATUS_SCHEDULED,
+        )
+        defaults.update(kwargs)
+        return Match.objects.create(**defaults)
+
+    def _upcoming(self):
+        return list(self.client.get(self.url).context['upcoming'])
+
+    def _set_mode(self, mode, days=None):
+        self.season.schedule_display_mode = mode
+        if days is not None:
+            self.season.schedule_display_days = days
+        self.season.save()
+
+    # ── DISPLAY_ALL ───────────────────────────────────────────────────────────
+
+    def test_all_shows_far_future_match(self):
+        m = self._match(scheduled_date=self.today + datetime.timedelta(days=60))
+        self.assertIn(m, self._upcoming())
+
+    # ── DISPLAY_CURRENT_DAY ───────────────────────────────────────────────────
+
+    def test_current_day_shows_todays_match(self):
+        self._set_mode(Season.DISPLAY_CURRENT_DAY)
+        m = self._match(scheduled_date=self.today)
+        self.assertIn(m, self._upcoming())
+
+    def test_current_day_hides_tomorrows_match(self):
+        self._set_mode(Season.DISPLAY_CURRENT_DAY)
+        self._match(scheduled_date=self.today + datetime.timedelta(days=1))
+        self.assertEqual(self._upcoming(), [])
+
+    def test_current_day_shows_undated_match(self):
+        self._set_mode(Season.DISPLAY_CURRENT_DAY)
+        m = self._match(scheduled_date=None)
+        self.assertIn(m, self._upcoming())
+
+    def test_current_day_shows_past_unplayed_match(self):
+        self._set_mode(Season.DISPLAY_CURRENT_DAY)
+        m = self._match(scheduled_date=self.today - datetime.timedelta(days=3))
+        self.assertIn(m, self._upcoming())
+
+    # ── DISPLAY_CURRENT_WEEK ──────────────────────────────────────────────────
+
+    def test_current_week_shows_match_on_sunday(self):
+        self._set_mode(Season.DISPLAY_CURRENT_WEEK)
+        week_end = self.today + datetime.timedelta(days=6 - self.today.weekday())
+        m = self._match(scheduled_date=week_end)
+        self.assertIn(m, self._upcoming())
+
+    def test_current_week_hides_next_week_match(self):
+        self._set_mode(Season.DISPLAY_CURRENT_WEEK)
+        days_to_next_monday = 7 - self.today.weekday()
+        self._match(scheduled_date=self.today + datetime.timedelta(days=days_to_next_monday))
+        self.assertEqual(self._upcoming(), [])
+
+    def test_current_week_shows_undated_match(self):
+        self._set_mode(Season.DISPLAY_CURRENT_WEEK)
+        m = self._match(scheduled_date=None)
+        self.assertIn(m, self._upcoming())
+
+    # ── DISPLAY_NEXT_X_DAYS ───────────────────────────────────────────────────
+
+    def test_next_x_days_shows_match_on_cutoff_date(self):
+        self._set_mode(Season.DISPLAY_NEXT_X_DAYS, days=7)
+        m = self._match(scheduled_date=self.today + datetime.timedelta(days=7))
+        self.assertIn(m, self._upcoming())
+
+    def test_next_x_days_hides_match_beyond_cutoff(self):
+        self._set_mode(Season.DISPLAY_NEXT_X_DAYS, days=7)
+        self._match(scheduled_date=self.today + datetime.timedelta(days=8))
+        self.assertEqual(self._upcoming(), [])
+
+    def test_next_x_days_shows_undated_match(self):
+        self._set_mode(Season.DISPLAY_NEXT_X_DAYS, days=7)
+        m = self._match(scheduled_date=None)
+        self.assertIn(m, self._upcoming())
+
+
 # ─── SeasonPlayerDetailView template tests ────────────────────────────────────
 
 class SeasonPlayerDetailTemplateTest(TestCase):
