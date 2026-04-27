@@ -289,6 +289,8 @@ playoffs_enabled          BooleanField    default True; controls visibility of t
 show_rules                BooleanField    default False; when True, a "Rules" link appears in the navbar and /seasons/<slug>/rules/ is accessible
 rules_content             TextField       Rules text stored as Markdown; blank = no content; rendered via marked.js on the rules page
 preseason                 FK → Season (nullable, self-referential)  if set, matchups from the linked season are also excluded when generating the schedule, preventing rematches across seasons
+show_rules                BooleanField    default False; when True, a "Rules" link appears in the navbar and /seasons/<slug>/rules/ is accessible
+rules_content             TextField       Rules text stored as Markdown; blank = no content; rendered via marked.js on the rules page
 created_at                DateTimeField
 ```
 
