@@ -128,7 +128,7 @@ Child templates mark a nav link active by emitting `nav-active` from the matchin
 {% block nav_standings %}nav-active{% endblock %}
 ```
 
-Available blocks: `nav_standings`, `nav_matchups`, `nav_results`, `nav_playoffs`. CSS draws a clay underline on the active link.
+Available blocks: `nav_standings`, `nav_matchups`, `nav_results`, `nav_playoffs`, `nav_rules`. CSS draws a clay underline on the active link.
 
 ### Player Name Links
 
@@ -207,7 +207,8 @@ tennis-scores-app/
     ├── leagues/
     │   ├── season_list.html
     │   ├── season_detail.html
-    │   └── player_detail.html       # player profile within a season
+    │   ├── player_detail.html       # player profile within a season
+    │   └── rules.html               # league rules page; Markdown rendered via marked.js CDN
     └── playoffs/
         └── bracket.html
 ```
@@ -254,9 +255,11 @@ tennis-scores-app/
 
 ### `leagues.SiteConfig`
 ```
-site_name   CharField(100)   Navbar brand name and page footer; default "TennisLeague"
-logo        TextField        Base64 data URL (data:image/png;base64,… or data:image/jpeg;base64,…); blank = default icon shown
-pk          always 1         Singleton — enforced by model.save() and admin
+site_name      CharField(100)   Navbar brand name and page footer; default "TennisLeague"
+logo           TextField        Base64 data URL (data:image/png;base64,… or data:image/jpeg;base64,…); blank = default icon shown
+show_rules     BooleanField     default False; when True, a "Rules" link appears in the navbar and /rules/ is accessible
+rules_content  TextField        Rules text stored as Markdown; blank = no content; rendered via marked.js on the rules page
+pk             always 1         Singleton — enforced by model.save() and admin
 ```
 Logo uploads are validated in the admin form: magic bytes are checked (PNG `\x89PNG\r\n\x1a\n`, JPEG `\xff\xd8\xff`) to confirm the file type regardless of extension, and size is capped at 2 MB. The data URL is stored in the database — no file system writes, no MEDIA configuration needed.
 
@@ -456,6 +459,8 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
 /accounts/login/                           Login
 /accounts/logout/                          Logout
 /accounts/profile/                         Player profile + their match history
+
+/rules/                                    League rules page (Markdown rendered; only accessible when SiteConfig.show_rules=True)
 
 /seasons/                                  All seasons list
 /seasons/<id>/                             Season overview
