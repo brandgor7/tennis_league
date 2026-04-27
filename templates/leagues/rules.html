@@ -22,6 +22,8 @@
 <script src="https://cdn.jsdelivr.net/npm/marked@13/marked.min.js"></script>
 <script>
   (function () {
+    // Strip raw HTML blocks so admins cannot embed executable markup.
+    marked.use({ renderer: { html() { return ''; } } });
     var raw = JSON.parse(document.getElementById('rules-raw').textContent);
     document.getElementById('rules-rendered').innerHTML = marked.parse(raw);
   })();
