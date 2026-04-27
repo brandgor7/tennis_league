@@ -1,3 +1,5 @@
+import datetime
+
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.http import Http404
@@ -62,6 +64,23 @@ class SeasonPlayerDetailView(View):
             .select_related('player1', 'player2', 'winner', 'season')
             .order_by('scheduled_date')
         )
+
+        today = datetime.date.today()
+        mode = season.schedule_display_mode
+        if mode == Season.DISPLAY_CURRENT_DAY:
+            upcoming = upcoming.filter(
+                Q(scheduled_date__isnull=True) | Q(scheduled_date__lte=today)
+            )
+        elif mode == Season.DISPLAY_CURRENT_WEEK:
+            week_end = today + datetime.timedelta(days=6 - today.weekday())
+            upcoming = upcoming.filter(
+                Q(scheduled_date__isnull=True) | Q(scheduled_date__lte=week_end)
+            )
+        elif mode == Season.DISPLAY_NEXT_X_DAYS:
+            cutoff = today + datetime.timedelta(days=season.schedule_display_days)
+            upcoming = upcoming.filter(
+                Q(scheduled_date__isnull=True) | Q(scheduled_date__lte=cutoff)
+            )
 
         results = (
             Match.objects
