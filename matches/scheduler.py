@@ -47,13 +47,23 @@ def _round_robin_rounds(player_ids):
     return rounds
 
 
-def _existing_pairs(season, tier):
-    """Return the set of already-scheduled regular-season matchup pairs for a tier."""
+def existing_pairs(season, tier):
+    """
+    Return the set of matchup pairs that should not be re-scheduled for a tier.
+
+    Includes pairs from the current season and, if season.preseason is set,
+    from the attached preseason — so players who already met in the preseason
+    are also excluded from the new schedule.
+    """
+    seasons_to_check = [season]
+    if season.preseason_id:
+        seasons_to_check.append(season.preseason)
     pairs = set()
-    for row in Match.objects.filter(
-        season=season, tier=tier, round=Match.ROUND_REGULAR
-    ).values('player1_id', 'player2_id'):
-        pairs.add(frozenset([row['player1_id'], row['player2_id']]))
+    for s in seasons_to_check:
+        for row in Match.objects.filter(
+            season=s, tier=tier, round=Match.ROUND_REGULAR
+        ).values('player1_id', 'player2_id'):
+            pairs.add(frozenset([row['player1_id'], row['player2_id']]))
     return pairs
 
 
@@ -63,7 +73,7 @@ def remaining_rounds_count(season, tier):
         SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True)
         .values_list('player_id', flat=True)
     )
-    existing = _existing_pairs(season, tier)
+    existing = existing_pairs(season, tier)
     count = 0
     for round_pairs in _round_robin_rounds(player_ids):
         if any(frozenset([p1, p2]) not in existing for p1, p2 in round_pairs):
@@ -100,7 +110,7 @@ def generate_schedule(season, start_date, num_rounds):
             .values_list('player_id', flat=True)
         )
 
-        existing = _existing_pairs(season, tier)
+        existing = existing_pairs(season, tier)
         remaining = []
         for round_pairs in _round_robin_rounds(player_ids):
             new_pairs = [(p1, p2) for p1, p2 in round_pairs if frozenset([p1, p2]) not in existing]
