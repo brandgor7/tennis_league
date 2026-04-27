@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}Rules — {{ site_name|default:"Tennis League" }}{% endblock %}
+
+{% block nav_rules %}nav-active{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+  <h1>Rules</h1>
+</div>
+
+{% if rules_content %}
+{{ rules_content|json_script:"rules-raw" }}
+<div id="rules-rendered" class="rules-body"></div>
+{% else %}
+<p class="text-muted">No rules have been published yet.</p>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if rules_content %}
+<script src="https://cdn.jsdelivr.net/npm/marked@13/marked.min.js"></script>
+<script>
+  (function () {
+    // Strip raw HTML blocks so admins cannot embed executable markup.
+    marked.use({ renderer: { html() { return ''; } } });
+    var raw = JSON.parse(document.getElementById('rules-raw').textContent);
+    document.getElementById('rules-rendered').innerHTML = marked.parse(raw);
+  })();
+</script>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .rules-body h1,
+  .rules-body h2,
+  .rules-body h3 {
+    font-family: var(--bs-font-serif, 'Lora', serif);
+    color: var(--charcoal);
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .rules-body h1 { font-size: 1.6rem; }
+  .rules-body h2 { font-size: 1.35rem; }
+  .rules-body h3 { font-size: 1.15rem; }
+  .rules-body ul,
+  .rules-body ol {
+    padding-left: 1.5rem;
+    margin-bottom: 1rem;
+  }
+  .rules-body li { margin-bottom: 0.25rem; }
+  .rules-body p { margin-bottom: 0.75rem; }
+  .rules-body strong { font-weight: 600; }
+  .rules-body blockquote {
+    border-left: 3px solid var(--clay);
+    padding: 0.5rem 1rem;
+    margin: 1rem 0;
+    background: var(--sand);
+    border-radius: 0 4px 4px 0;
+    color: var(--muted);
+  }
+  .rules-body hr {
+    border-color: var(--border);
+    margin: 1.5rem 0;
+  }
+  .rules-body code {
+    background: var(--sand);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.875em;
+  }
+</style>
+{% endblock %}

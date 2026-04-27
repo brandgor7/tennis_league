@@ -105,6 +105,13 @@
           {% endif %}
           {% endif %}
 
+          {% if show_rules %}
+          <li class="nav-item">
+            <a class="nav-link {% block nav_rules %}{% endblock %}"
+               href="{% url 'leagues:rules' %}">Rules</a>
+          </li>
+          {% endif %}
+
         </ul>
 
         <!-- Right: auth -->

@@ -52,4 +52,5 @@ def season_context(request):
         'all_seasons': all_seasons,
         'site_name': site_name,
         'logo_data_url': logo_data_url,
+        'show_rules': config.show_rules,
     }

@@ -15,6 +15,14 @@ class SiteConfig(models.Model):
         blank=True,
         help_text='Base64-encoded data URL of the logo image (set via the admin upload field).',
     )
+    show_rules = models.BooleanField(
+        default=False,
+        help_text='Show the Rules page in the navbar.',
+    )
+    rules_content = models.TextField(
+        blank=True,
+        help_text='Rules text in Markdown format.',
+    )
 
     class Meta:
         verbose_name = 'Site Configuration'

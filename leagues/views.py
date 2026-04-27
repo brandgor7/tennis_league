@@ -1,9 +1,10 @@
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.generic import ListView, DetailView, View
+from django.views.generic import ListView, DetailView, TemplateView, View
 
-from .models import Season, SeasonPlayer
+from .models import Season, SeasonPlayer, SiteConfig
 
 User = get_user_model()
 from matches.models import Match
@@ -84,3 +85,17 @@ class SeasonPlayerDetailView(View):
             'upcoming': upcoming,
             'results': results,
         })
+
+
+class RulesView(TemplateView):
+    template_name = 'leagues/rules.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if not SiteConfig.get().show_rules:
+            raise Http404
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['rules_content'] = SiteConfig.get().rules_content
+        return ctx
