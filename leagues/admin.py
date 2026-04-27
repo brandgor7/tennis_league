@@ -7,7 +7,7 @@ import re
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
-from django.db import transaction
+from django.db import models, transaction
 from django.db.models import Count, Q
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
@@ -47,6 +47,10 @@ class SeasonAdmin(admin.ModelAdmin):
     list_filter = ('status', 'year', 'final_set_format', 'walkover_rule')
     search_fields = ('name',)
     inlines = [TierInline, SeasonPlayerInline]
+    readonly_fields = ('season_markdown_hints',)
+    formfield_overrides = {
+        models.TextField: {'widget': forms.Textarea(attrs={'rows': 20, 'style': 'font-family: monospace;'})},
+    }
     fieldsets = (
         (None, {'fields': ('name', 'year', 'status', 'display')}),
         ('Schedule', {'fields': ('schedule_type', 'schedule_display_mode', 'schedule_display_days', 'preseason')}),
@@ -54,7 +58,31 @@ class SeasonAdmin(admin.ModelAdmin):
         ('Playoffs', {'fields': ('playoffs_enabled', 'playoff_qualifiers_count')}),
         ('Points', {'fields': ('points_for_win', 'points_for_loss', 'points_for_walkover_loss')}),
         ('Rules', {'fields': ('walkover_rule', 'postponement_deadline', 'grace_period_days')}),
+        ('Rules Page', {'fields': ('show_rules', 'rules_content', 'season_markdown_hints')}),
     )
+
+    def season_markdown_hints(self, obj):
+        from django.utils.safestring import mark_safe
+        return mark_safe(
+            '<table style="border-collapse:collapse;font-size:0.85rem;font-family:monospace;">'
+            '<thead><tr>'
+            '<th style="padding:4px 12px 4px 0;text-align:left;border-bottom:1px solid #ccc;">Syntax</th>'
+            '<th style="padding:4px 0;text-align:left;border-bottom:1px solid #ccc;">Result</th>'
+            '</tr></thead>'
+            '<tbody>'
+            '<tr><td style="padding:4px 12px 4px 0;"># Heading 1</td><td>Large heading</td></tr>'
+            '<tr><td style="padding:4px 12px 4px 0;">## Heading 2</td><td>Medium heading</td></tr>'
+            '<tr><td style="padding:4px 12px 4px 0;">### Heading 3</td><td>Small heading</td></tr>'
+            '<tr><td style="padding:4px 12px 4px 0;">- item</td><td>Bullet list item</td></tr>'
+            '<tr><td style="padding:4px 12px 4px 0;">1. item</td><td>Numbered list item</td></tr>'
+            '<tr><td style="padding:4px 12px 4px 0;">**bold**</td><td><strong>bold</strong></td></tr>'
+            '<tr><td style="padding:4px 12px 4px 0;">*italic*</td><td><em>italic</em></td></tr>'
+            '<tr><td style="padding:4px 12px 4px 0;">`code`</td><td><code>inline code</code></td></tr>'
+            '<tr><td style="padding:4px 12px 4px 0;">&gt; text</td><td>Blockquote</td></tr>'
+            '<tr><td style="padding:4px 12px 4px 0;">---</td><td>Horizontal rule</td></tr>'
+            '</tbody></table>'
+        )
+    season_markdown_hints.short_description = 'Markdown reference'
 
     def get_urls(self):
         urls = super().get_urls()
@@ -888,10 +916,7 @@ class SiteConfigForm(forms.ModelForm):
 
     class Meta:
         model = SiteConfig
-        fields = ('site_name', 'show_rules', 'rules_content')
-        widgets = {
-            'rules_content': forms.Textarea(attrs={'rows': 20, 'style': 'font-family: monospace;'}),
-        }
+        fields = ('site_name',)
 
     def clean_logo_upload(self):
         f = self.cleaned_data.get('logo_upload')
@@ -927,9 +952,8 @@ class SiteConfigAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {'fields': ('site_name',)}),
         ('Logo', {'fields': ('logo_preview', 'logo_upload', 'clear_logo')}),
-        ('Rules', {'fields': ('show_rules', 'rules_content', 'markdown_hints')}),
     )
-    readonly_fields = ('logo_preview', 'markdown_hints')
+    readonly_fields = ('logo_preview',)
 
     def logo_preview(self, obj):
         if not obj or not obj.logo:
@@ -940,29 +964,6 @@ class SiteConfigAdmin(admin.ModelAdmin):
             obj.logo,
         )
     logo_preview.short_description = 'Current logo'
-
-    def markdown_hints(self, obj):
-        from django.utils.safestring import mark_safe
-        return mark_safe(
-            '<table style="border-collapse:collapse;font-size:0.85rem;font-family:monospace;">'
-            '<thead><tr>'
-            '<th style="padding:4px 12px 4px 0;text-align:left;border-bottom:1px solid #ccc;">Syntax</th>'
-            '<th style="padding:4px 0;text-align:left;border-bottom:1px solid #ccc;">Result</th>'
-            '</tr></thead>'
-            '<tbody>'
-            '<tr><td style="padding:4px 12px 4px 0;"># Heading 1</td><td>Large heading</td></tr>'
-            '<tr><td style="padding:4px 12px 4px 0;">## Heading 2</td><td>Medium heading</td></tr>'
-            '<tr><td style="padding:4px 12px 4px 0;">### Heading 3</td><td>Small heading</td></tr>'
-            '<tr><td style="padding:4px 12px 4px 0;">- item</td><td>Bullet list item</td></tr>'
-            '<tr><td style="padding:4px 12px 4px 0;">1. item</td><td>Numbered list item</td></tr>'
-            '<tr><td style="padding:4px 12px 4px 0;">**bold**</td><td><strong>bold</strong></td></tr>'
-            '<tr><td style="padding:4px 12px 4px 0;">*italic*</td><td><em>italic</em></td></tr>'
-            '<tr><td style="padding:4px 12px 4px 0;">`code`</td><td><code>inline code</code></td></tr>'
-            '<tr><td style="padding:4px 12px 4px 0;">&gt; text</td><td>Blockquote</td></tr>'
-            '<tr><td style="padding:4px 12px 4px 0;">---</td><td>Horizontal rule</td></tr>'
-            '</tbody></table>'
-        )
-    markdown_hints.short_description = 'Markdown reference'
 
     def has_add_permission(self, request):
         return not SiteConfig.objects.exists()

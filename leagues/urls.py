@@ -8,7 +8,7 @@ from playoffs.views import PlayoffListView, PlayoffBracketView
 app_name = 'leagues'
 
 urlpatterns = [
-    path('rules/', views.RulesView.as_view(), name='rules'),
+    path('seasons/<slug:slug>/rules/', views.RulesView.as_view(), name='rules'),
     path('seasons/', views.SeasonListView.as_view(), name='season_list'),
     path('seasons/<slug:slug>/', views.SeasonDetailView.as_view(), name='season_detail'),
     path('seasons/<slug:slug>/standings/', StandingsView.as_view(), name='standings'),
