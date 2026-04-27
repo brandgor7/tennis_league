@@ -15,15 +15,6 @@ class SiteConfig(models.Model):
         blank=True,
         help_text='Base64-encoded data URL of the logo image (set via the admin upload field).',
     )
-    show_rules = models.BooleanField(
-        default=False,
-        help_text='Show the Rules page in the navbar.',
-    )
-    rules_content = models.TextField(
-        blank=True,
-        help_text='Rules text in Markdown format.',
-    )
-
     class Meta:
         verbose_name = 'Site Configuration'
         verbose_name_plural = 'Site Configuration'
@@ -126,6 +117,14 @@ class Season(models.Model):
     display = models.BooleanField(
         default=True,
         help_text='Show this season in the dropdown for non-admin users who are not part of this season',
+    )
+    show_rules = models.BooleanField(
+        default=False,
+        help_text='Show the Rules page in the navbar for this season.',
+    )
+    rules_content = models.TextField(
+        blank=True,
+        help_text='Rules text in Markdown format.',
     )
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -257,8 +257,6 @@ tennis-scores-app/
 ```
 site_name      CharField(100)   Navbar brand name and page footer; default "TennisLeague"
 logo           TextField        Base64 data URL (data:image/png;base64,… or data:image/jpeg;base64,…); blank = default icon shown
-show_rules     BooleanField     default False; when True, a "Rules" link appears in the navbar and /rules/ is accessible
-rules_content  TextField        Rules text stored as Markdown; blank = no content; rendered via marked.js on the rules page
 pk             always 1         Singleton — enforced by model.save() and admin
 ```
 Logo uploads are validated in the admin form: magic bytes are checked (PNG `\x89PNG\r\n\x1a\n`, JPEG `\xff\xd8\xff`) to confirm the file type regardless of extension, and size is capped at 2 MB. The data URL is stored in the database — no file system writes, no MEDIA configuration needed.
@@ -288,6 +286,8 @@ schedule_display_mode     CharField       all | current_day | current_week | nex
 schedule_display_days     IntegerField    default 7; days ahead to show when schedule_display_mode=next_x_days
 display                   BooleanField    default True; if False, season is hidden from the dropdown for non-staff users not enrolled in it (direct URL access still works for anyone)
 playoffs_enabled          BooleanField    default True; controls visibility of the Playoffs navbar tab and admin playoff actions for this season
+show_rules                BooleanField    default False; when True, a "Rules" link appears in the navbar and /seasons/<slug>/rules/ is accessible
+rules_content             TextField       Rules text stored as Markdown; blank = no content; rendered via marked.js on the rules page
 created_at                DateTimeField
 ```
 
@@ -460,7 +460,7 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
 /accounts/logout/                          Logout
 /accounts/profile/                         Player profile + their match history
 
-/rules/                                    League rules page (Markdown rendered; only accessible when SiteConfig.show_rules=True)
+/seasons/<slug>/rules/                     Season rules page (Markdown rendered; only accessible when Season.show_rules=True)
 
 /seasons/                                  All seasons list
 /seasons/<id>/                             Season overview
