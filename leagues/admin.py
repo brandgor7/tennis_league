@@ -240,7 +240,7 @@ class SeasonAdmin(admin.ModelAdmin):
             'error': error,
             'start_date_val': start_date_val,
             'num_rounds_val': num_rounds_val,
-            'title': f'Analyze / Generate Schedule — {season.name}',
+            'title': f'Analyze / Generate Schedule — {season}',
         }
         return render(request, 'leagues/generate_schedule.html', context)
 
@@ -836,7 +836,7 @@ class SeasonAdmin(admin.ModelAdmin):
                 'opponents_url': reverse('admin:leagues_season_bulk_results_opponents', args=[season_id]),
                 'resolved': None,
                 'raw_text': '',
-                'title': f'Bulk Add Results — {season.name}',
+                'title': f'Bulk Add Results — {season}',
                 'back_url': reverse('admin:leagues_season_change', args=[season_id]),
             }
             return render(request, 'leagues/bulk_results.html', context)
@@ -857,7 +857,7 @@ class SeasonAdmin(admin.ModelAdmin):
             'season': season,
             'resolved': resolved,
             'raw_text': raw_text,
-            'title': f'Bulk Add Results — {season.name}',
+            'title': f'Bulk Add Results — {season}',
             'back_url': reverse('admin:leagues_season_change', args=[season_id]),
         }
         return render(request, 'leagues/bulk_results.html', context)
