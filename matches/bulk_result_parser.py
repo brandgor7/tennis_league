@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 _HEADER_RE = re.compile(
-    r'^\[[\d/,: APMapm]+\]\s+(.+?):\s+(.*)',
+    r'^\[[\d/,:\sAPMapm]+\]\s+(.+?):\s+(.*)',
     re.IGNORECASE,
 )
 _PHONE_RE = re.compile(r'^[\d\s\+\(\)\-\.]+$')
