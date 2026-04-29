@@ -139,6 +139,13 @@
                   <i class="bi bi-shield-check me-2" aria-hidden="true"></i>Admin
                 </a>
               </li>
+              {% if current_season %}
+              <li>
+                <a class="dropdown-item" href="/admin/leagues/season/{{ current_season.pk }}/bulk-results/">
+                  <i class="bi bi-clipboard-data me-2" aria-hidden="true"></i>Bulk Results
+                </a>
+              </li>
+              {% endif %}
               {% endif %}
               <li><hr class="dropdown-divider"></li>
               <li>
