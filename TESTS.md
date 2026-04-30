@@ -7,10 +7,10 @@ Tests use Django's built-in test runner with an in-memory SQLite database
 
 ```bash
 # If python is on your PATH (activated venv or system install):
-python manage.py test --settings=config.test_settings
+python manage.py test --settings=config.test_settings --parallel
 
 # If using the project's .venv directly:
-.venv/bin/python manage.py test --settings=config.test_settings
+.venv/bin/python manage.py test --settings=config.test_settings --parallel
 ```
 
 ## Useful options

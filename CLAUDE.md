@@ -31,6 +31,12 @@ Record steps executed in that file for future reference.
 - Include as few comments as possible, and only for complex or convoluted code (which ideally shouldn't occur)
 
 
+## Running Tests
+
+```bash
+python manage.py test --settings=config.test_settings --parallel
+```
+
 ## Running Locally
 
 ```bash
