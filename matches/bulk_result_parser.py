@@ -10,7 +10,7 @@ _HEADER_RE = re.compile(
 _PHONE_RE = re.compile(r'^[\d\s\+\(\)\-\.]+$')
 _SCORE_RE = re.compile(r'(?<!\d)(\d{1,2})\s*[-:]\s*(\d{1,2})(?!\d)')
 _WA_TAG_RE = re.compile(r'@[^\s~]*~([^⁩\s]+)⁩?')
-_TIER_PREFIX_RE = re.compile(r'^\s*[Tt](?:ier)?\s*\d+\s+', re.IGNORECASE)
+_TIER_PREFIX_RE = re.compile(r'^\s*(?:[Tt](?:ier)?\s*\d+|[A-Z]{2,})\s+')
 _BEAT_VERB_RE = re.compile(
     r'(?<!\w)(def(?:eated)?\.?|d\.?|beat(?:s)?|over)(?!\w)',
     re.IGNORECASE,

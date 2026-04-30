@@ -153,6 +153,15 @@ class ParseLineTest(SimpleTestCase):
         self.assertEqual(r.winner_raw, 'Lee')
         self.assertEqual(r.loser_raw, 'Kim')
 
+    def test_lgs_group_prefix(self):
+        """'LGS Roman def Adams 8-6' → group prefix stripped; Roman wins 8-6 over Adams."""
+        r = _parse_line('[4/29, 2:31 PM] +1 (443) 555-0005: LGS Roman def Adams 8-6. Great games!')
+        self.assertIsNotNone(r)
+        self.assertEqual(r.winner_raw, 'Roman')
+        self.assertEqual(r.loser_raw, 'Adams')
+        self.assertEqual(r.score1, 8)
+        self.assertEqual(r.score2, 6)
+
     # ── No header ─────────────────────────────────────────────────────────
 
     def test_plain_text_no_header(self):
