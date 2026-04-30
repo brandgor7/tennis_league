@@ -27,4 +27,4 @@ jobs:
           echo "ALLOWED_HOSTS=localhost" >> .env
 
       - name: Run tests
-        run: python manage.py test --settings=config.test_settings -v 2
+        run: python manage.py test --settings=config.test_settings --parallel -v 2
