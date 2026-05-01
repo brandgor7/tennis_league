@@ -10,8 +10,6 @@ FLAG_FILE="/tmp/site_down.flag"
 
 CONFIRM_ATTEMPTS=3   # retries before declaring failure (avoids transient false positives)
 CONFIRM_DELAY=5      # seconds between confirmation retries
-DIAG_PROBES=3        # additional probes logged after confirmed failure
-DIAG_DELAY=10        # seconds between diagnostic probes
 
 probe_site() {
     local tmpfile
@@ -75,12 +73,6 @@ if [[ "$SITE_OK" == "false" ]]; then
         touch "$FLAG_FILE"
 
         echo "=== SITE DOWN CONFIRMED @ $(date) ==="
-
-        for i in $(seq 1 $DIAG_PROBES); do
-            probe_site
-            log_probe "diagnostic probe $i/$DIAG_PROBES"
-            [[ $i -lt $DIAG_PROBES ]] && sleep $DIAG_DELAY
-        done
 
         send_email \
             "ALERT: Site is down" \
