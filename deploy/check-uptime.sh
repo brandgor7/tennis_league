@@ -7,7 +7,6 @@ ALERT_TO="__ALERT_TO__"
 ALERT_FROM="alerts@__DOMAIN__"
 BREVO_API_KEY="__BREVO_API_KEY__"
 FLAG_FILE="/tmp/site_down.flag"
-LOG_FILE="/var/log/site-uptime.log"
 
 CONFIRM_ATTEMPTS=3   # retries before declaring failure (avoids transient false positives)
 CONFIRM_DELAY=5      # seconds between confirmation retries
@@ -24,25 +23,23 @@ probe_site() {
 
 log_probe() {
     local label="$1"
-    {
-        echo "--- $label @ $(date) ---"
-        echo "HTTP Status: ${LAST_STATUS:-unknown}"
-        echo "Response Body: ${LAST_BODY:-(empty)}"
-        echo ""
-        echo "[uptime / load]"
-        uptime
-        echo ""
-        echo "[top - cpu/wait]"
-        top -bn1 | head -12
-        echo ""
-        echo "[vmstat - io wait]"
-        vmstat 1 2 | tail -1
-        echo ""
-        echo "[disk]"
-        df -h /
-        echo "---"
-        echo ""
-    } >> "$LOG_FILE"
+    echo "--- $label @ $(date) ---"
+    echo "HTTP Status: ${LAST_STATUS:-unknown}"
+    echo "Response Body: ${LAST_BODY:-(empty)}"
+    echo ""
+    echo "[uptime / load]"
+    uptime
+    echo ""
+    echo "[top - cpu/wait]"
+    top -bn1 | head -12
+    echo ""
+    echo "[vmstat - io wait]"
+    vmstat 1 2 | tail -1
+    echo ""
+    echo "[disk]"
+    df -h /
+    echo "---"
+    echo ""
 }
 
 send_email() {
@@ -65,7 +62,7 @@ for i in $(seq 1 $CONFIRM_ATTEMPTS); do
     if [[ "$LAST_BODY" == "ok" ]]; then
         SITE_OK=true
         if [[ $i -gt 1 ]]; then
-            echo "=== TRANSIENT BLIP (recovered on attempt $i) @ $(date) ===" >> "$LOG_FILE"
+            echo "=== TRANSIENT BLIP (recovered on attempt $i) @ $(date) ==="
         fi
         break
     fi
@@ -77,7 +74,7 @@ if [[ "$SITE_OK" == "false" ]]; then
     if [[ ! -f "$FLAG_FILE" ]]; then
         touch "$FLAG_FILE"
 
-        echo "=== SITE DOWN CONFIRMED @ $(date) ===" >> "$LOG_FILE"
+        echo "=== SITE DOWN CONFIRMED @ $(date) ==="
 
         for i in $(seq 1 $DIAG_PROBES); do
             probe_site
@@ -87,12 +84,12 @@ if [[ "$SITE_OK" == "false" ]]; then
 
         send_email \
             "ALERT: Site is down" \
-            "$(date): $SITE_URL/health/ did not return 'ok' after $CONFIRM_ATTEMPTS attempts. Check nginx/gunicorn. Diagnostics logged to $LOG_FILE."
+            "$(date): $SITE_URL/health/ did not return 'ok' after $CONFIRM_ATTEMPTS attempts. Check nginx/gunicorn."
     fi
 else
     if [[ -f "$FLAG_FILE" ]]; then
         rm "$FLAG_FILE"
-        echo "=== SITE RECOVERED @ $(date) ===" >> "$LOG_FILE"
+        echo "=== SITE RECOVERED @ $(date) ==="
         send_email \
             "RESOLVED: Site is back up" \
             "$(date): $SITE_URL is responding normally again."
