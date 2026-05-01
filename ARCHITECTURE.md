@@ -273,6 +273,7 @@ year                      IntegerField
 status                    CharField       upcoming | active | completed
 num_tiers                 IntegerField    default 1; number of competitive tiers in this season
 sets_to_win               IntegerField    2 = best of 3, 3 = best of 5
+win_by_two                BooleanField    default True; if False, set winner only needs to reach games_to_win_set (e.g. 6–5 is valid; 7–5 is not)
 final_set_format          CharField       full | tiebreak | super
 playoff_qualifiers_count  IntegerField    e.g. 8, 16, 32 — applies per tier
 schedule_type             CharField       single_day | consecutive_days | weekly
@@ -527,7 +528,7 @@ Five supporting JSON/POST endpoints on `SeasonAdmin`:
 | `/admin/seasons/<id>/bulk-results/` | GET/POST | Paste + parse WhatsApp messages → review → bulk save results |
 
 **Score validation rules:**
-- Normal set: winner must have ≥ 6 games, lead by ≥ 2 (except 7-5)
+- Normal set: winner must have ≥ 6 games; if `win_by_two=True` (default), must also lead by ≥ 2 (7-5 is allowed, 6-5 is not); if `win_by_two=False`, reaching 6 is enough (6-5 is valid, 7-5 is not)
 - Tiebreak set: 7-6, tiebreak scores required
 - Super tiebreak (final set): first to 10 points with 2-point lead
 

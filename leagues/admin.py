@@ -54,7 +54,7 @@ class SeasonAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {'fields': ('name', 'year', 'status', 'display')}),
         ('Schedule', {'fields': ('schedule_type', 'schedule_display_mode', 'schedule_display_days', 'preseason')}),
-        ('Match Format', {'fields': ('sets_to_win', 'games_to_win_set', 'final_set_format')}),
+        ('Match Format', {'fields': ('sets_to_win', 'games_to_win_set', 'win_by_two', 'final_set_format')}),
         ('Playoffs', {'fields': ('playoffs_enabled', 'playoff_qualifiers_count')}),
         ('Points', {'fields': ('points_for_win', 'points_for_loss', 'points_for_walkover_loss')}),
         ('Rules', {'fields': ('walkover_rule', 'postponement_deadline', 'grace_period_days')}),
