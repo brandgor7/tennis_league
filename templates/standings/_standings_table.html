@@ -9,7 +9,7 @@
       </span>
       <div class="flex-grow-1">
         <div class="fw-600"><a href="{% url 'leagues:player_detail' current_season.slug row.player.username %}" class="text-reset text-decoration-none">{{ row.player.get_full_name|default:row.player.username }}</a></div>
-        <small class="text-muted">{{ row.wins }}W &ndash; {{ row.losses }}L &nbsp;&middot;&nbsp; PD {{ row.pd }}</small>
+        <small>{{ row.wins }}W &ndash; {{ row.losses }}L <span class="text-muted">(PD {{ row.pd }})</span></small>
       </div>
       <div class="text-end">
         <span class="stat-value fw-600">{{ row.points }}</span>
