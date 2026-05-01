@@ -207,13 +207,20 @@ class ResultEntryForm(forms.Form):
         winner, loser = max(p1, p2), min(p1, p2)
         if winner < g:
             return f'Set {set_num}: Set winner must win at least {g} games.'
-        if winner - loser < 2:
-            return f'Set {set_num}: Set winner must lead by at least 2 games.'
-        if winner > g + 1 or (winner == g + 1 and loser != g - 1):
-            return (
-                f'Set {set_num}: Invalid set score '
-                f'(valid scores: {g}-0 to {g}-{g-2}, {g+1}-{g-1}, or {g+1}-{g} with tiebreak).'
-            )
+        if season.win_by_two:
+            if winner - loser < 2:
+                return f'Set {set_num}: Set winner must lead by at least 2 games.'
+            if winner > g + 1 or (winner == g + 1 and loser != g - 1):
+                return (
+                    f'Set {set_num}: Invalid set score '
+                    f'(valid scores: {g}-0 to {g}-{g-2}, {g+1}-{g-1}, or {g+1}-{g} with tiebreak).'
+                )
+        else:
+            if winner > g:
+                return (
+                    f'Set {set_num}: Invalid set score '
+                    f'(valid scores: {g}-0 to {g}-{g-1}, or {g+1}-{g} with tiebreak).'
+                )
         return None
 
     def _validate_tiebreak_points(self, set_num, p1_games, p2_games, tb_p1, tb_p2):
