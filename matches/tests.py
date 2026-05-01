@@ -866,6 +866,66 @@ class ResultEntryFormBestOf5Test(TestCase):
         self.assertEqual(form.max_sets, 5)
 
 
+class ResultEntryFormWinByTwoTest(TestCase):
+    """win_by_two=False allows 6–5 and disallows 7–5."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            name='Spring', year=2025, sets_to_win=2,
+            final_set_format=Season.FINAL_SET_FULL,
+            win_by_two=False,
+        )
+        self.p1 = User.objects.create_user(username='p1')
+        self.p2 = User.objects.create_user(username='p2')
+        self.match = Match.objects.create(season=self.season, player1=self.p1, player2=self.p2)
+
+    def _form(self, data):
+        return ResultEntryForm(data=data, match=self.match)
+
+    def test_6_5_valid(self):
+        form = self._form({'set1_p1': 6, 'set1_p2': 5, 'set2_p1': 6, 'set2_p2': 3})
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_p2_wins_6_5_valid(self):
+        form = self._form({'set1_p1': 5, 'set1_p2': 6, 'set2_p1': 3, 'set2_p2': 6})
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_6_4_still_valid(self):
+        form = self._form({'set1_p1': 6, 'set1_p2': 4, 'set2_p1': 6, 'set2_p2': 2})
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_7_6_tiebreak_still_valid(self):
+        form = self._form({
+            'set1_p1': 7, 'set1_p2': 6,
+            'set1_tb_p1': 7, 'set1_tb_p2': 4,
+            'set2_p1': 6, 'set2_p2': 3,
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_7_5_invalid(self):
+        # 7-5 cannot happen when win_by_two=False — set ends at 6-5
+        form = self._form({'set1_p1': 7, 'set1_p2': 5, 'set2_p1': 6, 'set2_p2': 3})
+        self.assertFalse(form.is_valid())
+
+    def test_8_6_invalid(self):
+        form = self._form({'set1_p1': 8, 'set1_p2': 6, 'set2_p1': 6, 'set2_p2': 3})
+        self.assertFalse(form.is_valid())
+
+    def test_win_by_two_true_rejects_6_5(self):
+        # Confirm default (win_by_two=True) still rejects 6-5
+        self.season.win_by_two = True
+        self.season.save()
+        form = self._form({'set1_p1': 6, 'set1_p2': 5, 'set2_p1': 6, 'set2_p2': 3})
+        self.assertFalse(form.is_valid())
+
+    def test_win_by_two_true_accepts_7_5(self):
+        # Confirm default (win_by_two=True) still accepts 7-5
+        self.season.win_by_two = True
+        self.season.save()
+        form = self._form({'set1_p1': 7, 'set1_p2': 5, 'set2_p1': 6, 'set2_p2': 3})
+        self.assertTrue(form.is_valid(), form.errors)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Phase 8 — EnterResultView tests
 # ─────────────────────────────────────────────────────────────────────────────
