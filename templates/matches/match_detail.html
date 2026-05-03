@@ -129,6 +129,13 @@
       {% endif %}
     {% endif %}
   {% endif %}
+  {% if match.status == 'completed' %}
+    {% if user.is_staff %}
+  <a href="{% url 'matches:edit_result' match.pk %}" class="btn btn-outline-secondary w-100 mb-2" style="min-height:44px;">
+    Edit Result
+  </a>
+    {% endif %}
+  {% endif %}
   {% if match.status == 'completed' or match.status == 'walkover' %}
   <a href="{% url 'leagues:results' season.slug %}" class="btn btn-outline-primary w-100">
     &larr; Back to Results
@@ -256,6 +263,13 @@
       Postpone
     </a>
         {% endif %}
+      {% endif %}
+    {% endif %}
+    {% if match.status == 'completed' %}
+      {% if user.is_staff %}
+    <a href="{% url 'matches:edit_result' match.pk %}" class="btn btn-outline-secondary">
+      Edit Result
+    </a>
       {% endif %}
     {% endif %}
     {% if match.status == 'completed' or match.status == 'walkover' %}
