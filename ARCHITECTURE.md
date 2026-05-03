@@ -477,6 +477,7 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
 
 /matches/<id>/                             Match detail (set scores, status)
 /matches/<id>/enter-result/                Enter score (player in match or admin)
+/matches/<id>/edit-result/                 Edit score of a completed match (admin only)
 /matches/<id>/confirm-result/              Confirm or dispute score (opponent or admin)
 /matches/<id>/walkover/                    Mark walkover (admin)
 /matches/<id>/postpone/                    Mark postponed / set new date (admin)

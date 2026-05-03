@@ -2397,10 +2397,10 @@ class EditResultViewGetTest(EditResultViewSetupMixin, TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
 
-    def test_uses_edit_result_template(self):
+    def test_uses_enter_result_template(self):
         self.client.login(username='staff', password='pass')
         response = self.client.get(self.url)
-        self.assertTemplateUsed(response, 'matches/edit_result.html')
+        self.assertTemplateUsed(response, 'matches/enter_result.html')
 
     def test_context_has_form_and_match(self):
         self.client.login(username='staff', password='pass')
@@ -2453,8 +2453,11 @@ class EditResultViewGetTest(EditResultViewSetupMixin, TestCase):
 class EditResultViewPostTest(EditResultViewSetupMixin, TestCase):
     """POST requests to EditResultView."""
 
-    def _post(self, data):
+    def setUp(self):
+        super().setUp()
         self.client.login(username='staff', password='pass')
+
+    def _post(self, data):
         return self.client.post(self.url, data)
 
     def test_non_staff_player_gets_403(self):
@@ -2514,7 +2517,7 @@ class EditResultViewPostTest(EditResultViewSetupMixin, TestCase):
     def test_invalid_submission_rerenders_form(self):
         response = self._post({'set1_p1': 5, 'set1_p2': 3})
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'matches/edit_result.html')
+        self.assertTemplateUsed(response, 'matches/enter_result.html')
 
     def test_invalid_submission_does_not_change_sets(self):
         self._post({'set1_p1': 5, 'set1_p2': 3})
