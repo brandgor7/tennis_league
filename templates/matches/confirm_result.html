@@ -107,14 +107,14 @@
       {% if is_walkover %}Dispute Walkover{% else %}Dispute Score{% endif %}
     </button>
   </form>
-  <a href="{% url 'matches:match_detail' match.pk %}" class="btn btn-outline-secondary w-100 mt-2">
+  <a href="{% url 'matches:match_detail' season.slug match.pk %}" class="btn btn-outline-secondary w-100 mt-2">
     Cancel
   </a>
 </div>
 
 {# ── Desktop: buttons right-aligned side by side ────────────────────────── #}
 <div class="d-none d-md-flex gap-2 justify-content-end align-items-center">
-  <a href="{% url 'matches:match_detail' match.pk %}" class="btn btn-outline-secondary">
+  <a href="{% url 'matches:match_detail' season.slug match.pk %}" class="btn btn-outline-secondary">
     Cancel
   </a>
   <form method="post" class="d-flex gap-2">

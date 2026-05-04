@@ -570,14 +570,14 @@ class MatchDetailViewTest(TestCase):
             season=self.season, player1=self.p1, player2=self.p2,
             status=Match.STATUS_COMPLETED, winner=self.p1,
         )
-        self.url = reverse('matches:match_detail', kwargs={'pk': self.match.pk})
+        self.url = reverse('matches:match_detail', kwargs={'slug': self.season.slug, 'pk': self.match.pk})
 
     def test_returns_200(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
 
     def test_404_for_invalid_match(self):
-        response = self.client.get(reverse('matches:match_detail', kwargs={'pk': 9999}))
+        response = self.client.get(reverse('matches:match_detail', kwargs={'slug': self.season.slug, 'pk': 9999}))
         self.assertEqual(response.status_code, 404)
 
     def test_context_contains_match(self):
@@ -622,7 +622,7 @@ class MatchDetailViewTest(TestCase):
             season=self.season, player1=self.p1, player2=self.p2,
             status=Match.STATUS_SCHEDULED,
         )
-        response = self.client.get(reverse('matches:match_detail', kwargs={'pk': scheduled.pk}))
+        response = self.client.get(reverse('matches:match_detail', kwargs={'slug': self.season.slug, 'pk': scheduled.pk}))
         matchups_url = reverse('leagues:matchups', kwargs={'slug': self.season.slug})
         self.assertContains(response, matchups_url)
 
@@ -941,7 +941,7 @@ class EnterResultViewGetTest(TestCase):
             season=self.season, player1=self.p1, player2=self.p2,
             status=Match.STATUS_SCHEDULED,
         )
-        self.url = reverse('matches:enter_result', kwargs={'pk': self.match.pk})
+        self.url = reverse('matches:enter_result', kwargs={'slug': self.season.slug, 'pk': self.match.pk})
 
     def test_anonymous_redirects_to_login(self):
         response = self.client.get(self.url)
@@ -997,7 +997,7 @@ class EnterResultViewPostTest(TestCase):
             season=self.season, player1=self.p1, player2=self.p2,
             status=Match.STATUS_SCHEDULED,
         )
-        self.url = reverse('matches:enter_result', kwargs={'pk': self.match.pk})
+        self.url = reverse('matches:enter_result', kwargs={'slug': self.season.slug, 'pk': self.match.pk})
         self.client.login(username='p1', password='pass')
 
     def _post(self, data):
@@ -1021,7 +1021,7 @@ class EnterResultViewPostTest(TestCase):
         response = self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
         self.assertRedirects(
             response,
-            reverse('matches:match_detail', kwargs={'pk': self.match.pk}),
+            reverse('matches:match_detail', kwargs={'slug': self.season.slug, 'pk': self.match.pk}),
         )
 
     def test_set_scores_stored_correctly(self):
@@ -1114,7 +1114,7 @@ class ConfirmResultViewSetupMixin:
         )
         MatchSet.objects.create(match=self.match, set_number=1, player1_games=6, player2_games=3)
         MatchSet.objects.create(match=self.match, set_number=2, player1_games=6, player2_games=4)
-        self.url = reverse('matches:confirm_result', kwargs={'pk': self.match.pk})
+        self.url = reverse('matches:confirm_result', kwargs={'slug': self.season.slug, 'pk': self.match.pk})
 
 
 class ConfirmResultViewGetTest(ConfirmResultViewSetupMixin, TestCase):
@@ -1206,7 +1206,7 @@ class ConfirmResultViewConfirmTest(ConfirmResultViewSetupMixin, TestCase):
         response = self._confirm()
         self.assertRedirects(
             response,
-            reverse('matches:match_detail', kwargs={'pk': self.match.pk}),
+            reverse('matches:match_detail', kwargs={'slug': self.season.slug, 'pk': self.match.pk}),
         )
 
     def test_confirm_p2_winner(self):
@@ -1260,7 +1260,7 @@ class ConfirmResultViewDisputeTest(ConfirmResultViewSetupMixin, TestCase):
         response = self._dispute()
         self.assertRedirects(
             response,
-            reverse('matches:match_detail', kwargs={'pk': self.match.pk}),
+            reverse('matches:match_detail', kwargs={'slug': self.season.slug, 'pk': self.match.pk}),
         )
 
 
@@ -1359,7 +1359,7 @@ class WalkoverViewSetupMixin:
             season=self.season, player1=self.p1, player2=self.p2,
             status=Match.STATUS_SCHEDULED,
         )
-        self.url = reverse('matches:walkover', kwargs={'pk': self.match.pk})
+        self.url = reverse('matches:walkover', kwargs={'slug': self.season.slug, 'pk': self.match.pk})
 
 
 class WalkoverViewGetTest(WalkoverViewSetupMixin, TestCase):
@@ -1443,7 +1443,7 @@ class WalkoverViewPostTest(WalkoverViewSetupMixin, TestCase):
 
     def test_redirects_to_match_detail(self):
         response = self._post()
-        self.assertRedirects(response, reverse('matches:match_detail', kwargs={'pk': self.match.pk}))
+        self.assertRedirects(response, reverse('matches:match_detail', kwargs={'slug': self.season.slug, 'pk': self.match.pk}))
 
     def test_player2_can_submit(self):
         self._post(user='p2')
@@ -1516,7 +1516,7 @@ class PostponeViewSetupMixin:
             season=self.season, player1=self.p1, player2=self.p2,
             status=Match.STATUS_SCHEDULED,
         )
-        self.url = reverse('matches:postpone', kwargs={'pk': self.match.pk})
+        self.url = reverse('matches:postpone', kwargs={'slug': self.season.slug, 'pk': self.match.pk})
         self.future_date = (datetime.date.today() + datetime.timedelta(days=7)).isoformat()
 
 
@@ -1601,7 +1601,7 @@ class PostponeViewPostTest(PostponeViewSetupMixin, TestCase):
 
     def test_redirects_to_match_detail(self):
         response = self._post()
-        self.assertRedirects(response, reverse('matches:match_detail', kwargs={'pk': self.match.pk}))
+        self.assertRedirects(response, reverse('matches:match_detail', kwargs={'slug': self.season.slug, 'pk': self.match.pk}))
 
     def test_past_date_rerenders_form(self):
         past = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
@@ -1668,7 +1668,7 @@ class WalkoverConfirmTest(TestCase):
             winner=self.p1,
             walkover_reason='No show',
         )
-        self.url = reverse('matches:confirm_result', kwargs={'pk': self.match.pk})
+        self.url = reverse('matches:confirm_result', kwargs={'slug': self.season.slug, 'pk': self.match.pk})
 
     def test_get_shows_is_walkover_true(self):
         self.client.login(username='p2', password='pass')
@@ -1765,7 +1765,7 @@ class GracePeriodTest(TestCase):
         )
 
     def _get_url(self, match):
-        return reverse('matches:enter_result', kwargs={'pk': match.pk})
+        return reverse('matches:enter_result', kwargs={'slug': self.season.slug, 'pk': match.pk})
 
     def test_within_grace_period_allowed(self):
         match = self._match(datetime.date.today() - datetime.timedelta(days=3))
@@ -2221,7 +2221,7 @@ class MatchAuditLogTest(TestCase):
         match = self._match(status=Match.STATUS_SCHEDULED)
         self.client.force_login(self.p1)
         self.client.post(
-            reverse('matches:enter_result', args=[match.pk]),
+            reverse('matches:enter_result', args=[self.season.slug, match.pk]),
             {'set1_p1': '6', 'set1_p2': '3', 'set1_tb_p1': '', 'set1_tb_p2': ''},
         )
         entries = self._entries(match)
@@ -2235,7 +2235,7 @@ class MatchAuditLogTest(TestCase):
         match = self._match(status=Match.STATUS_SCHEDULED)
         self.client.force_login(self.p1)
         self.client.post(
-            reverse('matches:enter_result', args=[match.pk]),
+            reverse('matches:enter_result', args=[self.season.slug, match.pk]),
             {'set1_p1': '', 'set1_p2': '', 'set1_tb_p1': '', 'set1_tb_p2': ''},
         )
         self.assertEqual(len(self._entries(match)), 0)
@@ -2245,7 +2245,7 @@ class MatchAuditLogTest(TestCase):
         match = self._match(status=Match.STATUS_SCHEDULED)
         self.client.force_login(staff)
         self.client.post(
-            reverse('matches:enter_result', args=[match.pk]),
+            reverse('matches:enter_result', args=[self.season.slug, match.pk]),
             {'set1_p1': '6', 'set1_p2': '3', 'set1_tb_p1': '', 'set1_tb_p2': ''},
         )
         entries = self._entries(match)
@@ -2259,7 +2259,7 @@ class MatchAuditLogTest(TestCase):
         match = self._match(status=Match.STATUS_SCHEDULED)
         self.client.force_login(staff)
         self.client.post(
-            reverse('matches:walkover', args=[match.pk]),
+            reverse('matches:walkover', args=[self.season.slug, match.pk]),
             {'winner': 'player1', 'reason': ''},
         )
         entries = self._entries(match)
@@ -2272,7 +2272,7 @@ class MatchAuditLogTest(TestCase):
         match = self._match(status=Match.STATUS_PENDING, entered_by=self.p1)
         MatchSet.objects.create(match=match, set_number=1, player1_games=6, player2_games=3)
         self.client.force_login(self.p2)
-        self.client.post(reverse('matches:confirm_result', args=[match.pk]), {'action': 'confirm'})
+        self.client.post(reverse('matches:confirm_result', args=[self.season.slug, match.pk]), {'action': 'confirm'})
         entries = self._entries(match)
         self.assertEqual(len(entries), 1)
         self.assertIn('Result confirmed', entries[0].change_message)
@@ -2282,7 +2282,7 @@ class MatchAuditLogTest(TestCase):
     def test_confirm_walkover_logs_correctly(self):
         match = self._match(status=Match.STATUS_PENDING, entered_by=self.p1, winner=self.p1)
         self.client.force_login(self.p2)
-        self.client.post(reverse('matches:confirm_result', args=[match.pk]), {'action': 'confirm'})
+        self.client.post(reverse('matches:confirm_result', args=[self.season.slug, match.pk]), {'action': 'confirm'})
         entries = self._entries(match)
         self.assertEqual(len(entries), 1)
         self.assertIn('Walkover confirmed', entries[0].change_message)
@@ -2291,7 +2291,7 @@ class MatchAuditLogTest(TestCase):
         match = self._match(status=Match.STATUS_PENDING, entered_by=self.p1)
         MatchSet.objects.create(match=match, set_number=1, player1_games=6, player2_games=3)
         self.client.force_login(self.p2)
-        self.client.post(reverse('matches:confirm_result', args=[match.pk]), {'action': 'dispute'})
+        self.client.post(reverse('matches:confirm_result', args=[self.season.slug, match.pk]), {'action': 'dispute'})
         entries = self._entries(match)
         self.assertEqual(len(entries), 1)
         self.assertIn('disputed', entries[0].change_message)
@@ -2301,7 +2301,7 @@ class MatchAuditLogTest(TestCase):
         match = self._match(status=Match.STATUS_SCHEDULED)
         self.client.force_login(self.p1)
         self.client.post(
-            reverse('matches:walkover', args=[match.pk]),
+            reverse('matches:walkover', args=[self.season.slug, match.pk]),
             {'winner': 'player1', 'reason': 'Injury'},
         )
         entries = self._entries(match)
@@ -2315,7 +2315,7 @@ class MatchAuditLogTest(TestCase):
         match = self._match(status=Match.STATUS_SCHEDULED)
         self.client.force_login(self.p1)
         self.client.post(
-            reverse('matches:walkover', args=[match.pk]),
+            reverse('matches:walkover', args=[self.season.slug, match.pk]),
             {'winner': 'player2', 'reason': ''},
         )
         entries = self._entries(match)
@@ -2327,7 +2327,7 @@ class MatchAuditLogTest(TestCase):
         self.client.force_login(self.p1)
         new_date = datetime.date.today() + datetime.timedelta(days=7)
         self.client.post(
-            reverse('matches:postpone', args=[match.pk]),
+            reverse('matches:postpone', args=[self.season.slug, match.pk]),
             {'new_date': new_date.isoformat(), 'reason': 'Travel'},
         )
         entries = self._entries(match)
@@ -2342,7 +2342,7 @@ class MatchAuditLogTest(TestCase):
         self.client.force_login(self.p1)
         new_date = datetime.date.today() + datetime.timedelta(days=7)
         self.client.post(
-            reverse('matches:postpone', args=[match.pk]),
+            reverse('matches:postpone', args=[self.season.slug, match.pk]),
             {'new_date': new_date.isoformat(), 'reason': ''},
         )
         entries = self._entries(match)
@@ -2370,7 +2370,7 @@ class EditResultViewSetupMixin:
         )
         MatchSet.objects.create(match=self.match, set_number=1, player1_games=6, player2_games=3)
         MatchSet.objects.create(match=self.match, set_number=2, player1_games=6, player2_games=4)
-        self.url = reverse('matches:edit_result', kwargs={'pk': self.match.pk})
+        self.url = reverse('matches:edit_result', kwargs={'slug': self.season.slug, 'pk': self.match.pk})
 
 
 class EditResultViewGetTest(EditResultViewSetupMixin, TestCase):
@@ -2433,7 +2433,7 @@ class EditResultViewGetTest(EditResultViewSetupMixin, TestCase):
         self.match.save()
         self.client.login(username='staff', password='pass')
         response = self.client.get(self.url)
-        self.assertRedirects(response, reverse('matches:match_detail', kwargs={'pk': self.match.pk}))
+        self.assertRedirects(response, reverse('matches:match_detail', kwargs={'slug': self.season.slug, 'pk': self.match.pk}))
 
     def test_pending_match_redirects(self):
         self.match.status = Match.STATUS_PENDING
@@ -2469,7 +2469,7 @@ class EditResultViewPostTest(EditResultViewSetupMixin, TestCase):
         self.match.status = Match.STATUS_SCHEDULED
         self.match.save()
         response = self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
-        self.assertRedirects(response, reverse('matches:match_detail', kwargs={'pk': self.match.pk}))
+        self.assertRedirects(response, reverse('matches:match_detail', kwargs={'slug': self.season.slug, 'pk': self.match.pk}))
 
     def test_valid_submission_replaces_sets(self):
         self._post({'set1_p1': 6, 'set1_p2': 1, 'set2_p1': 6, 'set2_p2': 2})
@@ -2512,7 +2512,7 @@ class EditResultViewPostTest(EditResultViewSetupMixin, TestCase):
 
     def test_valid_submission_redirects_to_match_detail(self):
         response = self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
-        self.assertRedirects(response, reverse('matches:match_detail', kwargs={'pk': self.match.pk}))
+        self.assertRedirects(response, reverse('matches:match_detail', kwargs={'slug': self.season.slug, 'pk': self.match.pk}))
 
     def test_invalid_submission_rerenders_form(self):
         response = self._post({'set1_p1': 5, 'set1_p2': 3})
@@ -2558,7 +2558,7 @@ class EditResultAuditLogTest(TestCase):
     def test_edit_logs_new_score_and_winner(self):
         self.client.force_login(self.staff)
         self.client.post(
-            reverse('matches:edit_result', args=[self.match.pk]),
+            reverse('matches:edit_result', args=[self.season.slug, self.match.pk]),
             {'set1_p1': '6', 'set1_p2': '2', 'set1_tb_p1': '', 'set1_tb_p2': ''},
         )
         entries = self._entries()
@@ -2572,7 +2572,7 @@ class EditResultAuditLogTest(TestCase):
     def test_no_log_on_invalid_form(self):
         self.client.force_login(self.staff)
         self.client.post(
-            reverse('matches:edit_result', args=[self.match.pk]),
+            reverse('matches:edit_result', args=[self.season.slug, self.match.pk]),
             {'set1_p1': '', 'set1_p2': '', 'set1_tb_p1': '', 'set1_tb_p2': ''},
         )
         self.assertEqual(len(self._entries()), 0)
@@ -2590,8 +2590,8 @@ class EditResultButtonVisibilityTest(TestCase):
             season=self.season, player1=self.p1, player2=self.p2,
             status=Match.STATUS_COMPLETED, winner=self.p1,
         )
-        self.edit_url = reverse('matches:edit_result', kwargs={'pk': self.match.pk})
-        self.detail_url = reverse('matches:match_detail', kwargs={'pk': self.match.pk})
+        self.edit_url = reverse('matches:edit_result', kwargs={'slug': self.season.slug, 'pk': self.match.pk})
+        self.detail_url = reverse('matches:match_detail', kwargs={'slug': self.season.slug, 'pk': self.match.pk})
 
     def test_staff_sees_edit_button_on_completed_match(self):
         self.client.login(username='staff', password='pass')

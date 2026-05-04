@@ -23,7 +23,7 @@
         </small>
         {% endif %}
       </div>
-      <a href="{% url 'matches:match_detail' match.pk %}" class="stretched-link" aria-label="View match detail"></a>
+      <a href="{% url 'matches:match_detail' current_season.slug match.pk %}" class="stretched-link" aria-label="View match detail"></a>
     </div>
   </div>
   {% endfor %}
@@ -54,7 +54,7 @@
           <td><span class="status-badge status-{{ match.status }}">{{ match.get_status_display }}</span></td>
           {% if show_tier %}<td class="text-center">{{ match.tier }}</td>{% endif %}
           <td class="text-end">
-            <a href="{% url 'matches:match_detail' match.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+            <a href="{% url 'matches:match_detail' current_season.slug match.pk %}" class="btn btn-sm btn-outline-primary">View</a>
           </td>
         </tr>
         {% endfor %}
