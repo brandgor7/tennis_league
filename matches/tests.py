@@ -2348,3 +2348,276 @@ class MatchAuditLogTest(TestCase):
         entries = self._entries(match)
         self.assertEqual(len(entries), 1)
         self.assertNotIn('Reason', entries[0].change_message)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# EditResultView tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+class EditResultViewSetupMixin:
+    def setUp(self):
+        self.season = Season.objects.create(
+            name='Spring', year=2025, sets_to_win=2,
+            final_set_format=Season.FINAL_SET_FULL,
+        )
+        self.p1 = User.objects.create_user(username='p1', password='pass')
+        self.p2 = User.objects.create_user(username='p2', password='pass')
+        self.staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+        self.match = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_COMPLETED, winner=self.p1,
+            played_date=datetime.date(2025, 4, 1), entered_by=self.p1,
+        )
+        MatchSet.objects.create(match=self.match, set_number=1, player1_games=6, player2_games=3)
+        MatchSet.objects.create(match=self.match, set_number=2, player1_games=6, player2_games=4)
+        self.url = reverse('matches:edit_result', kwargs={'pk': self.match.pk})
+
+
+class EditResultViewGetTest(EditResultViewSetupMixin, TestCase):
+    """GET requests to EditResultView."""
+
+    def test_anonymous_redirects_to_login(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response['Location'])
+
+    def test_player_gets_403(self):
+        self.client.login(username='p1', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_unrelated_user_gets_403(self):
+        other = User.objects.create_user(username='other', password='pass')
+        self.client.login(username='other', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_can_access(self):
+        self.client.login(username='staff', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_uses_enter_result_template(self):
+        self.client.login(username='staff', password='pass')
+        response = self.client.get(self.url)
+        self.assertTemplateUsed(response, 'matches/enter_result.html')
+
+    def test_context_has_form_and_match(self):
+        self.client.login(username='staff', password='pass')
+        response = self.client.get(self.url)
+        self.assertIn('form', response.context)
+        self.assertEqual(response.context['match'], self.match)
+
+    def test_form_prepopulated_with_existing_scores(self):
+        self.client.login(username='staff', password='pass')
+        response = self.client.get(self.url)
+        form = response.context['form']
+        self.assertEqual(form.initial.get('set1_p1'), 6)
+        self.assertEqual(form.initial.get('set1_p2'), 3)
+        self.assertEqual(form.initial.get('set2_p1'), 6)
+        self.assertEqual(form.initial.get('set2_p2'), 4)
+
+    def test_form_prepopulated_with_tiebreak_scores(self):
+        MatchSet.objects.filter(match=self.match, set_number=1).update(
+            player1_games=7, player2_games=6,
+            tiebreak_player1_points=7, tiebreak_player2_points=3,
+        )
+        self.client.login(username='staff', password='pass')
+        response = self.client.get(self.url)
+        form = response.context['form']
+        self.assertEqual(form.initial.get('set1_tb_p1'), 7)
+        self.assertEqual(form.initial.get('set1_tb_p2'), 3)
+
+    def test_non_completed_match_redirects(self):
+        self.match.status = Match.STATUS_SCHEDULED
+        self.match.save()
+        self.client.login(username='staff', password='pass')
+        response = self.client.get(self.url)
+        self.assertRedirects(response, reverse('matches:match_detail', kwargs={'pk': self.match.pk}))
+
+    def test_pending_match_redirects(self):
+        self.match.status = Match.STATUS_PENDING
+        self.match.save()
+        self.client.login(username='staff', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+
+    def test_walkover_match_redirects(self):
+        self.match.status = Match.STATUS_WALKOVER
+        self.match.save()
+        self.client.login(username='staff', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+
+
+class EditResultViewPostTest(EditResultViewSetupMixin, TestCase):
+    """POST requests to EditResultView."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.login(username='staff', password='pass')
+
+    def _post(self, data):
+        return self.client.post(self.url, data)
+
+    def test_non_staff_player_gets_403(self):
+        self.client.login(username='p1', password='pass')
+        response = self.client.post(self.url, {'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.assertEqual(response.status_code, 403)
+
+    def test_non_completed_match_rejected(self):
+        self.match.status = Match.STATUS_SCHEDULED
+        self.match.save()
+        response = self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.assertRedirects(response, reverse('matches:match_detail', kwargs={'pk': self.match.pk}))
+
+    def test_valid_submission_replaces_sets(self):
+        self._post({'set1_p1': 6, 'set1_p2': 1, 'set2_p1': 6, 'set2_p2': 2})
+        sets = list(self.match.sets.order_by('set_number'))
+        self.assertEqual(len(sets), 2)
+        self.assertEqual(sets[0].player1_games, 6)
+        self.assertEqual(sets[0].player2_games, 1)
+        self.assertEqual(sets[1].player1_games, 6)
+        self.assertEqual(sets[1].player2_games, 2)
+
+    def test_valid_submission_sets_winner_p1(self):
+        self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.winner, self.p1)
+
+    def test_valid_submission_sets_winner_p2(self):
+        self._post({'set1_p1': 3, 'set1_p2': 6, 'set2_p1': 4, 'set2_p2': 6})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.winner, self.p2)
+
+    def test_valid_submission_keeps_status_completed(self):
+        self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_COMPLETED)
+
+    def test_valid_submission_updates_confirmed_by(self):
+        self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.confirmed_by, self.staff)
+
+    def test_valid_submission_preserves_played_date(self):
+        self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.played_date, datetime.date(2025, 4, 1))
+
+    def test_valid_submission_preserves_entered_by(self):
+        self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.entered_by, self.p1)
+
+    def test_valid_submission_redirects_to_match_detail(self):
+        response = self._post({'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.assertRedirects(response, reverse('matches:match_detail', kwargs={'pk': self.match.pk}))
+
+    def test_invalid_submission_rerenders_form(self):
+        response = self._post({'set1_p1': 5, 'set1_p2': 3})
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'matches/enter_result.html')
+
+    def test_invalid_submission_does_not_change_sets(self):
+        self._post({'set1_p1': 5, 'set1_p2': 3})
+        self.assertEqual(self.match.sets.count(), 2)
+        s1 = self.match.sets.get(set_number=1)
+        self.assertEqual(s1.player1_games, 6)
+
+    def test_valid_submission_tiebreak_stored(self):
+        self._post({
+            'set1_p1': 7, 'set1_p2': 6,
+            'set1_tb_p1': 7, 'set1_tb_p2': 4,
+            'set2_p1': 6, 'set2_p2': 3,
+        })
+        s1 = self.match.sets.get(set_number=1)
+        self.assertEqual(s1.tiebreak_player1_points, 7)
+        self.assertEqual(s1.tiebreak_player2_points, 4)
+
+
+class EditResultAuditLogTest(TestCase):
+    """EditResultView writes an audit log entry."""
+
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025, sets_to_win=1)
+        self.p1 = User.objects.create_user(username='alice', first_name='Alice', last_name='Smith')
+        self.p2 = User.objects.create_user(username='bob', first_name='Bob', last_name='Jones')
+        self.staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+        self.match = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_COMPLETED, winner=self.p1,
+            played_date=datetime.date(2025, 4, 1),
+        )
+        MatchSet.objects.create(match=self.match, set_number=1, player1_games=6, player2_games=3)
+
+    def _entries(self):
+        ct = ContentType.objects.get_for_model(Match)
+        return list(LogEntry.objects.filter(content_type=ct, object_id=self.match.pk))
+
+    def test_edit_logs_new_score_and_winner(self):
+        self.client.force_login(self.staff)
+        self.client.post(
+            reverse('matches:edit_result', args=[self.match.pk]),
+            {'set1_p1': '6', 'set1_p2': '2', 'set1_tb_p1': '', 'set1_tb_p2': ''},
+        )
+        entries = self._entries()
+        self.assertEqual(len(entries), 1)
+        self.assertIn('edited by admin', entries[0].change_message)
+        self.assertIn('6', entries[0].change_message)
+        self.assertIn('2', entries[0].change_message)
+        self.assertIn('Alice Smith', entries[0].change_message)
+        self.assertEqual(entries[0].user_id, self.staff.pk)
+
+    def test_no_log_on_invalid_form(self):
+        self.client.force_login(self.staff)
+        self.client.post(
+            reverse('matches:edit_result', args=[self.match.pk]),
+            {'set1_p1': '', 'set1_p2': '', 'set1_tb_p1': '', 'set1_tb_p2': ''},
+        )
+        self.assertEqual(len(self._entries()), 0)
+
+
+class EditResultButtonVisibilityTest(TestCase):
+    """The Edit Result button on match_detail.html is shown/hidden correctly."""
+
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025)
+        self.p1 = User.objects.create_user(username='p1', password='pass')
+        self.p2 = User.objects.create_user(username='p2', password='pass')
+        self.staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+        self.match = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            status=Match.STATUS_COMPLETED, winner=self.p1,
+        )
+        self.edit_url = reverse('matches:edit_result', kwargs={'pk': self.match.pk})
+        self.detail_url = reverse('matches:match_detail', kwargs={'pk': self.match.pk})
+
+    def test_staff_sees_edit_button_on_completed_match(self):
+        self.client.login(username='staff', password='pass')
+        response = self.client.get(self.detail_url)
+        self.assertContains(response, self.edit_url)
+
+    def test_player_does_not_see_edit_button(self):
+        self.client.login(username='p1', password='pass')
+        response = self.client.get(self.detail_url)
+        self.assertNotContains(response, self.edit_url)
+
+    def test_anonymous_does_not_see_edit_button(self):
+        response = self.client.get(self.detail_url)
+        self.assertNotContains(response, self.edit_url)
+
+    def test_edit_button_not_shown_for_walkover(self):
+        self.match.status = Match.STATUS_WALKOVER
+        self.match.save()
+        self.client.login(username='staff', password='pass')
+        response = self.client.get(self.detail_url)
+        self.assertNotContains(response, self.edit_url)
+
+    def test_edit_button_not_shown_for_scheduled_match(self):
+        self.match.status = Match.STATUS_SCHEDULED
+        self.match.winner = None
+        self.match.save()
+        self.client.login(username='staff', password='pass')
+        response = self.client.get(self.detail_url)
+        self.assertNotContains(response, self.edit_url)
