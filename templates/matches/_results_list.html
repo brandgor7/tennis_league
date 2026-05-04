@@ -44,7 +44,7 @@
         <small class="text-muted">{{ match.played_date }}</small>
         {% endif %}
         <span class="status-badge status-{{ match.status }}">{{ match.get_status_display }}</span>
-        <a href="{% url 'matches:match_detail' match.pk %}" class="ms-auto text-muted" style="font-size:0.8rem; text-decoration:none; white-space:nowrap;">Details →</a>
+        <a href="{% url 'matches:match_detail' current_season.slug match.pk %}" class="ms-auto text-muted" style="font-size:0.8rem; text-decoration:none; white-space:nowrap;">Details →</a>
       </div>
 
     </div>
@@ -95,7 +95,7 @@
             <span class="status-badge status-{{ match.status }}">{{ match.get_status_display }}</span>
           </td>
           <td class="text-end">
-            <a href="{% url 'matches:match_detail' match.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+            <a href="{% url 'matches:match_detail' current_season.slug match.pk %}" class="btn btn-sm btn-outline-primary">View</a>
           </td>
         </tr>
         {% endwith %}

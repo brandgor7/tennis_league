@@ -169,17 +169,17 @@ class EnterResultView(LoginRequiredMixin, View):
                 return False
         return True
 
-    def get(self, request, pk):
+    def get(self, request, slug, pk):
         match = _get_player_match(request, pk)
         if not self._check_can_enter(request, match):
-            return redirect('matches:match_detail', pk=pk)
+            return redirect('matches:match_detail', slug=slug, pk=pk)
         form = ResultEntryForm(match=match)
         return render(request, self.template_name, _build_result_form_context(form, match))
 
-    def post(self, request, pk):
+    def post(self, request, slug, pk):
         match = _get_player_match(request, pk)
         if not self._check_can_enter(request, match):
-            return redirect('matches:match_detail', pk=pk)
+            return redirect('matches:match_detail', slug=slug, pk=pk)
 
         form = ResultEntryForm(request.POST, match=match)
         if form.is_valid():
@@ -224,7 +224,7 @@ class EnterResultView(LoginRequiredMixin, View):
                 messages.success(request, 'Result submitted and confirmed.')
             else:
                 messages.success(request, 'Score submitted — awaiting confirmation from your opponent.')
-            return redirect('matches:match_detail', pk=pk)
+            return redirect('matches:match_detail', slug=slug, pk=pk)
 
         return render(request, self.template_name, _build_result_form_context(form, match))
 
@@ -247,10 +247,10 @@ class ConfirmResultView(LoginRequiredMixin, View):
             return None
         return match
 
-    def get(self, request, pk):
+    def get(self, request, slug, pk):
         match = self._get_match(request, pk)
         if match is None:
-            return redirect('matches:match_detail', pk=pk)
+            return redirect('matches:match_detail', slug=slug, pk=pk)
         sets = match.sets.all()
         return render(request, self.template_name, {
             'match': match,
@@ -260,10 +260,10 @@ class ConfirmResultView(LoginRequiredMixin, View):
             'is_walkover': not sets,
         })
 
-    def post(self, request, pk):
+    def post(self, request, slug, pk):
         match = self._get_match(request, pk)
         if match is None:
-            return redirect('matches:match_detail', pk=pk)
+            return redirect('matches:match_detail', slug=slug, pk=pk)
 
         action = request.POST.get('action')
         if action == 'confirm':
@@ -282,7 +282,7 @@ class ConfirmResultView(LoginRequiredMixin, View):
                     p2_sets = sum(1 for s in sets if s.player2_games > s.player1_games)
                     if p1_sets == p2_sets:
                         messages.error(request, 'Cannot confirm: sets are tied. Please contact the administrator.')
-                        return redirect('matches:match_detail', pk=pk)
+                        return redirect('matches:match_detail', slug=slug, pk=pk)
                     winner = match.player1 if p1_sets > p2_sets else match.player2
                     match.status = Match.STATUS_COMPLETED
                     match.confirmed_by = request.user
@@ -292,7 +292,7 @@ class ConfirmResultView(LoginRequiredMixin, View):
                     winner_name = winner.get_full_name() or winner.username
                     _audit_match(request.user, match, f'Result confirmed. Winner: {winner_name}.')
                     messages.success(request, 'Result confirmed. Match is now complete.')
-            return redirect('matches:match_detail', pk=pk)
+            return redirect('matches:match_detail', slug=slug, pk=pk)
 
         elif action == 'dispute':
             with transaction.atomic():
@@ -308,7 +308,7 @@ class ConfirmResultView(LoginRequiredMixin, View):
                 'Result disputed. The match has been reset to scheduled. '
                 'Please contact the administrator to resolve the discrepancy.',
             )
-            return redirect('matches:match_detail', pk=pk)
+            return redirect('matches:match_detail', slug=slug, pk=pk)
 
         # Unknown action — re-render
         sets = match.sets.all()
@@ -336,7 +336,7 @@ class EditResultView(LoginRequiredMixin, View):
                 initial[f'set{n}_tb_p2'] = s.tiebreak_player2_points
         return initial
 
-    def get(self, request, pk):
+    def get(self, request, slug, pk):
         if not request.user.is_staff:
             raise PermissionDenied
         match = get_object_or_404(
@@ -345,11 +345,11 @@ class EditResultView(LoginRequiredMixin, View):
         )
         if match.status != Match.STATUS_COMPLETED:
             messages.error(request, 'Only completed matches can be edited.')
-            return redirect('matches:match_detail', pk=pk)
+            return redirect('matches:match_detail', slug=slug, pk=pk)
         form = ResultEntryForm(match=match, initial=self._build_initial(match))
         return render(request, self.template_name, _build_result_form_context(form, match))
 
-    def post(self, request, pk):
+    def post(self, request, slug, pk):
         if not request.user.is_staff:
             raise PermissionDenied
         match = get_object_or_404(
@@ -358,7 +358,7 @@ class EditResultView(LoginRequiredMixin, View):
         )
         if match.status != Match.STATUS_COMPLETED:
             messages.error(request, 'Only completed matches can be edited.')
-            return redirect('matches:match_detail', pk=pk)
+            return redirect('matches:match_detail', slug=slug, pk=pk)
         form = ResultEntryForm(request.POST, match=match)
         if form.is_valid():
             season = match.season
@@ -390,7 +390,7 @@ class EditResultView(LoginRequiredMixin, View):
             score_str = ', '.join(f'{p1}–{p2}' for p1, p2 in sets_data)
             _audit_match(request.user, match, f'Result edited by admin. Score: {score_str}. Winner: {winner_name}.')
             messages.success(request, 'Match result updated.')
-            return redirect('matches:match_detail', pk=pk)
+            return redirect('matches:match_detail', slug=slug, pk=pk)
         return render(request, self.template_name, _build_result_form_context(form, match))
 
 
@@ -405,15 +405,15 @@ class WalkoverView(LoginRequiredMixin, View):
             'multi_tier': match.season.num_tiers > 1,
         }
 
-    def get(self, request, pk):
+    def get(self, request, slug, pk):
         match = _get_player_match(request, pk)
         return render(request, self.template_name, self._context(WalkoverForm(match=match), match))
 
-    def post(self, request, pk):
+    def post(self, request, slug, pk):
         match = _get_player_match(request, pk)
         if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
             messages.error(request, 'Walkovers can only be recorded for scheduled or postponed matches.')
-            return redirect('matches:match_detail', pk=pk)
+            return redirect('matches:match_detail', slug=slug, pk=pk)
         form = WalkoverForm(request.POST, match=match)
         if form.is_valid():
             winner_choice = form.cleaned_data['winner']
@@ -441,7 +441,7 @@ class WalkoverView(LoginRequiredMixin, View):
                 messages.success(request, 'Walkover submitted and confirmed.')
             else:
                 messages.success(request, 'Walkover submitted — awaiting confirmation from the other player.')
-            return redirect('matches:match_detail', pk=pk)
+            return redirect('matches:match_detail', slug=slug, pk=pk)
         return render(request, self.template_name, self._context(form, match))
 
 
@@ -456,15 +456,15 @@ class PostponeView(LoginRequiredMixin, View):
             'multi_tier': match.season.num_tiers > 1,
         }
 
-    def get(self, request, pk):
+    def get(self, request, slug, pk):
         match = _get_player_match(request, pk)
         return render(request, self.template_name, self._context(PostponeForm(), match))
 
-    def post(self, request, pk):
+    def post(self, request, slug, pk):
         match = _get_player_match(request, pk)
         if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
             messages.error(request, 'Only scheduled or postponed matches can be rescheduled.')
-            return redirect('matches:match_detail', pk=pk)
+            return redirect('matches:match_detail', slug=slug, pk=pk)
         form = PostponeForm(request.POST)
         if form.is_valid():
             reason = form.cleaned_data['reason'].strip()
@@ -480,5 +480,5 @@ class PostponeView(LoginRequiredMixin, View):
                 audit_msg += f' Reason: {reason}'
             _audit_match(request.user, match, audit_msg)
             messages.success(request, 'Match postponed and rescheduled.')
-            return redirect('matches:match_detail', pk=pk)
+            return redirect('matches:match_detail', slug=slug, pk=pk)
         return render(request, self.template_name, self._context(form, match))

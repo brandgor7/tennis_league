@@ -475,12 +475,12 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
 /seasons/<id>/playoffs/<tier>/             Playoff bracket for a specific tier
 /seasons/<id>/players/<player_id>/        Player profile — standing, upcoming matches, and results within that season
 
-/matches/<id>/                             Match detail (set scores, status)
-/matches/<id>/enter-result/                Enter score (player in match or admin)
-/matches/<id>/edit-result/                 Edit score of a completed match (admin only)
-/matches/<id>/confirm-result/              Confirm or dispute score (opponent or admin)
-/matches/<id>/walkover/                    Mark walkover (admin)
-/matches/<id>/postpone/                    Mark postponed / set new date (admin)
+/seasons/<slug>/matches/<id>/              Match detail (set scores, status)
+/seasons/<slug>/matches/<id>/enter-result/     Enter score (player in match or admin)
+/seasons/<slug>/matches/<id>/edit-result/      Edit score of a completed match (admin only)
+/seasons/<slug>/matches/<id>/confirm-result/   Confirm or dispute score (opponent or admin)
+/seasons/<slug>/matches/<id>/walkover/         Mark walkover (admin)
+/seasons/<slug>/matches/<id>/postpone/         Mark postponed / set new date (admin)
 
 /admin/                                    Django admin
 /admin/seasons/<id>/generate-playoffs/<tier>/  Custom admin action: generate bracket for one tier

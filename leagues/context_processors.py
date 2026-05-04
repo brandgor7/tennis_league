@@ -33,7 +33,7 @@ def season_context(request):
 
     # Only use the URL slug when we are inside the 'leagues' namespace, so a
     # match pk at /matches/42/ never accidentally selects Season 42.
-    if resolver and resolver.namespace == 'leagues':
+    if resolver and resolver.namespace in ('leagues', 'matches'):
         season_slug = resolver.kwargs.get('slug')
         if season_slug:
             current_season = next((s for s in all_seasons if s.slug == season_slug), None)
@@ -41,6 +41,13 @@ def season_context(request):
             # so fall back to a direct lookup if it wasn't in the visible list.
             if current_season is None:
                 current_season = Season.objects.filter(slug=season_slug).first()
+
+    if current_season is None:
+        last_slug = request.COOKIES.get('last_season')
+        if last_slug:
+            current_season = next((s for s in all_seasons if s.slug == last_slug), None)
+            if current_season is None:
+                current_season = Season.objects.filter(slug=last_slug).first()
 
     if current_season is None:
         current_season = next(

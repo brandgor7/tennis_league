@@ -50,14 +50,14 @@
         <button type="submit" class="btn btn-primary btn-lg w-100 mb-2" style="min-height:44px;">
           Postpone Match
         </button>
-        <a href="{% url 'matches:match_detail' match.pk %}" class="btn btn-outline-secondary w-100" style="min-height:44px;">
+        <a href="{% url 'matches:match_detail' season.slug match.pk %}" class="btn btn-outline-secondary w-100" style="min-height:44px;">
           Cancel
         </a>
       </div>
 
       {# Desktop: right-aligned buttons #}
       <div class="d-none d-md-flex gap-2 justify-content-end">
-        <a href="{% url 'matches:match_detail' match.pk %}" class="btn btn-outline-secondary">Cancel</a>
+        <a href="{% url 'matches:match_detail' season.slug match.pk %}" class="btn btn-outline-secondary">Cancel</a>
         <button type="submit" class="btn btn-primary">Postpone Match</button>
       </div>
 

@@ -155,7 +155,7 @@
       {% with match=slot.match %}
       <div class="bracket-match{% if round.code == 'f' %} bracket-final{% endif %}"
            style="grid-row: {{ slot.grid_row_start }} / {{ slot.grid_row_end }}; grid-column: {{ round.col_index }};">
-        <a href="{% url 'matches:match_detail' match.pk %}" class="bracket-card text-decoration-none text-reset">
+        <a href="{% url 'matches:match_detail' current_season.slug match.pk %}" class="bracket-card text-decoration-none text-reset">
 
           {# Player 1 row #}
           {% if match.player1 %}

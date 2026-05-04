@@ -97,7 +97,7 @@
 
   {% if match.status == 'scheduled' or match.status == 'postponed' %}
     {% if user.is_authenticated and user == match.player1 or user.is_authenticated and user == match.player2 or user.is_authenticated and user.is_staff %}
-  <a href="{% url 'matches:enter_result' match.pk %}" class="btn btn-primary w-100 mb-2" style="min-height:44px;">
+  <a href="{% url 'matches:enter_result' season.slug match.pk %}" class="btn btn-primary w-100 mb-2" style="min-height:44px;">
     Enter Result
   </a>
     {% endif %}
@@ -105,7 +105,7 @@
   {% if match.status == 'pending_confirmation' %}
     {% if user.is_authenticated %}
       {% if user != match.entered_by and user == match.player1 or user != match.entered_by and user == match.player2 or user.is_staff %}
-  <a href="{% url 'matches:confirm_result' match.pk %}" class="btn btn-success w-100 mb-2" style="min-height:44px;">
+  <a href="{% url 'matches:confirm_result' season.slug match.pk %}" class="btn btn-success w-100 mb-2" style="min-height:44px;">
     Confirm / Dispute Result
   </a>
       {% endif %}
@@ -114,7 +114,7 @@
   {% if match.status == 'scheduled' or match.status == 'postponed' %}
     {% if user.is_authenticated %}
       {% if user == match.player1 or user == match.player2 or user.is_staff %}
-  <a href="{% url 'matches:walkover' match.pk %}" class="btn btn-outline-warning w-100 mb-2" style="min-height:44px;">
+  <a href="{% url 'matches:walkover' season.slug match.pk %}" class="btn btn-outline-warning w-100 mb-2" style="min-height:44px;">
     Record Walkover
   </a>
       {% endif %}
@@ -123,7 +123,7 @@
   {% if match.status == 'scheduled' or match.status == 'postponed' %}
     {% if user.is_authenticated %}
       {% if user == match.player1 or user == match.player2 or user.is_staff %}
-  <a href="{% url 'matches:postpone' match.pk %}" class="btn btn-outline-secondary w-100 mb-2" style="min-height:44px;">
+  <a href="{% url 'matches:postpone' season.slug match.pk %}" class="btn btn-outline-secondary w-100 mb-2" style="min-height:44px;">
     Postpone
   </a>
       {% endif %}
@@ -131,7 +131,7 @@
   {% endif %}
   {% if match.status == 'completed' %}
     {% if user.is_staff %}
-  <a href="{% url 'matches:edit_result' match.pk %}" class="btn btn-outline-secondary w-100 mb-2" style="min-height:44px;">
+  <a href="{% url 'matches:edit_result' season.slug match.pk %}" class="btn btn-outline-secondary w-100 mb-2" style="min-height:44px;">
     Edit Result
   </a>
     {% endif %}
@@ -233,7 +233,7 @@
   <div class="mt-4 d-flex gap-2 align-items-center flex-wrap">
     {% if match.status == 'scheduled' or match.status == 'postponed' %}
       {% if user.is_authenticated and user == match.player1 or user.is_authenticated and user == match.player2 or user.is_authenticated and user.is_staff %}
-    <a href="{% url 'matches:enter_result' match.pk %}" class="btn btn-primary">
+    <a href="{% url 'matches:enter_result' season.slug match.pk %}" class="btn btn-primary">
       Enter Result
     </a>
       {% endif %}
@@ -241,7 +241,7 @@
     {% if match.status == 'pending_confirmation' %}
       {% if user.is_authenticated %}
         {% if user != match.entered_by and user == match.player1 or user != match.entered_by and user == match.player2 or user.is_staff %}
-    <a href="{% url 'matches:confirm_result' match.pk %}" class="btn btn-success">
+    <a href="{% url 'matches:confirm_result' season.slug match.pk %}" class="btn btn-success">
       Confirm / Dispute Result
     </a>
         {% endif %}
@@ -250,7 +250,7 @@
     {% if match.status == 'scheduled' or match.status == 'postponed' %}
       {% if user.is_authenticated %}
         {% if user == match.player1 or user == match.player2 or user.is_staff %}
-    <a href="{% url 'matches:walkover' match.pk %}" class="btn btn-outline-warning">
+    <a href="{% url 'matches:walkover' season.slug match.pk %}" class="btn btn-outline-warning">
       Record Walkover
     </a>
         {% endif %}
@@ -259,7 +259,7 @@
     {% if match.status == 'scheduled' or match.status == 'postponed' %}
       {% if user.is_authenticated %}
         {% if user == match.player1 or user == match.player2 or user.is_staff %}
-    <a href="{% url 'matches:postpone' match.pk %}" class="btn btn-outline-secondary">
+    <a href="{% url 'matches:postpone' season.slug match.pk %}" class="btn btn-outline-secondary">
       Postpone
     </a>
         {% endif %}
@@ -267,7 +267,7 @@
     {% endif %}
     {% if match.status == 'completed' %}
       {% if user.is_staff %}
-    <a href="{% url 'matches:edit_result' match.pk %}" class="btn btn-outline-secondary">
+    <a href="{% url 'matches:edit_result' season.slug match.pk %}" class="btn btn-outline-secondary">
       Edit Result
     </a>
       {% endif %}
