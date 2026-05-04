@@ -31,8 +31,7 @@ def season_context(request):
     current_season = None
     resolver = getattr(request, 'resolver_match', None)
 
-    # Only use the URL slug when we are inside the 'leagues' namespace, so a
-    # match pk at /matches/42/ never accidentally selects Season 42.
+    # Read the season slug from the URL when inside a season-scoped namespace.
     if resolver and resolver.namespace in ('leagues', 'matches'):
         season_slug = resolver.kwargs.get('slug')
         if season_slug:

@@ -467,13 +467,13 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
 /seasons/<slug>/rules/                     Season rules page (Markdown rendered; only accessible when Season.show_rules=True)
 
 /seasons/                                  All seasons list
-/seasons/<id>/                             Season overview
-/seasons/<id>/standings/                   Standings (all tiers; tabs or sections per tier)
-/seasons/<id>/matchups/                    Upcoming matches
-/seasons/<id>/results/                     Completed match results
-/seasons/<id>/playoffs/                    Playoff bracket list (redirects to tier 1 if single-tier)
-/seasons/<id>/playoffs/<tier>/             Playoff bracket for a specific tier
-/seasons/<id>/players/<player_id>/        Player profile — standing, upcoming matches, and results within that season
+/seasons/<slug>/                           Season overview
+/seasons/<slug>/standings/                 Standings (all tiers; tabs or sections per tier)
+/seasons/<slug>/matchups/                  Upcoming matches
+/seasons/<slug>/results/                   Completed match results
+/seasons/<slug>/playoffs/                  Playoff bracket list (redirects to tier 1 if single-tier)
+/seasons/<slug>/playoffs/<tier>/           Playoff bracket for a specific tier
+/seasons/<slug>/players/<username>/        Player profile — standing, upcoming matches, and results within that season
 
 /seasons/<slug>/matches/<id>/              Match detail (set scores, status)
 /seasons/<slug>/matches/<id>/enter-result/     Enter score (player in match or admin)

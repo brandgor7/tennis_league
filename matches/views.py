@@ -6,6 +6,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import F, Q
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 from django.views.generic import TemplateView, DetailView
@@ -139,6 +140,12 @@ class MatchDetailView(DetailView):
 
     def get_queryset(self):
         return Match.objects.select_related('player1', 'player2', 'winner', 'season')
+
+    def get_object(self, queryset=None):
+        obj = super().get_object(queryset)
+        if obj.season.slug != self.kwargs['slug']:
+            raise Http404
+        return obj
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
