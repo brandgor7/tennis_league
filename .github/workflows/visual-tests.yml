@@ -1,13 +1,11 @@
 name: Visual Tests
 
-# Runs on push to main (always) and on PRs only when the 'visual-review' label is present.
-# To trigger on a PR: add the 'visual-review' label via the Labels panel in the GitHub PR sidebar.
+# Runs only when the 'visual-review' label is present on a PR.
 # The label must exist in the repo — create it once at:
 #   GitHub → repo → Issues → Labels → New label → name: "visual-review"
 #
 # When tests fail, screenshots are uploaded as a CI artifact so you can inspect the diff.
-# To regenerate baselines after an intentional UI change:
-#   pytest visual_tests/ --update-snapshots
+# To regenerate baselines: pytest visual_tests/ --update-snapshots
 # then commit the updated files in visual_tests/test_pages.py-snapshots/.
 
 on:
@@ -20,9 +18,7 @@ jobs:
   visual:
     runs-on: ubuntu-latest
 
-    if: |
-      github.event_name == 'push' ||
-      contains(github.event.pull_request.labels.*.name, 'visual-review')
+    if: contains(github.event.pull_request.labels.*.name, 'visual-review')
 
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +33,7 @@ jobs:
         run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Install Playwright browsers
-        run: playwright install chromium --with-deps
+        run: python -m playwright install chromium --with-deps
 
       - name: Create .env
         run: |

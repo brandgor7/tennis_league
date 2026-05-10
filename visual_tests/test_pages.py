@@ -1,13 +1,3 @@
-"""
-Visual regression tests for key pages at mobile (375px) and desktop (1280px) viewports.
-
-Baselines are stored in test_pages.py-snapshots/ next to this file.
-To generate or regenerate baselines:
-    pytest visual_tests/ --update-snapshots
-
-After generation, commit the snapshots directory so CI has baselines to compare against.
-"""
-
 import pytest
 from playwright.sync_api import Page, expect
 

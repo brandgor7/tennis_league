@@ -23,7 +23,7 @@ Record steps executed in that file for future reference.
 
 - **Server-rendered templates only** — no JavaScript framework, no API layer
 - **Bootstrap 5 via CDN** — no npm, no build step
-- **No extra dependencies if possible** — only `django`, `psycopg2-binary`, `django-environ`
+- **No extra dependencies if possible** — only `django`, `django-environ`
 - `AUTH_USER_MODEL = 'accounts.User'` — always use `get_user_model()`, never import `User` directly
 - Standings are **computed dynamically** from match data — no denormalized standings table
 - Score validation logic lives in the form (`ResultEntryForm`), not the model
