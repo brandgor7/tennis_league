@@ -280,6 +280,7 @@ schedule_type             CharField       single_day | consecutive_days | weekly
 walkover_rule             CharField       winner | split | none
 postponement_deadline     IntegerField    days allowed to reschedule
 grace_period_days         IntegerField    default 7; days after scheduled_date a match can be played without a formal postponement
+enforce_scheduled_dates   BooleanField    default True; when False, the grace-period deadline is not enforced and any match can have a result entered regardless of date. Disabling this also greys out postponement_deadline and grace_period_days in the admin.
 points_for_win            IntegerField    default 3
 points_for_loss           IntegerField    default 0
 points_for_walkover_loss  IntegerField    default 0 (set to 1 if walkover_rule=split)
@@ -419,6 +420,7 @@ The standings view calls this for each tier in `range(1, season.num_tiers + 1)`.
      └──▶ Opponent disputes ──▶ Admin reviews ──▶ [completed] or stays pending
 
 Admin can also directly:
+     [walkover]  ──▶ [scheduled]  (admin: undo walkover)
      [scheduled] ──▶ [walkover]
      [scheduled] ──▶ [postponed]
      [postponed] ──▶ [scheduled]  (with new date)
@@ -481,6 +483,7 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
 /seasons/<slug>/matches/<id>/confirm-result/   Confirm or dispute score (opponent or admin)
 /seasons/<slug>/matches/<id>/walkover/         Mark walkover (admin)
 /seasons/<slug>/matches/<id>/postpone/         Mark postponed / set new date (admin)
+/seasons/<slug>/matches/<id>/undo-walkover/    Reset a walkover back to scheduled (admin POST)
 
 /admin/                                    Django admin
 /admin/seasons/<id>/generate-playoffs/<tier>/  Custom admin action: generate bracket for one tier

@@ -164,7 +164,7 @@ class EnterResultView(LoginRequiredMixin, View):
         if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
             messages.error(request, 'Results can only be entered for scheduled or postponed matches.')
             return False
-        if match.scheduled_date:
+        if match.scheduled_date and match.season.enforce_scheduled_dates:
             grace = match.season.grace_period_days
             deadline = match.scheduled_date + datetime.timedelta(days=grace)
             if datetime.date.today() > deadline:
@@ -450,6 +450,32 @@ class WalkoverView(LoginRequiredMixin, View):
                 messages.success(request, 'Walkover submitted — awaiting confirmation from the other player.')
             return redirect('matches:match_detail', slug=slug, pk=pk)
         return render(request, self.template_name, self._context(form, match))
+
+
+class UndoWalkoverView(LoginRequiredMixin, View):
+
+    def post(self, request, slug, pk):
+        if not request.user.is_staff:
+            raise PermissionDenied
+        match = get_object_or_404(
+            Match.objects.select_related('season'),
+            pk=pk,
+        )
+        if match.season.slug != slug:
+            raise Http404
+        if match.status != Match.STATUS_WALKOVER:
+            messages.error(request, 'Only walkover matches can be undone.')
+            return redirect('matches:match_detail', slug=slug, pk=pk)
+        match.status = Match.STATUS_SCHEDULED
+        match.winner = None
+        match.walkover_reason = ''
+        match.entered_by = None
+        match.confirmed_by = None
+        match.played_date = None
+        match.save(update_fields=['status', 'winner', 'walkover_reason', 'entered_by', 'confirmed_by', 'played_date'])
+        _audit_match(request.user, match, 'Walkover undone — match reset to scheduled.')
+        messages.success(request, 'Walkover removed. Match has been reset to scheduled.')
+        return redirect('matches:match_detail', slug=slug, pk=pk)
 
 
 class PostponeView(LoginRequiredMixin, View):

@@ -43,6 +43,9 @@ class SeasonPlayerInline(admin.TabularInline):
 
 @admin.register(Season)
 class SeasonAdmin(admin.ModelAdmin):
+    class Media:
+        js = ('js/admin_season_form.js',)
+
     list_display = ('name', 'year', 'status', 'schedule_type', 'sets_to_win', 'final_set_format', 'playoff_qualifiers_count')
     list_filter = ('status', 'year', 'final_set_format', 'walkover_rule')
     search_fields = ('name',)
@@ -57,7 +60,7 @@ class SeasonAdmin(admin.ModelAdmin):
         ('Match Format', {'fields': ('sets_to_win', 'games_to_win_set', 'win_by_two', 'final_set_format')}),
         ('Playoffs', {'fields': ('playoffs_enabled', 'playoff_qualifiers_count')}),
         ('Points', {'fields': ('points_for_win', 'points_for_loss', 'points_for_walkover_loss')}),
-        ('Rules', {'fields': ('walkover_rule', 'postponement_deadline', 'grace_period_days')}),
+        ('Rules', {'fields': ('walkover_rule', 'enforce_scheduled_dates', 'postponement_deadline', 'grace_period_days')}),
         ('Rules Page', {'fields': ('show_rules', 'rules_content', 'season_markdown_hints')}),
     )
 

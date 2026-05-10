@@ -101,6 +101,10 @@ class Season(models.Model):
     schedule_type = models.CharField(max_length=20, choices=SCHEDULE_TYPE_CHOICES, default=SCHEDULE_WEEKLY, help_text='How match days are spaced across the season')
     postponement_deadline = models.IntegerField(default=14, help_text='Days allowed to reschedule')
     grace_period_days = models.IntegerField(default=7, help_text='Days after the scheduled date a match can be played without a formal postponement')
+    enforce_scheduled_dates = models.BooleanField(
+        default=True,
+        help_text='Require matches past the grace period to be postponed before a result can be entered. When disabled, any match can be played regardless of its scheduled date.',
+    )
     points_for_win = models.IntegerField(default=3)
     points_for_loss = models.IntegerField(default=0)
     points_for_walkover_loss = models.IntegerField(default=0)
