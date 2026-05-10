@@ -280,6 +280,7 @@ schedule_type             CharField       single_day | consecutive_days | weekly
 walkover_rule             CharField       winner | split | none
 postponement_deadline     IntegerField    days allowed to reschedule
 grace_period_days         IntegerField    default 7; days after scheduled_date a match can be played without a formal postponement
+enforce_scheduled_dates   BooleanField    default True; when False, the grace-period deadline is not enforced and any match can have a result entered regardless of date. Disabling this also greys out postponement_deadline and grace_period_days in the admin.
 points_for_win            IntegerField    default 3
 points_for_loss           IntegerField    default 0
 points_for_walkover_loss  IntegerField    default 0 (set to 1 if walkover_rule=split)

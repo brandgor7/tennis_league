@@ -164,7 +164,7 @@ class EnterResultView(LoginRequiredMixin, View):
         if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
             messages.error(request, 'Results can only be entered for scheduled or postponed matches.')
             return False
-        if match.scheduled_date:
+        if match.scheduled_date and match.season.enforce_scheduled_dates:
             grace = match.season.grace_period_days
             deadline = match.scheduled_date + datetime.timedelta(days=grace)
             if datetime.date.today() > deadline:
