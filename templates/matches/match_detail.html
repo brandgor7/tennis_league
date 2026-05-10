@@ -136,6 +136,16 @@
   </a>
     {% endif %}
   {% endif %}
+  {% if match.status == 'walkover' %}
+    {% if user.is_staff %}
+  <form method="post" action="{% url 'matches:undo_walkover' season.slug match.pk %}">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline-secondary w-100 mb-2" style="min-height:44px;">
+      Undo Walkover
+    </button>
+  </form>
+    {% endif %}
+  {% endif %}
   {% if match.status == 'completed' or match.status == 'walkover' %}
   <a href="{% url 'leagues:results' season.slug %}" class="btn btn-outline-primary w-100">
     &larr; Back to Results
@@ -270,6 +280,16 @@
     <a href="{% url 'matches:edit_result' season.slug match.pk %}" class="btn btn-outline-secondary">
       Edit Result
     </a>
+      {% endif %}
+    {% endif %}
+    {% if match.status == 'walkover' %}
+      {% if user.is_staff %}
+    <form method="post" action="{% url 'matches:undo_walkover' season.slug match.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-outline-secondary">
+        Undo Walkover
+      </button>
+    </form>
       {% endif %}
     {% endif %}
     {% if match.status == 'completed' or match.status == 'walkover' %}

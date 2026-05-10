@@ -11,4 +11,5 @@ urlpatterns = [
     path('seasons/<slug:slug>/matches/<int:pk>/confirm-result/', views.ConfirmResultView.as_view(), name='confirm_result'),
     path('seasons/<slug:slug>/matches/<int:pk>/walkover/', views.WalkoverView.as_view(), name='walkover'),
     path('seasons/<slug:slug>/matches/<int:pk>/postpone/', views.PostponeView.as_view(), name='postpone'),
+    path('seasons/<slug:slug>/matches/<int:pk>/undo-walkover/', views.UndoWalkoverView.as_view(), name='undo_walkover'),
 ]

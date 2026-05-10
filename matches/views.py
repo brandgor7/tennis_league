@@ -452,6 +452,32 @@ class WalkoverView(LoginRequiredMixin, View):
         return render(request, self.template_name, self._context(form, match))
 
 
+class UndoWalkoverView(LoginRequiredMixin, View):
+
+    def post(self, request, slug, pk):
+        if not request.user.is_staff:
+            raise PermissionDenied
+        match = get_object_or_404(
+            Match.objects.select_related('season'),
+            pk=pk,
+        )
+        if match.season.slug != slug:
+            raise Http404
+        if match.status != Match.STATUS_WALKOVER:
+            messages.error(request, 'Only walkover matches can be undone.')
+            return redirect('matches:match_detail', slug=slug, pk=pk)
+        match.status = Match.STATUS_SCHEDULED
+        match.winner = None
+        match.walkover_reason = ''
+        match.entered_by = None
+        match.confirmed_by = None
+        match.played_date = None
+        match.save(update_fields=['status', 'winner', 'walkover_reason', 'entered_by', 'confirmed_by', 'played_date'])
+        _audit_match(request.user, match, 'Walkover undone — match reset to scheduled.')
+        messages.success(request, 'Walkover removed. Match has been reset to scheduled.')
+        return redirect('matches:match_detail', slug=slug, pk=pk)
+
+
 class PostponeView(LoginRequiredMixin, View):
     template_name = 'matches/postpone.html'
 

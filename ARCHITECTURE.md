@@ -420,6 +420,7 @@ The standings view calls this for each tier in `range(1, season.num_tiers + 1)`.
      └──▶ Opponent disputes ──▶ Admin reviews ──▶ [completed] or stays pending
 
 Admin can also directly:
+     [walkover]  ──▶ [scheduled]  (admin: undo walkover)
      [scheduled] ──▶ [walkover]
      [scheduled] ──▶ [postponed]
      [postponed] ──▶ [scheduled]  (with new date)
@@ -482,6 +483,7 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
 /seasons/<slug>/matches/<id>/confirm-result/   Confirm or dispute score (opponent or admin)
 /seasons/<slug>/matches/<id>/walkover/         Mark walkover (admin)
 /seasons/<slug>/matches/<id>/postpone/         Mark postponed / set new date (admin)
+/seasons/<slug>/matches/<id>/undo-walkover/    Reset a walkover back to scheduled (admin POST)
 
 /admin/                                    Django admin
 /admin/seasons/<id>/generate-playoffs/<tier>/  Custom admin action: generate bracket for one tier
