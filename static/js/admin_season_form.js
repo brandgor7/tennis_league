@@ -6,11 +6,9 @@
         var grace = document.getElementById('id_grace_period_days');
         if (!enforce || !deadline || !grace) return;
         var enabled = enforce.checked;
-        deadline.disabled = !enabled;
-        grace.disabled = !enabled;
-        deadline.closest('.form-row, .field-postponement_deadline')
+        deadline.closest('.form-row, .field-postponement_deadline, .field-box')
             .style.opacity = enabled ? '' : '0.4';
-        grace.closest('.form-row, .field-grace_period_days')
+        grace.closest('.form-row, .field-grace_period_days, .field-box')
             .style.opacity = enabled ? '' : '0.4';
     }
     document.addEventListener('DOMContentLoaded', function () {
