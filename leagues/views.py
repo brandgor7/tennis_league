@@ -1,7 +1,7 @@
 import datetime
 
 from django.contrib.auth import get_user_model
-from django.db.models import Q
+from django.db.models import Q, F
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.generic import ListView, DetailView, TemplateView, View
@@ -62,7 +62,7 @@ class SeasonPlayerDetailView(View):
                 status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED, Match.STATUS_PENDING],
             )
             .select_related('player1', 'player2', 'winner', 'season')
-            .order_by('scheduled_date')
+            .order_by(F('scheduled_date').desc(nulls_last=True), '-created_at')
         )
 
         today = datetime.date.today()

@@ -78,7 +78,7 @@ class MatchupsView(TemplateView):
             Match.objects
             .filter(season=season, status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED, Match.STATUS_PENDING])
             .select_related('player1', 'player2', 'winner')
-            .order_by(F('scheduled_date').asc(nulls_last=True), 'created_at')
+            .order_by(F('scheduled_date').desc(nulls_last=True), '-created_at')
         )
 
         today = datetime.date.today()

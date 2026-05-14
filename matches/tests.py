@@ -285,7 +285,7 @@ class MatchupsViewTest(TestCase):
         self.assertEqual(tier1_matches.count(), 1)
         self.assertEqual(tier2_matches.count(), 1)
 
-    def test_ordered_by_scheduled_date_ascending(self):
+    def test_ordered_by_scheduled_date_descending(self):
         import datetime
         self._match(status=Match.STATUS_SCHEDULED, scheduled_date=datetime.date(2025, 6, 10))
         self._match(status=Match.STATUS_SCHEDULED, scheduled_date=datetime.date(2025, 6, 1))
@@ -293,7 +293,7 @@ class MatchupsViewTest(TestCase):
         response = self.client.get(self.url)
         _, _, matches = response.context['tiers'][0]
         dates = [m.scheduled_date for m in matches]
-        self.assertEqual(dates, sorted(dates))
+        self.assertEqual(dates, sorted(dates, reverse=True))
 
     def test_uses_matchups_template(self):
         response = self.client.get(self.url)
