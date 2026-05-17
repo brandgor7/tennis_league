@@ -11,10 +11,30 @@
         grace.closest('.form-row, .field-grace_period_days, .field-box')
             .style.opacity = enabled ? '' : '0.4';
     }
+
+    function toggleScheduleDays() {
+        var mode = document.getElementById('id_schedule_display_mode');
+        var days = document.getElementById('id_schedule_display_days');
+        if (!mode || !days) return;
+        var enabled = mode.value === 'next_x_days';
+        // grey out the field container
+        var container = days.closest('.form-row, .field-schedule_display_days, .field-box');
+        if (container) container.style.opacity = enabled ? '' : '0.4';
+        // disable input so it's not editable when not applicable
+        days.disabled = !enabled;
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         var enforce = document.getElementById('id_enforce_scheduled_dates');
-        if (!enforce) return;
-        toggleDateFields();
-        enforce.addEventListener('change', toggleDateFields);
+        if (enforce) {
+            toggleDateFields();
+            enforce.addEventListener('change', toggleDateFields);
+        }
+
+        var mode = document.getElementById('id_schedule_display_mode');
+        if (mode) {
+            toggleScheduleDays();
+            mode.addEventListener('change', toggleScheduleDays);
+        }
     });
 }());
