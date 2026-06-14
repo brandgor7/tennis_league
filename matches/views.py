@@ -76,7 +76,8 @@ class MatchupsView(TemplateView):
         season = get_object_or_404(Season.objects.prefetch_related('tiers'), slug=self.kwargs['slug'])
         qs = (
             Match.objects
-            .filter(season=season, status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED, Match.STATUS_PENDING])
+            .filter(season=season, status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED, Match.STATUS_PENDING],
+                    player1__isnull=False, player2__isnull=False)
             .select_related('player1', 'player2', 'winner')
             .order_by(F('scheduled_date').desc(nulls_last=True), '-created_at')
         )
