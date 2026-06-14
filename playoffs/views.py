@@ -49,6 +49,7 @@ def _bracket_context(bracket):
     first_round_count = len(ordered_rounds[0][1])
     bracket_size = first_round_count * 2
     last_col = len(ordered_rounds) - 1
+    first_round_order = _seed_order(bracket_size)
 
     rounds_data = []
     for col_idx, (round_code, slots) in enumerate(ordered_rounds):
@@ -63,6 +64,12 @@ def _bracket_context(bracket):
             # v_connector_px: half the match height in px (row height = 52px)
             slot.v_connector_px = 0 if is_final_round else span * 26
             slot.has_incoming = col_idx > 0
+            if col_idx == 0:
+                slot.player1_seed = first_round_order[i * 2]
+                slot.player2_seed = first_round_order[i * 2 + 1]
+            else:
+                slot.player1_seed = None
+                slot.player2_seed = None
         rounds_data.append({
             'code': round_code,
             'label': _ROUND_LABELS[round_code],
@@ -93,7 +100,7 @@ def _preview_context(season, tier_num):
     if bracket_size < 2:
         return [], 0
 
-    qualifiers = [row['player'] for row in standings[:bracket_size]]
+    qualifiers = [row['player'] for row in standings[:max_q]]
     first_round_code = _ROUND_FOR_SIZE[bracket_size]
     first_round_idx = _ROUND_SEQUENCE.index(first_round_code)
     rounds = _ROUND_SEQUENCE[first_round_idx:]
@@ -109,9 +116,13 @@ def _preview_context(season, tier_num):
         slots = []
         for match_idx in range(n_matches):
             if round_idx == 0:
-                p1 = qualifiers[order[match_idx * 2] - 1]
-                p2 = qualifiers[order[match_idx * 2 + 1] - 1]
+                p1_seed = order[match_idx * 2]
+                p2_seed = order[match_idx * 2 + 1]
+                p1 = qualifiers[p1_seed - 1] if p1_seed <= len(qualifiers) else None
+                p2 = qualifiers[p2_seed - 1] if p2_seed <= len(qualifiers) else None
             else:
+                p1_seed = None
+                p2_seed = None
                 p1 = None
                 p2 = None
 
@@ -134,6 +145,8 @@ def _preview_context(season, tier_num):
                 connector_class='' if is_final_round else ('bracket-upper' if match_idx % 2 == 0 else 'bracket-lower'),
                 v_connector_px=0 if is_final_round else span * 26,
                 has_incoming=round_idx > 0,
+                player1_seed=p1_seed,
+                player2_seed=p2_seed,
             )
             slots.append(slot)
 

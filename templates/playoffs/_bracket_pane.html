@@ -6,7 +6,7 @@
 {% if td.is_preview %}
 <div class="d-flex align-items-center gap-2 mb-3">
   <span class="badge bg-secondary">Preview</span>
-  <span class="text-muted small">Projected bracket based on current standings — updates as regular season results are entered.</span>
+  <span class="text-muted small">Projected bracket based on current standings.</span>
 </div>
 {% endif %}
 
@@ -37,6 +37,7 @@
           {# Player 1 row #}
           {% if match.player1 %}
           <div class="bracket-player{% if match.winner_id == match.player1_id %} is-winner{% elif match.winner_id %} is-loser{% endif %}">
+            {% if slot.player1_seed %}<span class="bracket-seed">{{ slot.player1_seed }}</span>{% endif %}
             <span class="bracket-player-name">
               <span class="bracket-full-name">{{ match.player1.get_full_name|default:match.player1.username }}</span>
               <span class="bracket-short-name">{% if match.player1.first_name %}{{ match.player1.first_name|first }}.&nbsp;{% endif %}{{ match.player1.last_name|default:match.player1.username }}</span>
@@ -54,6 +55,7 @@
           {# Player 2 row #}
           {% if match.player2 %}
           <div class="bracket-player{% if match.winner_id == match.player2_id %} is-winner{% elif match.winner_id %} is-loser{% endif %}">
+            {% if slot.player2_seed %}<span class="bracket-seed">{{ slot.player2_seed }}</span>{% endif %}
             <span class="bracket-player-name">
               <span class="bracket-full-name">{{ match.player2.get_full_name|default:match.player2.username }}</span>
               <span class="bracket-short-name">{% if match.player2.first_name %}{{ match.player2.first_name|first }}.&nbsp;{% endif %}{{ match.player2.last_name|default:match.player2.username }}</span>
