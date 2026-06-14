@@ -109,6 +109,10 @@ def _preview_context(season, tier_num):
     order = _seed_order(bracket_size)
     last_col = len(rounds) - 1
 
+    # bye_winners[match_idx] = player if that first-round slot is a bye, else None.
+    # Used to pre-populate the second round where both feeders are byes.
+    bye_winners = {}
+
     rounds_data = []
     for round_idx, round_code in enumerate(rounds):
         n_matches = bracket_size // (2 ** (round_idx + 1))
@@ -122,6 +126,12 @@ def _preview_context(season, tier_num):
                 p2_seed = order[match_idx * 2 + 1]
                 p1 = qualifiers[p1_seed - 1] if p1_seed <= len(qualifiers) else None
                 p2 = qualifiers[p2_seed - 1] if p2_seed <= len(qualifiers) else None
+                bye_winners[match_idx] = (p1 or p2) if (p1 is None) != (p2 is None) else None
+            elif round_idx == 1:
+                p1_seed = None
+                p2_seed = None
+                p1 = bye_winners.get(match_idx * 2)
+                p2 = bye_winners.get(match_idx * 2 + 1)
             else:
                 p1_seed = None
                 p2_seed = None
