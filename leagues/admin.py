@@ -31,7 +31,7 @@ _MAX_LOGO_BYTES = 2 * 1024 * 1024  # 2 MB
 class TierInline(admin.TabularInline):
     model = Tier
     extra = 0
-    fields = ('number', 'name')
+    fields = ('number', 'name', 'playoff_qualifiers_count')
 
 
 class SeasonPlayerInline(admin.TabularInline):
@@ -58,7 +58,7 @@ class SeasonAdmin(admin.ModelAdmin):
         (None, {'fields': ('name', 'year', 'status', 'display')}),
         ('Schedule', {'fields': ('schedule_type', 'schedule_display_mode', 'schedule_display_days', 'preseason')}),
         ('Match Format', {'fields': ('sets_to_win', 'games_to_win_set', 'win_by_two', 'final_set_format')}),
-        ('Playoffs', {'fields': ('playoffs_enabled', 'playoff_qualifiers_count')}),
+        ('Playoffs', {'fields': ('playoffs_enabled', 'playoffs_public', 'playoff_qualifiers_count', 'playoff_interval_days')}),
         ('Points', {'fields': ('points_for_win', 'points_for_loss', 'points_for_walkover_loss')}),
         ('Rules', {'fields': ('walkover_rule', 'enforce_scheduled_dates', 'postponement_deadline', 'grace_period_days')}),
         ('Rules Page', {'fields': ('show_rules', 'rules_content', 'season_markdown_hints')}),
@@ -866,23 +866,43 @@ class SeasonAdmin(admin.ModelAdmin):
         return render(request, 'leagues/bulk_results.html', context)
 
     def generate_playoffs_view(self, request, season_id, tier):
-        season = get_object_or_404(Season, pk=season_id)
+        season = get_object_or_404(Season.objects.prefetch_related('tiers'), pk=season_id)
         existing_bracket = PlayoffBracket.objects.filter(season=season, tier=tier).first()
+
+        tier_obj = season.tiers.filter(number=tier).first()
+        qualifiers_count = (
+            tier_obj.playoff_qualifiers_count
+            if tier_obj and tier_obj.playoff_qualifiers_count is not None
+            else season.playoff_qualifiers_count
+        )
+
         standings = calculate_standings(season, tier)
-        max_q = min(season.playoff_qualifiers_count, len(standings))
+        max_q = min(qualifiers_count, len(standings))
         size = bracket_size_for(max_q)
         qualifiers = standings[:size]
 
         tier_name = season.tier_name(tier)
+        start_date_val = ''
+        date_error = None
+
         if request.method == 'POST' and not existing_bracket:
-            try:
-                generate_bracket(season, tier, request.user)
-                messages.success(request, f'{tier_name} playoff bracket generated successfully.')
-                return HttpResponseRedirect(
-                    reverse('leagues:playoffs_tier', kwargs={'pk': season_id, 'tier': tier})
-                )
-            except ValueError as e:
-                messages.error(request, str(e))
+            start_date_val = request.POST.get('start_date', '').strip()
+            start_date = None
+            if start_date_val:
+                try:
+                    start_date = datetime.date.fromisoformat(start_date_val)
+                except ValueError:
+                    date_error = 'Invalid date format.'
+
+            if not date_error:
+                try:
+                    generate_bracket(season, tier, request.user, start_date=start_date)
+                    messages.success(request, f'{tier_name} playoff bracket generated successfully.')
+                    return HttpResponseRedirect(
+                        reverse('leagues:playoffs_tier', kwargs={'slug': season.slug, 'tier': tier})
+                    )
+                except ValueError as e:
+                    messages.error(request, str(e))
 
         context = {
             **self.admin_site.each_context(request),
@@ -892,6 +912,9 @@ class SeasonAdmin(admin.ModelAdmin):
             'qualifiers': qualifiers,
             'bracket_size': size,
             'existing_bracket': existing_bracket,
+            'start_date_val': start_date_val,
+            'date_error': date_error,
+            'interval_days': season.playoff_interval_days,
             'title': f'Generate {tier_name} Playoffs — {season.name}',
         }
         return render(request, 'playoffs/generate_playoffs.html', context)

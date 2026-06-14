@@ -1,3 +1,4 @@
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import TemplateView
 
@@ -66,6 +67,8 @@ class PlayoffListView(TemplateView):
 
     def get(self, request, slug):
         season = get_object_or_404(Season.objects.prefetch_related('tiers'), slug=slug)
+        if not season.playoffs_public and not request.user.is_staff:
+            raise PermissionDenied
         if season.num_tiers == 1:
             return redirect('leagues:playoffs_tier', slug=slug, tier=1)
         brackets_by_tier = {
@@ -84,6 +87,12 @@ class PlayoffListView(TemplateView):
 
 class PlayoffBracketView(TemplateView):
     template_name = 'playoffs/bracket.html'
+
+    def get(self, request, *args, **kwargs):
+        season = get_object_or_404(Season, slug=kwargs['slug'])
+        if not season.playoffs_public and not request.user.is_staff:
+            raise PermissionDenied
+        return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)

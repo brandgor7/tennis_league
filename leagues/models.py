@@ -122,6 +122,14 @@ class Season(models.Model):
         default=True,
         help_text='Show playoff bracket tab and admin playoff actions for this season',
     )
+    playoffs_public = models.BooleanField(
+        default=True,
+        help_text='When enabled, all users can view playoff brackets. When disabled, only admins can see them.',
+    )
+    playoff_interval_days = models.IntegerField(
+        default=7,
+        help_text='Days between playoff rounds when scheduling with a start date',
+    )
     preseason = models.ForeignKey(
         'self',
         null=True,
@@ -205,6 +213,10 @@ class Tier(models.Model):
     season = models.ForeignKey(Season, on_delete=models.CASCADE, related_name='tiers')
     number = models.IntegerField(help_text='1-indexed tier ordering')
     name = models.CharField(max_length=50, help_text='Display name (e.g. Premier, Division 1)')
+    playoff_qualifiers_count = models.IntegerField(
+        null=True, blank=True,
+        help_text="Qualifiers for this tier's bracket. Leave blank to use the season default.",
+    )
 
     class Meta:
         unique_together = [('season', 'number')]

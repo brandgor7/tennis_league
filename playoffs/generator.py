@@ -1,3 +1,4 @@
+import datetime
 import math
 
 from django.db import transaction
@@ -40,13 +41,16 @@ def _seed_order(n):
     return result
 
 
-def generate_bracket(season, tier, generated_by):
+def generate_bracket(season, tier, generated_by, start_date=None):
     """
     Generate a playoff bracket for the given season and tier.
 
-    Takes the top players from standings (up to playoff_qualifiers_count),
-    sizes the bracket to the largest power-of-2 that fits,
-    seeds matches, and links slots for winner advancement.
+    Takes the top players from standings (up to the tier's or season's
+    playoff_qualifiers_count), sizes the bracket to the largest power-of-2
+    that fits, seeds matches, and links slots for winner advancement.
+
+    If start_date is provided, round 1 is scheduled on that date and each
+    subsequent round is scheduled season.playoff_interval_days later.
 
     Returns the created PlayoffBracket.
     Raises ValueError if a bracket already exists or there are fewer than 2 qualifiers.
@@ -54,8 +58,15 @@ def generate_bracket(season, tier, generated_by):
     if PlayoffBracket.objects.filter(season=season, tier=tier).exists():
         raise ValueError(f'A bracket for Tier {tier} already exists for this season.')
 
+    tier_obj = season.tiers.filter(number=tier).first()
+    qualifiers_count = (
+        tier_obj.playoff_qualifiers_count
+        if tier_obj and tier_obj.playoff_qualifiers_count is not None
+        else season.playoff_qualifiers_count
+    )
+
     standings = calculate_standings(season, tier)
-    max_qualifiers = min(season.playoff_qualifiers_count, len(standings))
+    max_qualifiers = min(qualifiers_count, len(standings))
 
     if max_qualifiers < 2:
         raise ValueError('Not enough players to generate a bracket (minimum 2 required).')
@@ -69,6 +80,7 @@ def generate_bracket(season, tier, generated_by):
     rounds = _ROUND_SEQUENCE[first_round_idx:]  # from first round to final
 
     order = _seed_order(bracket_size)  # seed positions in slot order
+    interval = season.playoff_interval_days if start_date else 0
 
     with transaction.atomic():
         bracket = PlayoffBracket.objects.create(
@@ -81,6 +93,7 @@ def generate_bracket(season, tier, generated_by):
         for round_idx, round_code in enumerate(rounds):
             n_matches = bracket_size // (2 ** (round_idx + 1))
             current_slots = []
+            round_date = start_date + datetime.timedelta(days=round_idx * interval) if start_date else None
 
             for match_idx in range(n_matches):
                 if round_idx == 0:
@@ -97,6 +110,7 @@ def generate_bracket(season, tier, generated_by):
                     player1=p1,
                     player2=p2,
                     status=Match.STATUS_SCHEDULED,
+                    scheduled_date=round_date,
                 )
                 slot = PlayoffSlot.objects.create(
                     bracket=bracket,
