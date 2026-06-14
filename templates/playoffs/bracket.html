@@ -43,19 +43,22 @@
   .bracket-match:not(.bracket-final)::after {
     content: '';
     position: absolute;
-    right: -1.25rem;
+    /* Start 6px away from the card's right edge so the connector is visually
+       separate from the player-separator border inside the card. */
+    left: calc(100% + 6px);
     top: 50%;
-    width: 1.25rem;
+    width: calc(1.25rem - 6px);
     height: 1px;
     background: var(--border);
   }
 
   .bracket-card {
     width: 100%;
-    background: var(--white);
+    background: linear-gradient(to right, #ffffff, var(--cream));
     border: 1px solid var(--border);
     border-radius: 5px;
     overflow: hidden;
+    box-shadow: 2px 3px 10px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.04);
   }
 
   .bracket-player {
