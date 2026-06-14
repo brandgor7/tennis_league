@@ -1,15 +1,16 @@
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
+import types
+
 from django.core.exceptions import PermissionDenied
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
-from django.views import View
+from django.contrib.auth.decorators import login_required
 from django.views.generic import TemplateView
 
 from leagues.models import Season
-from .generator import _ROUND_SEQUENCE, generate_bracket
+from .generator import _ROUND_SEQUENCE, _ROUND_FOR_SIZE, _seed_order, bracket_size_for
 from .models import PlayoffBracket
 from matches.models import Match
+from standings.calculator import calculate_standings
 
 
 _ROUND_LABELS = {
@@ -72,6 +73,81 @@ def _bracket_context(bracket):
     return rounds_data, bracket_size
 
 
+def _preview_context(season, tier_num):
+    """
+    Build rounds_data and bracket_size for a live preview based on current standings.
+    Uses the same seeding logic as generate_bracket but creates no DB records.
+    Only the first round has players; later rounds show TBD.
+    """
+    tier_obj = season.tiers.filter(number=tier_num).first()
+    qualifiers_count = (
+        tier_obj.playoff_qualifiers_count
+        if tier_obj and tier_obj.playoff_qualifiers_count is not None
+        else season.playoff_qualifiers_count
+    )
+
+    standings = calculate_standings(season, tier_num)
+    max_q = min(qualifiers_count, len(standings))
+    bracket_size = bracket_size_for(max_q)
+
+    if bracket_size < 2:
+        return [], 0
+
+    qualifiers = [row['player'] for row in standings[:bracket_size]]
+    first_round_code = _ROUND_FOR_SIZE[bracket_size]
+    first_round_idx = _ROUND_SEQUENCE.index(first_round_code)
+    rounds = _ROUND_SEQUENCE[first_round_idx:]
+    order = _seed_order(bracket_size)
+    last_col = len(rounds) - 1
+
+    rounds_data = []
+    for round_idx, round_code in enumerate(rounds):
+        n_matches = bracket_size // (2 ** (round_idx + 1))
+        span = bracket_size // n_matches
+        is_final_round = (round_idx == last_col)
+
+        slots = []
+        for match_idx in range(n_matches):
+            if round_idx == 0:
+                p1 = qualifiers[order[match_idx * 2] - 1]
+                p2 = qualifiers[order[match_idx * 2 + 1] - 1]
+            else:
+                p1 = None
+                p2 = None
+
+            match = types.SimpleNamespace(
+                player1=p1,
+                player2=p2,
+                winner_id=None,
+                player1_id=p1.pk if p1 else None,
+                player2_id=p2.pk if p2 else None,
+                status='scheduled',
+                pk=None,
+                sets=types.SimpleNamespace(all=lambda: []),
+            )
+            slot = types.SimpleNamespace(
+                match=match,
+                bracket_position=match_idx + 1,
+                round=round_code,
+                grid_row_start=match_idx * span + 1,
+                grid_row_end=(match_idx + 1) * span + 1,
+                connector_class='' if is_final_round else ('bracket-upper' if match_idx % 2 == 0 else 'bracket-lower'),
+                v_connector_px=0 if is_final_round else span * 26,
+                has_incoming=round_idx > 0,
+            )
+            slots.append(slot)
+
+        rounds_data.append({
+            'code': round_code,
+            'label': _ROUND_LABELS[round_code],
+            'col_index': round_idx + 1,
+            'slots': slots,
+        })
+
+    return rounds_data, bracket_size
+
+
+@method_decorator(login_required, name='dispatch')
 class PlayoffView(TemplateView):
     template_name = 'playoffs/bracket.html'
 
@@ -88,14 +164,25 @@ class PlayoffView(TemplateView):
         brackets_by_tier = {
             b.tier: b for b in PlayoffBracket.objects.filter(season=season)
         }
+        tiers_by_num = {t.number: t for t in season.tiers.all()}
 
         tiers_data = []
         for t in range(1, season.num_tiers + 1):
+            tier_obj = tiers_by_num.get(t)
+            is_playoffs = tier_obj.is_playoffs if tier_obj else False
             bracket = brackets_by_tier.get(t)
-            if bracket:
+
+            if is_playoffs and bracket:
                 rounds_data, bracket_size = _bracket_context(bracket)
+                is_preview = False
+            elif not is_playoffs and season.playoffs_enabled:
+                rounds_data, bracket_size = _preview_context(season, t)
+                is_preview = True
+                bracket = None
             else:
                 rounds_data, bracket_size = [], 0
+                is_preview = False
+
             tiers_data.append({
                 'tier_num': t,
                 'tier_name': season.tier_name(t),
@@ -103,6 +190,7 @@ class PlayoffView(TemplateView):
                 'rounds_data': rounds_data,
                 'bracket_size': bracket_size,
                 'num_rounds': len(rounds_data),
+                'is_preview': is_preview,
             })
 
         ctx.update({
@@ -111,25 +199,3 @@ class PlayoffView(TemplateView):
             'multi_tier': season.num_tiers > 1,
         })
         return ctx
-
-
-@method_decorator(login_required, name='dispatch')
-class PlayoffBracketRefreshView(View):
-    def post(self, request, slug, tier):
-        if not request.user.is_staff:
-            raise PermissionDenied
-        season = get_object_or_404(Season.objects.prefetch_related('tiers'), slug=slug)
-        bracket = get_object_or_404(PlayoffBracket, season=season, tier=tier)
-
-        first_slot = bracket.slots.select_related('match').order_by('bracket_position').first()
-        start_date = first_slot.match.scheduled_date if first_slot else None
-
-        bracket.delete()
-
-        try:
-            generate_bracket(season, tier, request.user, start_date=start_date)
-            messages.success(request, f'{season.tier_name(tier)} bracket refreshed from current standings.')
-        except ValueError as e:
-            messages.error(request, str(e))
-
-        return redirect('leagues:playoffs', slug=slug)

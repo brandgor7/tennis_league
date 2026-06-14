@@ -19,7 +19,7 @@ from matches.models import Match, MatchSet
 from matches.bulk_result_parser import parse_whatsapp_messages, resolve_results
 from matches.scheduler import existing_pairs, generate_schedule, remaining_rounds_count
 from matches.views import _audit_match
-from playoffs.generator import bracket_size_for, generate_bracket
+from playoffs.generator import generate_bracket
 from playoffs.models import PlayoffBracket
 from standings.calculator import calculate_standings
 
@@ -31,7 +31,40 @@ _MAX_LOGO_BYTES = 2 * 1024 * 1024  # 2 MB
 class TierInline(admin.TabularInline):
     model = Tier
     extra = 0
-    fields = ('number', 'name', 'playoff_qualifiers_count')
+    fields = ('number', 'name', 'playoff_qualifiers_count', 'is_playoffs')
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if 'is_playoffs' not in form.changed_data:
+            return
+
+        if obj.is_playoffs:
+            try:
+                generate_bracket(obj.season, obj.number, request.user)
+                messages.success(request, f'{obj.name} playoff bracket generated.')
+            except ValueError as e:
+                messages.warning(request, str(e))
+        else:
+            bracket = PlayoffBracket.objects.filter(season=obj.season, tier=obj.number).first()
+            if bracket:
+                completed = Match.objects.filter(
+                    season=obj.season,
+                    tier=obj.number,
+                ).exclude(round=Match.ROUND_REGULAR).filter(
+                    status__in=[Match.STATUS_COMPLETED, Match.STATUS_WALKOVER],
+                ).count()
+                if completed:
+                    messages.error(
+                        request,
+                        f'Cannot reset {obj.name} to regular season: '
+                        f'{completed} playoff match(es) already completed. '
+                        f'Reverted to playoffs phase.',
+                    )
+                    obj.is_playoffs = True
+                    obj.save(update_fields=['is_playoffs'])
+                else:
+                    bracket.delete()
+                    messages.success(request, f'{obj.name} playoff bracket deleted, tier reset to regular season.')
 
 
 class SeasonPlayerInline(admin.TabularInline):
@@ -90,11 +123,6 @@ class SeasonAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         custom = [
-            path(
-                '<int:season_id>/generate-playoffs/<int:tier>/',
-                self.admin_site.admin_view(self.generate_playoffs_view),
-                name='leagues_season_generate_playoffs',
-            ),
             path(
                 '<int:season_id>/generate-schedule/',
                 self.admin_site.admin_view(self.generate_schedule_view),
@@ -155,15 +183,6 @@ class SeasonAdmin(admin.ModelAdmin):
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
         extra_context = extra_context or {}
-        season = get_object_or_404(Season.objects.prefetch_related('tiers'), pk=object_id)
-        generate_urls = []
-        if season.playoffs_enabled:
-            for tier in range(1, season.num_tiers + 1):
-                generate_urls.append({
-                    'tier_name': season.tier_name(tier),
-                    'url': reverse('admin:leagues_season_generate_playoffs', args=[object_id, tier]),
-                })
-        extra_context['generate_playoff_urls'] = generate_urls
         extra_context['generate_schedule_url'] = reverse(
             'admin:leagues_season_generate_schedule', args=[object_id]
         )
@@ -865,59 +884,6 @@ class SeasonAdmin(admin.ModelAdmin):
         }
         return render(request, 'leagues/bulk_results.html', context)
 
-    def generate_playoffs_view(self, request, season_id, tier):
-        season = get_object_or_404(Season.objects.prefetch_related('tiers'), pk=season_id)
-        existing_bracket = PlayoffBracket.objects.filter(season=season, tier=tier).first()
-
-        tier_obj = season.tiers.filter(number=tier).first()
-        qualifiers_count = (
-            tier_obj.playoff_qualifiers_count
-            if tier_obj and tier_obj.playoff_qualifiers_count is not None
-            else season.playoff_qualifiers_count
-        )
-
-        standings = calculate_standings(season, tier)
-        max_q = min(qualifiers_count, len(standings))
-        size = bracket_size_for(max_q)
-        qualifiers = standings[:size]
-
-        tier_name = season.tier_name(tier)
-        start_date_val = ''
-        date_error = None
-
-        if request.method == 'POST' and not existing_bracket:
-            start_date_val = request.POST.get('start_date', '').strip()
-            start_date = None
-            if start_date_val:
-                try:
-                    start_date = datetime.date.fromisoformat(start_date_val)
-                except ValueError:
-                    date_error = 'Invalid date format.'
-
-            if not date_error:
-                try:
-                    generate_bracket(season, tier, request.user, start_date=start_date)
-                    messages.success(request, f'{tier_name} playoff bracket generated successfully.')
-                    return HttpResponseRedirect(
-                        reverse('leagues:playoffs', kwargs={'slug': season.slug})
-                    )
-                except ValueError as e:
-                    messages.error(request, str(e))
-
-        context = {
-            **self.admin_site.each_context(request),
-            'season': season,
-            'tier': tier,
-            'tier_name': tier_name,
-            'qualifiers': qualifiers,
-            'bracket_size': size,
-            'existing_bracket': existing_bracket,
-            'start_date_val': start_date_val,
-            'date_error': date_error,
-            'interval_days': season.playoff_interval_days,
-            'title': f'Generate {tier_name} Playoffs — {season.name}',
-        }
-        return render(request, 'playoffs/generate_playoffs.html', context)
 
 
 @admin.register(SeasonPlayer)

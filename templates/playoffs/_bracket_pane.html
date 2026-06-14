@@ -1,17 +1,12 @@
-{% if not td.bracket %}
-<p class="text-muted">Bracket not yet generated.</p>
+{% if not td.rounds_data %}
+<p class="text-muted">Bracket not yet available.</p>
 
 {% else %}
 
-{% if user.is_staff %}
-<div class="d-flex justify-content-end mb-3">
-  <form method="post" action="{% url 'leagues:playoffs_tier_refresh' season.slug td.tier_num %}"
-        onsubmit="return confirm('Refresh the {{ td.tier_name }} bracket from current standings?\n\nThis will delete all existing playoff matches for this tier and regenerate the draw.');">
-    {% csrf_token %}
-    <button type="submit" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-arrow-clockwise me-1"></i>Refresh Bracket
-    </button>
-  </form>
+{% if td.is_preview %}
+<div class="d-flex align-items-center gap-2 mb-3">
+  <span class="badge bg-secondary">Preview</span>
+  <span class="text-muted small">Projected bracket based on current standings — updates as regular season results are entered.</span>
 </div>
 {% endif %}
 
@@ -33,7 +28,11 @@
       {% with match=slot.match %}
       <div class="bracket-match {{ slot.connector_class }}{% if slot.has_incoming %} bracket-incoming{% endif %}"
            style="grid-row: {{ slot.grid_row_start }} / {{ slot.grid_row_end }}; grid-column: {{ round.col_index }};{% if slot.v_connector_px %} --v-h: {{ slot.v_connector_px }}px;{% endif %}">
+        {% if match.pk %}
         <a href="{% url 'matches:match_detail' current_season.slug match.pk %}" class="bracket-card text-decoration-none text-reset">
+        {% else %}
+        <div class="bracket-card">
+        {% endif %}
 
           {# Player 1 row #}
           {% if match.player1 %}
@@ -69,7 +68,7 @@
           <div class="bracket-player"><span class="bracket-tbd">TBD</span></div>
           {% endif %}
 
-        </a>
+        {% if match.pk %}</a>{% else %}</div>{% endif %}
       </div>
       {% endwith %}
       {% endfor %}
@@ -77,7 +76,10 @@
   </div>
 </div>
 
+{% if not td.is_preview %}
 <p class="text-muted mt-4" style="font-size: 0.8rem;">
-  Refreshed on {{ td.bracket.generated_at|date:"N j, Y" }}
+  Generated on {{ td.bracket.generated_at|date:"N j, Y" }}
 </p>
+{% endif %}
+
 {% endif %}

@@ -217,6 +217,10 @@ class Tier(models.Model):
         null=True, blank=True,
         help_text="Qualifiers for this tier's bracket. Leave blank to use the season default.",
     )
+    is_playoffs = models.BooleanField(
+        default=False,
+        help_text='Tier is in playoff phase. Toggling on auto-generates the bracket; toggling off deletes it.',
+    )
 
     class Meta:
         unique_together = [('season', 'number')]
