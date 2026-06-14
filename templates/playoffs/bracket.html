@@ -148,11 +148,11 @@
     .bracket-short-name { display: none; }
   }
 
-  /* Give the bracket more horizontal room by reducing the page container margins. */
+  /* Wider container than Bootstrap's default xl (1140px) so the bracket uses
+     more of the screen without a scrollbar, while still being centred on
+     large monitors via the inherited margin: auto. */
   main > .container {
-    max-width: 100%;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+    max-width: 1400px;
   }
 </style>
 {% endblock %}
