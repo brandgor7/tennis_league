@@ -87,7 +87,7 @@
 
   .bracket-card {
     width: 100%;
-    background: linear-gradient(to left, #ffffff, #f2ecdf);
+    background: linear-gradient(to left, var(--forest-lighter), var(--forest-light));
     border: 1px solid var(--border);
     border-radius: 5px;
     overflow: hidden;
@@ -148,11 +148,10 @@
     .bracket-short-name { display: none; }
   }
 
-  /* Wider container than Bootstrap's default xl (1140px) so the bracket uses
-     more of the screen without a scrollbar, while still being centred on
-     large monitors via the inherited margin: auto. */
-  main > .container {
-    max-width: 1400px;
+  @media (min-width: 992px) {
+    main .container {
+      max-width: 1000px;
+    }
   }
 </style>
 {% endblock %}
