@@ -40,21 +40,54 @@
     position: relative;
   }
 
-  .bracket-match:not(.bracket-final)::after {
+  /*
+   * Outgoing connectors: horizontal stub + vertical arm.
+   *
+   * Each match feeds either the top (bracket-upper) or bottom (bracket-lower)
+   * half of the next-round match. The ::after pseudo-element draws both the
+   * short horizontal run and the vertical arm using CSS borders on a sized box.
+   *
+   * --v-h is set inline on the element as half the match's pixel height
+   * (span × 26px, where the row height is 52px), so the arm reaches exactly
+   * to the level of the next-round match's centre.
+   *
+   * The horizontal starts 6px from the card's right edge to break visual
+   * continuity with the player-separator border inside the card.
+   */
+  .bracket-upper::after,
+  .bracket-lower::after {
     content: '';
     position: absolute;
-    /* Start 6px away from the card's right edge so the connector is visually
-       separate from the player-separator border inside the card. */
     left: calc(100% + 6px);
-    top: 50%;
     width: calc(1.25rem - 6px);
+    height: var(--v-h, 0px);
+    border-right: 1px solid var(--border);
+  }
+  /* Upper: horizontal along the top edge, vertical arm goes down */
+  .bracket-upper::after {
+    top: 50%;
+    border-top: 1px solid var(--border);
+  }
+  /* Lower: horizontal along the bottom edge, vertical arm goes up */
+  .bracket-lower::after {
+    bottom: 50%;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Incoming stub: short horizontal on the left of every non-first-round match */
+  .bracket-incoming::before {
+    content: '';
+    position: absolute;
+    right: 100%;
+    top: 50%;
+    width: 1.25rem;
     height: 1px;
     background: var(--border);
   }
 
   .bracket-card {
     width: 100%;
-    background: linear-gradient(to right, #ffffff, var(--cream));
+    background: linear-gradient(to left, #ffffff, var(--sand));
     border: 1px solid var(--border);
     border-radius: 5px;
     overflow: hidden;

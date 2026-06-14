@@ -47,14 +47,21 @@ def _bracket_context(bracket):
 
     first_round_count = len(ordered_rounds[0][1])
     bracket_size = first_round_count * 2
+    last_col = len(ordered_rounds) - 1
 
     rounds_data = []
     for col_idx, (round_code, slots) in enumerate(ordered_rounds):
         n_matches = len(slots)
         span = bracket_size // n_matches
+        is_final_round = (col_idx == last_col)
         for i, slot in enumerate(slots):
             slot.grid_row_start = i * span + 1
             slot.grid_row_end = (i + 1) * span + 1
+            # connector_class drives ::after shape; empty string = no outgoing connector
+            slot.connector_class = '' if is_final_round else ('bracket-upper' if i % 2 == 0 else 'bracket-lower')
+            # v_connector_px: half the match height in px (row height = 52px)
+            slot.v_connector_px = 0 if is_final_round else span * 26
+            slot.has_incoming = col_idx > 0
         rounds_data.append({
             'code': round_code,
             'label': _ROUND_LABELS[round_code],

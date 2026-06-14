@@ -31,8 +31,8 @@
     {% for round in td.rounds_data %}
       {% for slot in round.slots %}
       {% with match=slot.match %}
-      <div class="bracket-match{% if round.code == 'f' %} bracket-final{% endif %}"
-           style="grid-row: {{ slot.grid_row_start }} / {{ slot.grid_row_end }}; grid-column: {{ round.col_index }};">
+      <div class="bracket-match {{ slot.connector_class }}{% if slot.has_incoming %} bracket-incoming{% endif %}"
+           style="grid-row: {{ slot.grid_row_start }} / {{ slot.grid_row_end }}; grid-column: {{ round.col_index }};{% if slot.v_connector_px %} --v-h: {{ slot.v_connector_px }}px;{% endif %}">
         <a href="{% url 'matches:match_detail' current_season.slug match.pk %}" class="bracket-card text-decoration-none text-reset">
 
           {# Player 1 row #}
