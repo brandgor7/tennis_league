@@ -49,7 +49,7 @@
             {% endif %}
           </div>
           {% else %}
-          <div class="bracket-player"><span class="bracket-tbd">TBD</span></div>
+          <div class="bracket-player"><span class="bracket-tbd">{% if slot.is_bye %}Bye{% else %}TBD{% endif %}</span></div>
           {% endif %}
 
           {# Player 2 row #}
@@ -67,7 +67,7 @@
             {% endif %}
           </div>
           {% else %}
-          <div class="bracket-player"><span class="bracket-tbd">TBD</span></div>
+          <div class="bracket-player"><span class="bracket-tbd">{% if slot.is_bye %}Bye{% else %}TBD{% endif %}</span></div>
           {% endif %}
 
         {% if match.pk %}</a>{% else %}</div>{% endif %}

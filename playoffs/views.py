@@ -67,9 +67,11 @@ def _bracket_context(bracket):
             if col_idx == 0:
                 slot.player1_seed = first_round_order[i * 2]
                 slot.player2_seed = first_round_order[i * 2 + 1]
+                slot.is_bye = (slot.match.player1 is None) != (slot.match.player2 is None)
             else:
                 slot.player1_seed = None
                 slot.player2_seed = None
+                slot.is_bye = False
         rounds_data.append({
             'code': round_code,
             'label': _ROUND_LABELS[round_code],
@@ -147,6 +149,7 @@ def _preview_context(season, tier_num):
                 has_incoming=round_idx > 0,
                 player1_seed=p1_seed,
                 player2_seed=p2_seed,
+                is_bye=(p1 is None) != (p2 is None),
             )
             slots.append(slot)
 
