@@ -1,0 +1,83 @@
+{% if not td.bracket %}
+<p class="text-muted">Bracket not yet generated.</p>
+
+{% else %}
+
+{% if user.is_staff %}
+<div class="d-flex justify-content-end mb-3">
+  <form method="post" action="{% url 'leagues:playoffs_tier_refresh' season.slug td.tier_num %}"
+        onsubmit="return confirm('Refresh the {{ td.tier_name }} bracket from current standings?\n\nThis will delete all existing playoff matches for this tier and regenerate the draw.');">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-clockwise me-1"></i>Refresh Bracket
+    </button>
+  </form>
+</div>
+{% endif %}
+
+<p class="d-md-none text-muted small mb-2">
+  <i class="bi bi-arrow-left-right me-1"></i>Scroll sideways to see all rounds
+</p>
+
+<div class="bracket-scroll">
+  <div class="bracket-rounds-header" style="grid-template-columns: repeat({{ td.num_rounds }}, 200px);">
+    {% for round in td.rounds_data %}
+    <div class="bracket-round-label">{{ round.label }}</div>
+    {% endfor %}
+  </div>
+
+  <div class="bracket-grid"
+       style="grid-template-rows: repeat({{ td.bracket_size }}, 52px); grid-template-columns: repeat({{ td.num_rounds }}, 200px);">
+    {% for round in td.rounds_data %}
+      {% for slot in round.slots %}
+      {% with match=slot.match %}
+      <div class="bracket-match{% if round.code == 'f' %} bracket-final{% endif %}"
+           style="grid-row: {{ slot.grid_row_start }} / {{ slot.grid_row_end }}; grid-column: {{ round.col_index }};">
+        <a href="{% url 'matches:match_detail' current_season.slug match.pk %}" class="bracket-card text-decoration-none text-reset">
+
+          {# Player 1 row #}
+          {% if match.player1 %}
+          <div class="bracket-player{% if match.winner_id == match.player1_id %} is-winner{% elif match.winner_id %} is-loser{% endif %}">
+            <span class="bracket-player-name">
+              <span class="bracket-full-name">{{ match.player1.get_full_name|default:match.player1.username }}</span>
+              <span class="bracket-short-name">{% if match.player1.first_name %}{{ match.player1.first_name|first }}.&nbsp;{% endif %}{{ match.player1.last_name|default:match.player1.username }}</span>
+            </span>
+            {% if match.status == 'completed' %}
+            <span class="bracket-player-score">{% for s in match.sets.all %}{{ s.player1_games }}{% if not forloop.last %}&thinsp;{% endif %}{% endfor %}</span>
+            {% elif match.status == 'walkover' and match.winner_id == match.player1_id %}
+            <span class="bracket-player-score">W/O</span>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="bracket-player"><span class="bracket-tbd">TBD</span></div>
+          {% endif %}
+
+          {# Player 2 row #}
+          {% if match.player2 %}
+          <div class="bracket-player{% if match.winner_id == match.player2_id %} is-winner{% elif match.winner_id %} is-loser{% endif %}">
+            <span class="bracket-player-name">
+              <span class="bracket-full-name">{{ match.player2.get_full_name|default:match.player2.username }}</span>
+              <span class="bracket-short-name">{% if match.player2.first_name %}{{ match.player2.first_name|first }}.&nbsp;{% endif %}{{ match.player2.last_name|default:match.player2.username }}</span>
+            </span>
+            {% if match.status == 'completed' %}
+            <span class="bracket-player-score">{% for s in match.sets.all %}{{ s.player2_games }}{% if not forloop.last %}&thinsp;{% endif %}{% endfor %}</span>
+            {% elif match.status == 'walkover' and match.winner_id == match.player2_id %}
+            <span class="bracket-player-score">W/O</span>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="bracket-player"><span class="bracket-tbd">TBD</span></div>
+          {% endif %}
+
+        </a>
+      </div>
+      {% endwith %}
+      {% endfor %}
+    {% endfor %}
+  </div>
+</div>
+
+<p class="text-muted mt-4" style="font-size: 0.8rem;">
+  Refreshed on {{ td.bracket.generated_at|date:"N j, Y" }}
+</p>
+{% endif %}

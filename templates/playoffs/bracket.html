@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ season }} — {% if multi_tier %}{{ tier_name }} {% endif %}Playoffs{% endblock %}
+{% block title %}{{ season }} — Playoffs{% endblock %}
 {% block nav_playoffs %}nav-active{% endblock %}
 
 {% block extra_css %}
@@ -12,7 +12,6 @@
 
   .bracket-rounds-header {
     display: grid;
-    grid-template-columns: repeat({{ num_rounds }}, 200px);
     gap: 0 2.5rem;
     margin-bottom: 0.5rem;
     min-width: max-content;
@@ -31,8 +30,6 @@
 
   .bracket-grid {
     display: grid;
-    grid-template-rows: repeat({{ bracket_size }}, 52px);
-    grid-template-columns: repeat({{ num_rounds }}, 200px);
     gap: 0 2.5rem;
     min-width: max-content;
   }
@@ -119,102 +116,42 @@
 
 {% block content %}
 <div class="page-header">
-  <h1>Playoffs{% if multi_tier %} — {{ tier_name }}{% endif %}</h1>
+  <h1>Playoffs</h1>
   <p class="page-meta">{{ season }}</p>
 </div>
 
-{% if multi_tier or user.is_staff %}
-<div class="d-flex align-items-center flex-wrap gap-2 mb-4">
-  {% if multi_tier %}
-  {% for t, t_name in tier_nav %}
-  <a href="{% url 'leagues:playoffs_tier' season.slug t %}"
-     class="btn btn-sm {% if t == tier %}btn-primary{% else %}btn-outline-primary{% endif %}">
-    {{ t_name }}
-  </a>
-  {% endfor %}
-  {% endif %}
-
-  {% if user.is_staff %}
-  <form method="post" action="{% url 'leagues:playoffs_tier_refresh' season.slug tier %}"
-        class="ms-auto"
-        onsubmit="return confirm('Refresh the {{ tier_name }} bracket from current standings?\n\nThis will delete all existing playoff matches for this tier and regenerate the draw.');">
-    {% csrf_token %}
-    <button type="submit" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-arrow-clockwise me-1"></i>Refresh Bracket
+{% if multi_tier %}
+<ul class="nav nav-tabs mb-3" id="tier-tabs" role="tablist">
+  {% for td in tiers_data %}
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {% if forloop.first %}active{% endif %}"
+            id="tier-{{ td.tier_num }}-tab"
+            data-bs-toggle="tab"
+            data-bs-target="#tier-{{ td.tier_num }}-pane"
+            type="button" role="tab"
+            aria-controls="tier-{{ td.tier_num }}-pane"
+            aria-selected="{% if forloop.first %}true{% else %}false{% endif %}">
+      {{ td.tier_name }}
     </button>
-  </form>
-  {% endif %}
-</div>
-{% endif %}
+  </li>
+  {% endfor %}
+</ul>
 
-{% if not rounds_data %}
-<p class="text-muted">No bracket data found.</p>
+<div class="tab-content" id="tier-tabs-content">
+  {% for td in tiers_data %}
+  <div class="tab-pane fade {% if forloop.first %}show active{% endif %}"
+       id="tier-{{ td.tier_num }}-pane"
+       role="tabpanel"
+       aria-labelledby="{{ td.tier_num }}-tab">
+    {% include "playoffs/_bracket_pane.html" %}
+  </div>
+  {% endfor %}
+</div>
+
 {% else %}
-
-<p class="d-md-none text-muted small mb-2">
-  <i class="bi bi-arrow-left-right me-1"></i>Scroll sideways to see all rounds
-</p>
-
-<div class="bracket-scroll">
-  <div class="bracket-rounds-header">
-    {% for round in rounds_data %}
-    <div class="bracket-round-label">{{ round.label }}</div>
-    {% endfor %}
-  </div>
-
-  <div class="bracket-grid">
-    {% for round in rounds_data %}
-      {% for slot in round.slots %}
-      {% with match=slot.match %}
-      <div class="bracket-match{% if round.code == 'f' %} bracket-final{% endif %}"
-           style="grid-row: {{ slot.grid_row_start }} / {{ slot.grid_row_end }}; grid-column: {{ round.col_index }};">
-        <a href="{% url 'matches:match_detail' current_season.slug match.pk %}" class="bracket-card text-decoration-none text-reset">
-
-          {# Player 1 row #}
-          {% if match.player1 %}
-          <div class="bracket-player{% if match.winner_id == match.player1_id %} is-winner{% elif match.winner_id %} is-loser{% endif %}">
-            <span class="bracket-player-name">
-              <span class="bracket-full-name">{{ match.player1.get_full_name|default:match.player1.username }}</span>
-              <span class="bracket-short-name">{% if match.player1.first_name %}{{ match.player1.first_name|first }}.&nbsp;{% endif %}{{ match.player1.last_name|default:match.player1.username }}</span>
-            </span>
-            {% if match.status == 'completed' %}
-            <span class="bracket-player-score">{% for s in match.sets.all %}{{ s.player1_games }}{% if not forloop.last %}&thinsp;{% endif %}{% endfor %}</span>
-            {% elif match.status == 'walkover' and match.winner_id == match.player1_id %}
-            <span class="bracket-player-score">W/O</span>
-            {% endif %}
-          </div>
-          {% else %}
-          <div class="bracket-player"><span class="bracket-tbd">TBD</span></div>
-          {% endif %}
-
-          {# Player 2 row #}
-          {% if match.player2 %}
-          <div class="bracket-player{% if match.winner_id == match.player2_id %} is-winner{% elif match.winner_id %} is-loser{% endif %}">
-            <span class="bracket-player-name">
-              <span class="bracket-full-name">{{ match.player2.get_full_name|default:match.player2.username }}</span>
-              <span class="bracket-short-name">{% if match.player2.first_name %}{{ match.player2.first_name|first }}.&nbsp;{% endif %}{{ match.player2.last_name|default:match.player2.username }}</span>
-            </span>
-            {% if match.status == 'completed' %}
-            <span class="bracket-player-score">{% for s in match.sets.all %}{{ s.player2_games }}{% if not forloop.last %}&thinsp;{% endif %}{% endfor %}</span>
-            {% elif match.status == 'walkover' and match.winner_id == match.player2_id %}
-            <span class="bracket-player-score">W/O</span>
-            {% endif %}
-          </div>
-          {% else %}
-          <div class="bracket-player"><span class="bracket-tbd">TBD</span></div>
-          {% endif %}
-
-        </a>
-      </div>
-      {% endwith %}
-      {% endfor %}
-    {% endfor %}
-  </div>
-</div>
-
-<p class="text-muted mt-4" style="font-size: 0.8rem;">
-  Generated {{ bracket.generated_at|date:"N j, Y" }}
-  by {{ bracket.generated_by.get_full_name|default:bracket.generated_by.username }}
-</p>
+{% for td in tiers_data %}
+{% include "playoffs/_bracket_pane.html" %}
+{% endfor %}
 {% endif %}
+
 {% endblock %}

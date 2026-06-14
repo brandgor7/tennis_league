@@ -899,7 +899,7 @@ class SeasonAdmin(admin.ModelAdmin):
                     generate_bracket(season, tier, request.user, start_date=start_date)
                     messages.success(request, f'{tier_name} playoff bracket generated successfully.')
                     return HttpResponseRedirect(
-                        reverse('leagues:playoffs_tier', kwargs={'slug': season.slug, 'tier': tier})
+                        reverse('leagues:playoffs', kwargs={'slug': season.slug})
                     )
                 except ValueError as e:
                     messages.error(request, str(e))

@@ -23,7 +23,7 @@ _ROUND_LABELS = {
 
 def _bracket_context(bracket):
     """
-    Build the rounds_data and bracket_size needed to render a bracket template.
+    Build the rounds_data and bracket_size needed to render a bracket.
 
     Returns (rounds_data, bracket_size) where rounds_data is a list of dicts:
       {code, label, slots, col_index}
@@ -36,7 +36,6 @@ def _bracket_context(bracket):
         .order_by('bracket_position')
     )
 
-    # Group by round, preserving _ROUND_SEQUENCE order
     by_round = {}
     for slot in slots_qs:
         by_round.setdefault(slot.round, []).append(slot)
@@ -66,30 +65,7 @@ def _bracket_context(bracket):
     return rounds_data, bracket_size
 
 
-class PlayoffListView(TemplateView):
-    template_name = 'playoffs/bracket_list.html'
-
-    def get(self, request, slug):
-        season = get_object_or_404(Season.objects.prefetch_related('tiers'), slug=slug)
-        if not season.playoffs_public and not request.user.is_staff:
-            raise PermissionDenied
-        if season.num_tiers == 1:
-            return redirect('leagues:playoffs_tier', slug=slug, tier=1)
-        brackets_by_tier = {
-            b.tier: b
-            for b in PlayoffBracket.objects.filter(season=season)
-        }
-        tier_brackets = [
-            (t, season.tier_name(t), brackets_by_tier.get(t))
-            for t in range(1, season.num_tiers + 1)
-        ]
-        return self.render_to_response({
-            'season': season,
-            'tier_brackets': tier_brackets,
-        })
-
-
-class PlayoffBracketView(TemplateView):
+class PlayoffView(TemplateView):
     template_name = 'playoffs/bracket.html'
 
     def get(self, request, *args, **kwargs):
@@ -101,20 +77,31 @@ class PlayoffBracketView(TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         season = get_object_or_404(Season.objects.prefetch_related('tiers'), slug=self.kwargs['slug'])
-        tier = self.kwargs['tier']
-        bracket = get_object_or_404(PlayoffBracket, season=season, tier=tier)
-        rounds_data, bracket_size = _bracket_context(bracket)
-        tier_nav = [(t, season.tier_name(t)) for t in range(1, season.num_tiers + 1)]
+
+        brackets_by_tier = {
+            b.tier: b for b in PlayoffBracket.objects.filter(season=season)
+        }
+
+        tiers_data = []
+        for t in range(1, season.num_tiers + 1):
+            bracket = brackets_by_tier.get(t)
+            if bracket:
+                rounds_data, bracket_size = _bracket_context(bracket)
+            else:
+                rounds_data, bracket_size = [], 0
+            tiers_data.append({
+                'tier_num': t,
+                'tier_name': season.tier_name(t),
+                'bracket': bracket,
+                'rounds_data': rounds_data,
+                'bracket_size': bracket_size,
+                'num_rounds': len(rounds_data),
+            })
+
         ctx.update({
             'season': season,
-            'bracket': bracket,
-            'tier': tier,
-            'tier_name': season.tier_name(tier),
+            'tiers_data': tiers_data,
             'multi_tier': season.num_tiers > 1,
-            'tier_nav': tier_nav,
-            'rounds_data': rounds_data,
-            'bracket_size': bracket_size,
-            'num_rounds': len(rounds_data),
         })
         return ctx
 
@@ -127,11 +114,10 @@ class PlayoffBracketRefreshView(View):
         season = get_object_or_404(Season.objects.prefetch_related('tiers'), slug=slug)
         bracket = get_object_or_404(PlayoffBracket, season=season, tier=tier)
 
-        # Preserve the start date from the first-round matches if dates were assigned
         first_slot = bracket.slots.select_related('match').order_by('bracket_position').first()
         start_date = first_slot.match.scheduled_date if first_slot else None
 
-        bracket.delete()  # cascades to PlayoffSlot → Match
+        bracket.delete()
 
         try:
             generate_bracket(season, tier, request.user, start_date=start_date)
@@ -139,4 +125,4 @@ class PlayoffBracketRefreshView(View):
         except ValueError as e:
             messages.error(request, str(e))
 
-        return redirect('leagues:playoffs_tier', slug=slug, tier=tier)
+        return redirect('leagues:playoffs', slug=slug)
