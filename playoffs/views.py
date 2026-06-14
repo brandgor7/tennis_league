@@ -159,7 +159,7 @@ def _preview_context(season, tier_num):
                 has_incoming=round_idx > 0,
                 player1_seed=p1_seed,
                 player2_seed=p2_seed,
-                is_bye=(p1 is None) != (p2 is None),
+                is_bye=round_idx == 0 and (p1 is None) != (p2 is None),
             )
             slots.append(slot)
 
