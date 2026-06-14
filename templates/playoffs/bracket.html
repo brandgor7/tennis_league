@@ -123,14 +123,27 @@
   <p class="page-meta">{{ season }}</p>
 </div>
 
-{% if multi_tier %}
-<div class="d-flex gap-2 mb-4">
+{% if multi_tier or user.is_staff %}
+<div class="d-flex align-items-center flex-wrap gap-2 mb-4">
+  {% if multi_tier %}
   {% for t, t_name in tier_nav %}
   <a href="{% url 'leagues:playoffs_tier' season.slug t %}"
      class="btn btn-sm {% if t == tier %}btn-primary{% else %}btn-outline-primary{% endif %}">
     {{ t_name }}
   </a>
   {% endfor %}
+  {% endif %}
+
+  {% if user.is_staff %}
+  <form method="post" action="{% url 'leagues:playoffs_tier_refresh' season.slug tier %}"
+        class="ms-auto"
+        onsubmit="return confirm('Refresh the {{ tier_name }} bracket from current standings?\n\nThis will delete all existing playoff matches for this tier and regenerate the draw.');">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-clockwise me-1"></i>Refresh Bracket
+    </button>
+  </form>
+  {% endif %}
 </div>
 {% endif %}
 

@@ -1,9 +1,13 @@
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect
+from django.utils.decorators import method_decorator
+from django.views import View
 from django.views.generic import TemplateView
 
 from leagues.models import Season
-from .generator import _ROUND_SEQUENCE
+from .generator import _ROUND_SEQUENCE, generate_bracket
 from .models import PlayoffBracket
 from matches.models import Match
 
@@ -113,3 +117,26 @@ class PlayoffBracketView(TemplateView):
             'num_rounds': len(rounds_data),
         })
         return ctx
+
+
+@method_decorator(login_required, name='dispatch')
+class PlayoffBracketRefreshView(View):
+    def post(self, request, slug, tier):
+        if not request.user.is_staff:
+            raise PermissionDenied
+        season = get_object_or_404(Season.objects.prefetch_related('tiers'), slug=slug)
+        bracket = get_object_or_404(PlayoffBracket, season=season, tier=tier)
+
+        # Preserve the start date from the first-round matches if dates were assigned
+        first_slot = bracket.slots.select_related('match').order_by('bracket_position').first()
+        start_date = first_slot.match.scheduled_date if first_slot else None
+
+        bracket.delete()  # cascades to PlayoffSlot → Match
+
+        try:
+            generate_bracket(season, tier, request.user, start_date=start_date)
+            messages.success(request, f'{season.tier_name(tier)} bracket refreshed from current standings.')
+        except ValueError as e:
+            messages.error(request, str(e))
+
+        return redirect('leagues:playoffs_tier', slug=slug, tier=tier)
