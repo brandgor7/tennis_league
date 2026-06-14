@@ -87,7 +87,7 @@
 
   .bracket-card {
     width: 100%;
-    background: linear-gradient(to left, #ffffff, var(--sand));
+    background: linear-gradient(to left, #ffffff, #f2ecdf);
     border: 1px solid var(--border);
     border-radius: 5px;
     overflow: hidden;
@@ -146,6 +146,13 @@
   @media (min-width: 768px) {
     .bracket-full-name { display: inline; }
     .bracket-short-name { display: none; }
+  }
+
+  /* Give the bracket more horizontal room by reducing the page container margins. */
+  main > .container {
+    max-width: 100%;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
   }
 </style>
 {% endblock %}
