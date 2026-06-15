@@ -20,8 +20,7 @@
         // grey out the field container
         var container = days.closest('.form-row, .field-schedule_display_days, .field-box');
         if (container) container.style.opacity = enabled ? '' : '0.4';
-        // disable input so it's not editable when not applicable
-        days.disabled = !enabled;
+        days.readOnly = !enabled;
     }
 
     document.addEventListener('DOMContentLoaded', function () {
