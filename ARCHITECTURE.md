@@ -275,7 +275,9 @@ num_tiers                 IntegerField    default 1; number of competitive tiers
 sets_to_win               IntegerField    2 = best of 3, 3 = best of 5
 win_by_two                BooleanField    default True; if False, set winner only needs to reach games_to_win_set (e.g. 6–5 is valid; 7–5 is not)
 final_set_format          CharField       full | tiebreak | super
-playoff_qualifiers_count  IntegerField    e.g. 8, 16, 32 — applies per tier
+playoff_qualifiers_count  IntegerField    default per-tier qualifier count; can be overridden per tier on the Tier model
+playoffs_public           BooleanField    default True; when False, only staff can view playoff brackets and the nav tab is hidden for players
+playoff_interval_days     IntegerField    default 7; days between playoff rounds when scheduling with a start date
 schedule_type             CharField       single_day | consecutive_days | weekly
 walkover_rule             CharField       winner | split | none
 postponement_deadline     IntegerField    days allowed to reschedule
@@ -298,9 +300,10 @@ created_at                DateTimeField
 
 ### `leagues.Tier`
 ```
-season    FK → Season (related_name='tiers')
-number    IntegerField    1-indexed ordering within the season
-name      CharField(50)   Display name, e.g. "Premier", "Division 1"
+season                    FK → Season (related_name='tiers')
+number                    IntegerField    1-indexed ordering within the season
+name                      CharField(50)   Display name, e.g. "Premier", "Division 1"
+playoff_qualifiers_count  IntegerField (nullable)  per-tier override; null = use season default
 UNIQUE: (season, number)
 ORDER BY: number
 ```
@@ -438,9 +441,9 @@ Admin can also directly:
 
 In `playoffs/generator.py`:
 
-Brackets are generated **per tier**. `generate_bracket(season, tier, generated_by)` handles one tier at a time. The admin action can call it for each tier in the season.
+Brackets are generated **per tier**. `generate_bracket(season, tier, generated_by, start_date=None)` handles one tier at a time. The admin action can call it for each tier in the season.
 
-1. Read standings for `(season, tier)` → top `season.playoff_qualifiers_count` players in that tier
+1. Read standings for `(season, tier)` → top N players, where N = `tier.playoff_qualifiers_count` if set, else `season.playoff_qualifiers_count`
 2. Determine bracket size (next power of 2 ≥ qualifier count)
 3. Standard tennis bracket seeding for 16-draw:
    - Position 1: seed 1 vs seed 16
@@ -451,10 +454,11 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
    - Position 6: seed 6 vs seed 11
    - Position 7: seed 7 vs seed 10
    - Position 8: seed 2 vs seed 15
-4. Create `Match` objects (round=`r16` or appropriate, status=`scheduled`, tier=tier)
+4. Create `Match` objects (round=`r16` or appropriate, status=`scheduled`, tier=tier). If `start_date` is given, round 1 gets that date and each subsequent round is `season.playoff_interval_days` later.
 5. Create `PlayoffBracket` (with `tier` field) + `PlayoffSlot` objects with correct `next_slot` links
-6. When a playoff match completes: a post-save signal (or explicit view logic)
-   sets the winner as `player1` or `player2` in the next round's `Match`
+6. When a playoff match completes: a post-save signal sets the winner as `player1` or `player2` in the next round's `Match`
+
+The admin generate-playoffs page includes an optional start date field. Leaving it blank generates the bracket draw without scheduling any match dates.
 
 ---
 

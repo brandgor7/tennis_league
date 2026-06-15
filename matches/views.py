@@ -76,7 +76,8 @@ class MatchupsView(TemplateView):
         season = get_object_or_404(Season.objects.prefetch_related('tiers'), slug=self.kwargs['slug'])
         qs = (
             Match.objects
-            .filter(season=season, status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED, Match.STATUS_PENDING])
+            .filter(season=season, status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED, Match.STATUS_PENDING],
+                    player1__isnull=False, player2__isnull=False)
             .select_related('player1', 'player2', 'winner')
             .order_by(F('scheduled_date').desc(nulls_last=True), '-created_at')
         )
@@ -84,19 +85,22 @@ class MatchupsView(TemplateView):
         today = datetime.date.today()
         mode = season.schedule_display_mode
         if mode == Season.DISPLAY_CURRENT_DAY:
-            qs = qs.filter(
-                Q(scheduled_date__isnull=True) | Q(scheduled_date__lte=today)
-            )
+            date_q = Q(scheduled_date__isnull=True) | Q(scheduled_date__lte=today)
         elif mode == Season.DISPLAY_CURRENT_WEEK:
             week_end = today + datetime.timedelta(days=6 - today.weekday())
-            qs = qs.filter(
-                Q(scheduled_date__isnull=True) | Q(scheduled_date__lte=week_end)
-            )
+            date_q = Q(scheduled_date__isnull=True) | Q(scheduled_date__lte=week_end)
         elif mode == Season.DISPLAY_NEXT_X_DAYS:
             cutoff = today + datetime.timedelta(days=season.schedule_display_days)
-            qs = qs.filter(
-                Q(scheduled_date__isnull=True) | Q(scheduled_date__lte=cutoff)
-            )
+            date_q = Q(scheduled_date__isnull=True) | Q(scheduled_date__lte=cutoff)
+        else:
+            date_q = None
+
+        regular_q = Q(round=Match.ROUND_REGULAR)
+        playoff_q = ~Q(round=Match.ROUND_REGULAR) & Q(scheduled_date__isnull=False)
+        if date_q:
+            qs = qs.filter(regular_q & date_q | playoff_q)
+        else:
+            qs = qs.filter(regular_q | playoff_q)
 
         multi_tier = season.num_tiers > 1
         tiers = [

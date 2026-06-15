@@ -11,6 +11,8 @@
   --clay-light:   #EDCFBF;
   --forest:       #1B3D2B;
   --forest-mid:   #2D5C42;
+  --forest-light:   #E8F0EB;
+  --forest-lighter: #EFF5F1;
   --cream:        #F7F3EB;
   --sand:         #EDE5D3;
   --charcoal:     #1A1A18;
@@ -380,6 +382,7 @@ h1, h2, h3, .font-serif {
 .status-walkover          { background: #FDF0E4; color: #7A3A10; }
 .status-postponed         { background: #F0EDE8; color: #5C4A2A; }
 .status-cancelled         { background: #F4EDED; color: #5C2A2A; }
+.status-playoffs          { background: #EDE8F4; color: #4A2A7A; }
 .status-upcoming          { background: #EDE8F5; color: #3A1A7A; }
 .status-active            { background: #E4F4EC; color: #1A5C34; }
 

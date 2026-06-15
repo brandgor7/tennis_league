@@ -39,15 +39,35 @@
 
   <form method="post">
     {% csrf_token %}
+    <fieldset style="margin-bottom: 1.5rem; padding: 1rem; border: 1px solid #ddd; border-radius: 4px;">
+      <legend style="font-size: 0.9rem; font-weight: 600; width: auto; padding: 0 0.4rem;">Scheduling (optional)</legend>
+      <p style="color: #666; font-size: 0.85rem; margin-bottom: 0.75rem;">
+        Set a start date to assign scheduled dates to each round.
+        Rounds will be spaced <strong>{{ interval_days }} day{{ interval_days|pluralize }}</strong> apart
+        (configurable in the season's Playoffs settings).
+        Leave blank to generate the bracket draw without scheduling any dates.
+      </p>
+
+      {% if date_error %}
+      <p style="color: #ba2121;">{{ date_error }}</p>
+      {% endif %}
+
+      <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <label for="start_date" style="font-weight: 500; white-space: nowrap;">First round date:</label>
+        <input type="date" id="start_date" name="start_date" value="{{ start_date_val }}"
+               style="padding: 0.3rem 0.5rem; border: 1px solid #ccc; border-radius: 3px;">
+      </div>
+    </fieldset>
+
     <button type="submit" class="button default" onclick="this.disabled=true;this.form.submit();">
       Generate Bracket
     </button>
-    <a href="../../../" class="button cancel-link" style="margin-left: 0.75rem;">Cancel</a>
+    <a href="{{ back_url }}" class="button cancel-link" style="margin-left: 0.75rem;">Cancel</a>
   </form>
   {% endif %}
 
   {% if existing_bracket or bracket_size == 0 %}
-  <p style="margin-top: 1rem;"><a href="../../../">&lsaquo; Back to season</a></p>
+  <p style="margin-top: 1rem;"><a href="{{ back_url }}">&lsaquo; Back to season</a></p>
   {% endif %}
 </div>
 {% endblock %}

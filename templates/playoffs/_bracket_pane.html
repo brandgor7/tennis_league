@@ -1,0 +1,87 @@
+{% if not td.rounds_data %}
+<p class="text-muted">Bracket not yet available.</p>
+
+{% else %}
+
+{% if td.is_preview %}
+<div class="d-flex align-items-center gap-2 mb-3">
+  <span class="badge bg-secondary">Preview</span>
+  <span class="text-muted small">Projected bracket based on current standings.</span>
+</div>
+{% endif %}
+
+<p class="d-md-none text-muted small mb-2">
+  <i class="bi bi-arrow-left-right me-1"></i>Scroll sideways to see all rounds
+</p>
+
+<div class="bracket-scroll">
+  <div class="bracket-rounds-header" style="grid-template-columns: repeat({{ td.num_rounds }}, 200px);">
+    {% for round in td.rounds_data %}
+    <div class="bracket-round-label">{{ round.label }}</div>
+    {% endfor %}
+  </div>
+
+  <div class="bracket-grid"
+       style="grid-template-rows: repeat({{ td.bracket_size }}, 52px); grid-template-columns: repeat({{ td.num_rounds }}, 200px);">
+    {% for round in td.rounds_data %}
+      {% for slot in round.slots %}
+      {% with match=slot.match %}
+      <div class="bracket-match {{ slot.connector_class }}{% if slot.has_incoming %} bracket-incoming{% endif %}"
+           style="grid-row: {{ slot.grid_row_start }} / {{ slot.grid_row_end }}; grid-column: {{ round.col_index }};{% if slot.v_connector_px %} --v-h: {{ slot.v_connector_px }}px;{% endif %}">
+        {% if match.pk %}
+        <a href="{% url 'matches:match_detail' current_season.slug match.pk %}" class="bracket-card text-decoration-none text-reset">
+        {% else %}
+        <div class="bracket-card">
+        {% endif %}
+
+          {# Player 1 row #}
+          {% if match.player1 %}
+          <div class="bracket-player{% if match.winner_id == match.player1_id %} is-winner{% elif match.winner_id %} is-loser{% endif %}">
+            {% if slot.player1_seed %}<span class="bracket-seed">{{ slot.player1_seed }}</span>{% endif %}
+            <span class="bracket-player-name">
+              <span class="bracket-full-name">{{ match.player1.get_full_name|default:match.player1.username }}</span>
+              <span class="bracket-short-name">{% if match.player1.first_name %}{{ match.player1.first_name|first }}.&nbsp;{% endif %}{{ match.player1.last_name|default:match.player1.username }}</span>
+            </span>
+            {% if match.status == 'completed' %}
+            <span class="bracket-player-score">{% for s in match.sets.all %}{{ s.player1_games }}{% if not forloop.last %}&thinsp;{% endif %}{% endfor %}</span>
+            {% elif match.status == 'walkover' and match.winner_id == match.player1_id %}
+            <span class="bracket-player-score">W/O</span>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="bracket-player"><span class="bracket-tbd">{% if slot.is_bye %}Bye{% else %}TBD{% endif %}</span></div>
+          {% endif %}
+
+          {# Player 2 row #}
+          {% if match.player2 %}
+          <div class="bracket-player{% if match.winner_id == match.player2_id %} is-winner{% elif match.winner_id %} is-loser{% endif %}">
+            {% if slot.player2_seed %}<span class="bracket-seed">{{ slot.player2_seed }}</span>{% endif %}
+            <span class="bracket-player-name">
+              <span class="bracket-full-name">{{ match.player2.get_full_name|default:match.player2.username }}</span>
+              <span class="bracket-short-name">{% if match.player2.first_name %}{{ match.player2.first_name|first }}.&nbsp;{% endif %}{{ match.player2.last_name|default:match.player2.username }}</span>
+            </span>
+            {% if match.status == 'completed' %}
+            <span class="bracket-player-score">{% for s in match.sets.all %}{{ s.player2_games }}{% if not forloop.last %}&thinsp;{% endif %}{% endfor %}</span>
+            {% elif match.status == 'walkover' and match.winner_id == match.player2_id %}
+            <span class="bracket-player-score">W/O</span>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="bracket-player"><span class="bracket-tbd">{% if slot.is_bye %}Bye{% else %}TBD{% endif %}</span></div>
+          {% endif %}
+
+        {% if match.pk %}</a>{% else %}</div>{% endif %}
+      </div>
+      {% endwith %}
+      {% endfor %}
+    {% endfor %}
+  </div>
+</div>
+
+{% if not td.is_preview %}
+<p class="text-muted mt-4" style="font-size: 0.8rem;">
+  Generated on {{ td.bracket.generated_at|date:"N j, Y" }}
+</p>
+{% endif %}
+
+{% endif %}

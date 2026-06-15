@@ -97,7 +97,7 @@
             <a class="nav-link {% block nav_results %}{% endblock %}"
                href="{% url 'leagues:results' current_season.slug %}">Results</a>
           </li>
-          {% if current_season.playoffs_enabled %}
+          {% if current_season.playoffs_enabled and current_season.playoffs_public or current_season.playoffs_enabled and user.is_staff %}
           <li class="nav-item">
               <a class="nav-link {% block nav_playoffs %}{% endblock %}"
                href="{% url 'leagues:playoffs' current_season.slug %}">Playoffs</a>

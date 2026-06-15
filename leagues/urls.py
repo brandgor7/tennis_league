@@ -1,9 +1,10 @@
+from django.shortcuts import redirect
 from django.urls import path
 
 from . import views
 from standings.views import StandingsView
 from matches.views import MatchupsView, ResultsView
-from playoffs.views import PlayoffListView, PlayoffBracketView
+from playoffs.views import PlayoffView
 
 app_name = 'leagues'
 
@@ -14,7 +15,9 @@ urlpatterns = [
     path('seasons/<slug:slug>/standings/', StandingsView.as_view(), name='standings'),
     path('seasons/<slug:slug>/matchups/', MatchupsView.as_view(), name='matchups'),
     path('seasons/<slug:slug>/results/', ResultsView.as_view(), name='results'),
-    path('seasons/<slug:slug>/playoffs/', PlayoffListView.as_view(), name='playoffs'),
-    path('seasons/<slug:slug>/playoffs/<int:tier>/', PlayoffBracketView.as_view(), name='playoffs_tier'),
+    path('seasons/<slug:slug>/playoffs/', PlayoffView.as_view(), name='playoffs'),
+    path('seasons/<slug:slug>/playoffs/<int:tier>/',
+         lambda request, slug, tier: redirect('leagues:playoffs', slug=slug),
+         name='playoffs_tier'),
     path('seasons/<slug:slug>/players/<str:username>/', views.SeasonPlayerDetailView.as_view(), name='player_detail'),
 ]

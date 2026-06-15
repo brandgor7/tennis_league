@@ -17,6 +17,7 @@
         <small class="text-muted">TBD</small>
         {% endif %}
         <span class="status-badge status-{{ match.status }}">{{ match.get_status_display }}</span>
+        {% if match.round != 'regular' %}<span class="status-badge status-playoffs">Playoffs</span>{% endif %}
         {% if match.winner %}
         <small class="text-muted">
           Won: <a href="{% url 'leagues:player_detail' current_season.slug match.winner.username %}" class="text-reset text-decoration-none">{{ match.winner.get_full_name|default:match.winner.username }}</a>
@@ -51,7 +52,10 @@
           <td class="text-muted">
             {% if match.scheduled_date %}{{ match.scheduled_date }}{% else %}TBD{% endif %}
           </td>
-          <td><span class="status-badge status-{{ match.status }}">{{ match.get_status_display }}</span></td>
+          <td>
+            <span class="status-badge status-{{ match.status }}">{{ match.get_status_display }}</span>
+            {% if match.round != 'regular' %}<span class="status-badge status-playoffs ms-1">Playoffs</span>{% endif %}
+          </td>
           {% if show_tier %}<td class="text-center">{{ match.tier }}</td>{% endif %}
           <td class="text-end">
             <a href="{% url 'matches:match_detail' current_season.slug match.pk %}" class="btn btn-sm btn-outline-primary">View</a>
