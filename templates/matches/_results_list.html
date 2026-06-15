@@ -44,6 +44,7 @@
         <small class="text-muted">{{ match.played_date }}</small>
         {% endif %}
         <span class="status-badge status-{{ match.status }}">{{ match.get_status_display }}</span>
+        {% if match.round != 'regular' %}<span class="status-badge status-playoffs">Playoffs</span>{% endif %}
         <a href="{% url 'matches:match_detail' current_season.slug match.pk %}" class="ms-auto text-muted" style="font-size:0.8rem; text-decoration:none; white-space:nowrap;">Details →</a>
       </div>
 
@@ -93,6 +94,7 @@
           </td>
           <td>
             <span class="status-badge status-{{ match.status }}">{{ match.get_status_display }}</span>
+            {% if match.round != 'regular' %}<span class="status-badge status-playoffs ms-1">Playoffs</span>{% endif %}
           </td>
           <td class="text-end">
             <a href="{% url 'matches:match_detail' current_season.slug match.pk %}" class="btn btn-sm btn-outline-primary">View</a>

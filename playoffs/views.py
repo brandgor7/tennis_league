@@ -201,7 +201,7 @@ class PlayoffView(TemplateView):
             if is_playoffs and bracket:
                 rounds_data, bracket_size = _bracket_context(bracket)
                 is_preview = False
-            elif not is_playoffs and season.playoffs_enabled:
+            elif season.playoffs_enabled:
                 rounds_data, bracket_size = _preview_context(season, t)
                 is_preview = True
                 bracket = None

@@ -19,7 +19,7 @@ from matches.models import Match, MatchSet
 from matches.bulk_result_parser import parse_whatsapp_messages, resolve_results
 from matches.scheduler import existing_pairs, generate_schedule, remaining_rounds_count
 from matches.views import _audit_match
-from playoffs.generator import generate_bracket
+from playoffs.generator import bracket_size_for, generate_bracket
 from playoffs.models import PlayoffBracket
 from standings.calculator import calculate_standings
 
@@ -39,11 +39,15 @@ class TierInline(admin.TabularInline):
             return
 
         if obj.is_playoffs:
-            try:
-                generate_bracket(obj.season, obj.number, request.user)
-                messages.success(request, f'{obj.name} playoff bracket generated.')
-            except ValueError as e:
-                messages.warning(request, str(e))
+            generate_url = reverse('admin:leagues_season_generate_bracket', args=[obj.season_id, obj.number])
+            messages.info(
+                request,
+                format_html(
+                    '{} is now in playoff mode. <a href="{}">Generate the bracket</a> to lock in seedings.',
+                    obj.name,
+                    generate_url,
+                ),
+            )
         else:
             bracket = PlayoffBracket.objects.filter(season=obj.season, tier=obj.number).first()
             if bracket:
@@ -178,6 +182,11 @@ class SeasonAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.bulk_results_opponents_view),
                 name='leagues_season_bulk_results_opponents',
             ),
+            path(
+                '<int:season_id>/generate-bracket/<int:tier_num>/',
+                self.admin_site.admin_view(self.generate_bracket_view),
+                name='leagues_season_generate_bracket',
+            ),
         ]
         return custom + urls
 
@@ -195,7 +204,71 @@ class SeasonAdmin(admin.ModelAdmin):
         extra_context['bulk_results_url'] = reverse(
             'admin:leagues_season_bulk_results', args=[object_id]
         )
+        season = get_object_or_404(Season.objects.prefetch_related('tiers'), pk=object_id)
+        if season.playoffs_enabled:
+            extra_context['generate_bracket_urls'] = [
+                {
+                    'tier_name': season.tier_name(t),
+                    'url': reverse('admin:leagues_season_generate_bracket', args=[object_id, t]),
+                }
+                for t in range(1, season.num_tiers + 1)
+            ]
         return super().change_view(request, object_id, form_url, extra_context)
+
+    def generate_bracket_view(self, request, season_id, tier_num):
+        season = get_object_or_404(Season.objects.prefetch_related('tiers'), pk=season_id)
+        tier_obj = season.tiers.filter(number=tier_num).first()
+        tier_name = season.tier_name(tier_num)
+        back_url = reverse('admin:leagues_season_change', args=[season_id])
+
+        qualifiers_count = (
+            tier_obj.playoff_qualifiers_count
+            if tier_obj and tier_obj.playoff_qualifiers_count is not None
+            else season.playoff_qualifiers_count
+        )
+        standings = calculate_standings(season, tier_num)
+        max_q = min(qualifiers_count, len(standings))
+        bracket_size = bracket_size_for(max_q)
+        qualifiers = standings[:max_q]
+
+        existing_bracket = PlayoffBracket.objects.filter(season=season, tier=tier_num).first()
+
+        date_error = None
+        start_date_val = ''
+
+        if request.method == 'POST' and not existing_bracket and bracket_size >= 2:
+            start_date_val = request.POST.get('start_date', '').strip()
+            start_date = None
+            if start_date_val:
+                try:
+                    start_date = datetime.date.fromisoformat(start_date_val)
+                except ValueError:
+                    date_error = 'Please enter a valid date.'
+
+            if not date_error:
+                with transaction.atomic():
+                    generate_bracket(season, tier_num, request.user, start_date)
+                    if tier_obj and not tier_obj.is_playoffs:
+                        tier_obj.is_playoffs = True
+                        tier_obj.save(update_fields=['is_playoffs'])
+                messages.success(request, f'{tier_name} playoff bracket generated.')
+                return HttpResponseRedirect(back_url)
+
+        context = {
+            **self.admin_site.each_context(request),
+            'season': season,
+            'tier_num': tier_num,
+            'tier_name': tier_name,
+            'qualifiers': qualifiers,
+            'bracket_size': bracket_size,
+            'existing_bracket': existing_bracket,
+            'interval_days': season.playoff_interval_days,
+            'date_error': date_error,
+            'start_date_val': start_date_val,
+            'back_url': back_url,
+            'title': f'Generate Playoff Bracket — {season} ({tier_name})',
+        }
+        return render(request, 'playoffs/generate_playoffs.html', context)
 
     def generate_schedule_view(self, request, season_id):
         season = get_object_or_404(Season.objects.prefetch_related('tiers'), pk=season_id)

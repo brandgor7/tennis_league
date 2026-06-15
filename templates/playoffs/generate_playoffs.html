@@ -62,12 +62,12 @@
     <button type="submit" class="button default" onclick="this.disabled=true;this.form.submit();">
       Generate Bracket
     </button>
-    <a href="../../../" class="button cancel-link" style="margin-left: 0.75rem;">Cancel</a>
+    <a href="{{ back_url }}" class="button cancel-link" style="margin-left: 0.75rem;">Cancel</a>
   </form>
   {% endif %}
 
   {% if existing_bracket or bracket_size == 0 %}
-  <p style="margin-top: 1rem;"><a href="../../../">&lsaquo; Back to season</a></p>
+  <p style="margin-top: 1rem;"><a href="{{ back_url }}">&lsaquo; Back to season</a></p>
   {% endif %}
 </div>
 {% endblock %}

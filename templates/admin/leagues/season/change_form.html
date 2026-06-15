@@ -22,4 +22,9 @@
     <a href="{{ bulk_results_url }}" class="historylink">Bulk Add Results</a>
   </li>
   {% endif %}
+  {% for b in generate_bracket_urls %}
+  <li>
+    <a href="{{ b.url }}" class="historylink">Generate Bracket{% if generate_bracket_urls|length > 1 %}: {{ b.tier_name }}{% endif %}</a>
+  </li>
+  {% endfor %}
 {% endblock %}

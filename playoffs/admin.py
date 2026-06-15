@@ -11,7 +11,7 @@ class PlayoffSlotInline(admin.TabularInline):
 
 @admin.register(PlayoffBracket)
 class PlayoffBracketAdmin(admin.ModelAdmin):
-    list_display = ('season', 'generated_at', 'generated_by')
+    list_display = ('season', 'tier', 'generated_at', 'generated_by')
     list_filter = ('season',)
     search_fields = ('season__name',)
     inlines = [PlayoffSlotInline]
