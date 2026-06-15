@@ -2,8 +2,6 @@ import types
 
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
-from django.utils.decorators import method_decorator
-from django.contrib.auth.decorators import login_required
 from django.views.generic import TemplateView
 
 from leagues.models import Season
@@ -173,13 +171,13 @@ def _preview_context(season, tier_num):
     return rounds_data, bracket_size
 
 
-@method_decorator(login_required, name='dispatch')
 class PlayoffView(TemplateView):
     template_name = 'playoffs/bracket.html'
 
     def get(self, request, *args, **kwargs):
         season = get_object_or_404(Season, slug=kwargs['slug'])
-        if not season.playoffs_public and not request.user.is_staff:
+        is_staff = request.user.is_authenticated and request.user.is_staff
+        if not season.playoffs_public and not is_staff:
             raise PermissionDenied
         return super().get(request, *args, **kwargs)
 
