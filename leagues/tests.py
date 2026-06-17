@@ -2553,3 +2553,162 @@ class TeamModelTest(TestCase):
     def test_teams_related_name_on_user(self):
         team = make_team(self.season, members=[self.alice])
         self.assertIn(team, self.alice.teams.all())
+
+
+# ─── Data migration tests ─────────────────────────────────────────────────────
+
+class DataMigrationTest(TestCase):
+    """
+    Tests for the step-4 data migration logic (_migrate_data).
+    The helper is called with real model classes instead of historical ones.
+    """
+
+    def setUp(self):
+        import importlib
+        mod = importlib.import_module('leagues.migrations.0023_create_teams_from_season_players')
+        self._run = mod._migrate_data
+        self.season = Season.objects.create(name='Spring', year=2025)
+        self.p1 = User.objects.create_user(username='mig_p1', first_name='Alice', last_name='Smith')
+        self.p2 = User.objects.create_user(username='mig_p2', first_name='Bob', last_name='Jones')
+
+    def _enroll(self, player, tier=1, seed=None, is_active=True):
+        return SeasonPlayer.objects.create(
+            season=self.season, player=player, tier=tier, seed=seed, is_active=is_active,
+        )
+
+    def _match(self, p1, p2, winner=None, **kwargs):
+        return Match.objects.create(
+            season=self.season, player1=p1, player2=p2, winner=winner,
+            tier=1, status=Match.STATUS_SCHEDULED if not winner else Match.STATUS_COMPLETED,
+            **kwargs,
+        )
+
+    def _run_migration(self):
+        self._run(SeasonPlayer, Team, Match)
+
+    # ── Pass 1: Team creation ─────────────────────────────────────────────────
+
+    def test_creates_one_team_per_season_player(self):
+        self._enroll(self.p1)
+        self._enroll(self.p2)
+        self._run_migration()
+        self.assertEqual(Team.objects.count(), 2)
+
+    def test_team_has_correct_season(self):
+        self._enroll(self.p1)
+        self._run_migration()
+        team = Team.objects.get()
+        self.assertEqual(team.season, self.season)
+
+    def test_team_has_correct_tier(self):
+        self._enroll(self.p1, tier=2)
+        self._run_migration()
+        self.assertEqual(Team.objects.get().tier, 2)
+
+    def test_team_has_correct_seed(self):
+        self._enroll(self.p1, seed=3)
+        self._run_migration()
+        self.assertEqual(Team.objects.get().seed, 3)
+
+    def test_team_inherits_is_active_false(self):
+        self._enroll(self.p1, is_active=False)
+        self._run_migration()
+        self.assertFalse(Team.objects.get().is_active)
+
+    def test_team_has_exactly_one_member(self):
+        self._enroll(self.p1)
+        self._run_migration()
+        self.assertEqual(Team.objects.get().members.count(), 1)
+
+    def test_team_member_is_correct_player(self):
+        self._enroll(self.p1)
+        self._run_migration()
+        self.assertIn(self.p1, Team.objects.get().members.all())
+
+    def test_no_teams_created_without_season_players(self):
+        self._run_migration()
+        self.assertEqual(Team.objects.count(), 0)
+
+    def test_teams_created_across_multiple_seasons(self):
+        other = Season.objects.create(name='Fall', year=2025)
+        self._enroll(self.p1)
+        SeasonPlayer.objects.create(season=other, player=self.p2, tier=1)
+        self._run_migration()
+        self.assertEqual(Team.objects.count(), 2)
+        self.assertEqual(Team.objects.filter(season=self.season).count(), 1)
+        self.assertEqual(Team.objects.filter(season=other).count(), 1)
+
+    # ── Pass 2: Match team FK population ─────────────────────────────────────
+
+    def test_match_team1_set_from_player1(self):
+        self._enroll(self.p1)
+        self._enroll(self.p2)
+        m = self._match(self.p1, self.p2)
+        self._run_migration()
+        m.refresh_from_db()
+        self.assertIsNotNone(m.team1)
+        self.assertIn(self.p1, m.team1.members.all())
+
+    def test_match_team2_set_from_player2(self):
+        self._enroll(self.p1)
+        self._enroll(self.p2)
+        m = self._match(self.p1, self.p2)
+        self._run_migration()
+        m.refresh_from_db()
+        self.assertIsNotNone(m.team2)
+        self.assertIn(self.p2, m.team2.members.all())
+
+    def test_match_winning_team_set_from_winner(self):
+        self._enroll(self.p1)
+        self._enroll(self.p2)
+        m = self._match(self.p1, self.p2, winner=self.p1)
+        self._run_migration()
+        m.refresh_from_db()
+        self.assertIsNotNone(m.winning_team)
+        self.assertIn(self.p1, m.winning_team.members.all())
+
+    def test_match_without_winner_leaves_winning_team_null(self):
+        self._enroll(self.p1)
+        self._enroll(self.p2)
+        m = self._match(self.p1, self.p2)
+        self._run_migration()
+        m.refresh_from_db()
+        self.assertIsNone(m.winning_team)
+
+    def test_match_without_player1_skipped(self):
+        m = Match.objects.create(
+            season=self.season, player1=None, player2=None,
+            tier=1, status=Match.STATUS_SCHEDULED,
+        )
+        self._run_migration()
+        m.refresh_from_db()
+        self.assertIsNone(m.team1)
+        self.assertIsNone(m.team2)
+
+    def test_match_player_not_enrolled_leaves_team_null(self):
+        # p1 is in the match but has no SeasonPlayer — team1 stays null
+        self._enroll(self.p2)
+        m = self._match(self.p1, self.p2)
+        self._run_migration()
+        m.refresh_from_db()
+        self.assertIsNone(m.team1)
+        self.assertIsNotNone(m.team2)
+
+    def test_multiple_matches_all_populated(self):
+        self._enroll(self.p1)
+        self._enroll(self.p2)
+        m1 = self._match(self.p1, self.p2)
+        m2 = self._match(self.p2, self.p1)
+        self._run_migration()
+        m1.refresh_from_db()
+        m2.refresh_from_db()
+        self.assertIsNotNone(m1.team1)
+        self.assertIsNotNone(m2.team1)
+
+    def test_team1_and_team2_are_different_objects(self):
+        self._enroll(self.p1)
+        self._enroll(self.p2)
+        m = self._match(self.p1, self.p2)
+        self._run_migration()
+        m.refresh_from_db()
+        self.assertNotEqual(m.team1_id, m.team2_id)
