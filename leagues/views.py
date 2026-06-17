@@ -6,7 +6,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.generic import ListView, DetailView, TemplateView, View
 
-from .models import Season, SeasonPlayer
+from .models import Season, SeasonPlayer, Team
 
 User = get_user_model()
 from matches.models import Match
@@ -45,14 +45,16 @@ class SeasonPlayerDetailView(View):
         season_player = get_object_or_404(SeasonPlayer, season=season, player=player, is_active=True)
 
         tier = season_player.tier
+        team = Team.objects.filter(season=season, tier=tier, members=player).first()
         standings_rows = calculate_standings(season, tier)
         standing = None
         rank = None
-        for i, row in enumerate(standings_rows, start=1):
-            if row['player'].pk == player.pk:
-                standing = row
-                rank = i
-                break
+        if team:
+            for i, row in enumerate(standings_rows, start=1):
+                if row['participant'].pk == team.pk:
+                    standing = row
+                    rank = i
+                    break
 
         upcoming = (
             Match.objects

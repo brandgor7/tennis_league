@@ -73,7 +73,7 @@ def generate_bracket(season, tier, generated_by, start_date=None):
         raise ValueError('Not enough players to generate a bracket (minimum 2 required).')
 
     bracket_size = bracket_size_for(max_qualifiers)
-    qualifiers = [row['player'] for row in standings[:max_qualifiers]]
+    qualifiers = [row['participant'].members.first() for row in standings[:max_qualifiers]]
 
     first_round_code = _ROUND_FOR_SIZE[bracket_size]
     first_round_idx = _ROUND_SEQUENCE.index(first_round_code)

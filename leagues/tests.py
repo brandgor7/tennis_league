@@ -52,7 +52,9 @@ def make_player(username, first='', last=''):
 
 
 def enroll(season, player, tier=1, is_active=True):
-    return SeasonPlayer.objects.create(season=season, player=player, tier=tier, is_active=is_active)
+    SeasonPlayer.objects.create(season=season, player=player, tier=tier, is_active=is_active)
+    team = Team.objects.create(season=season, tier=tier, is_active=is_active)
+    team.members.add(player)
 
 
 # ─── Model tests ─────────────────────────────────────────────────────────────
@@ -475,10 +477,14 @@ class SeasonPlayerDetailViewTest(TestCase):
         })
 
     def _make_match(self, p1, p2, status, winner=None, tier=1):
+        t1 = Team.objects.filter(season=self.season, tier=tier, members=p1).first()
+        t2 = Team.objects.filter(season=self.season, tier=tier, members=p2).first()
+        tw = Team.objects.filter(season=self.season, tier=tier, members=winner).first() if winner else None
         return Match.objects.create(
             season=self.season, player1=p1, player2=p2,
             tier=tier, status=status, winner=winner,
             scheduled_date=datetime.date(2025, 6, 1),
+            team1=t1, team2=t2, winning_team=tw,
         )
 
     def test_200_for_valid_player_in_season(self):
@@ -554,9 +560,12 @@ class SeasonPlayerDetailViewTest(TestCase):
     def test_standing_reflects_completed_match_win(self):
         opponent = make_player('opponent')
         enroll(self.season, opponent, tier=1)
+        t_player = Team.objects.filter(season=self.season, tier=1, members=self.player).first()
+        t_opponent = Team.objects.filter(season=self.season, tier=1, members=opponent).first()
         Match.objects.create(
             season=self.season, player1=self.player, player2=opponent,
             tier=1, status=Match.STATUS_COMPLETED, winner=self.player,
+            team1=t_player, team2=t_opponent, winning_team=t_player,
         )
         response = self.client.get(self.url)
         standing = response.context['standing']
@@ -570,10 +579,13 @@ class SeasonPlayerDetailViewTest(TestCase):
     def test_rank_reflects_position_among_multiple_players(self):
         leader = make_player('leader')
         enroll(self.season, leader, tier=1)
+        t_leader = Team.objects.filter(season=self.season, tier=1, members=leader).first()
+        t_player = Team.objects.filter(season=self.season, tier=1, members=self.player).first()
         # leader beats self.player → leader is rank 1, self.player rank 2
         Match.objects.create(
             season=self.season, player1=leader, player2=self.player,
             tier=1, status=Match.STATUS_COMPLETED, winner=leader,
+            team1=t_leader, team2=t_player, winning_team=t_leader,
         )
         response = self.client.get(self.url)
         self.assertEqual(response.context['rank'], 2)

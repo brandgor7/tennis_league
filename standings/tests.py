@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from leagues.models import Season, SeasonPlayer, Tier
+from leagues.models import Season, SeasonPlayer, Team, Tier
 from matches.models import Match, MatchSet
 from .calculator import calculate_standings
 
@@ -31,22 +31,25 @@ def make_player(username, first='', last=''):
 
 
 def enroll(season, player, tier=1, is_active=True):
-    return SeasonPlayer.objects.create(
-        season=season, player=player, tier=tier, is_active=is_active
-    )
+    SeasonPlayer.objects.create(season=season, player=player, tier=tier, is_active=is_active)
+    team = Team.objects.create(season=season, tier=tier, is_active=is_active)
+    team.members.add(player)
 
 
 def completed_match(season, p1, p2, winner, tier=1, sets=None):
-    """Create a completed Match with MatchSet records."""
+    """Create a completed Match with MatchSet records and team FKs."""
+    team1 = Team.objects.filter(season=season, tier=tier, members=p1).first()
+    team2 = Team.objects.filter(season=season, tier=tier, members=p2).first()
+    winning_team = Team.objects.filter(season=season, tier=tier, members=winner).first() if winner else None
     match = Match.objects.create(
         season=season,
         player1=p1, player2=p2,
         tier=tier,
         status=Match.STATUS_COMPLETED,
         winner=winner,
+        team1=team1, team2=team2, winning_team=winning_team,
     )
     if sets is None:
-        # Default: winner takes 6-4, 6-4
         if winner == p1:
             sets = [(6, 4), (6, 4)]
         else:
@@ -60,14 +63,33 @@ def completed_match(season, p1, p2, winner, tier=1, sets=None):
 
 
 def walkover_match(season, p1, p2, winner, tier=1):
-    """Create a walkover Match (no sets)."""
+    """Create a walkover Match (no sets) with team FKs."""
+    team1 = Team.objects.filter(season=season, tier=tier, members=p1).first()
+    team2 = Team.objects.filter(season=season, tier=tier, members=p2).first()
+    winning_team = Team.objects.filter(season=season, tier=tier, members=winner).first() if winner else None
     return Match.objects.create(
         season=season,
         player1=p1, player2=p2,
         tier=tier,
         status=Match.STATUS_WALKOVER,
         winner=winner,
+        team1=team1, team2=team2, winning_team=winning_team,
     )
+
+
+def _row_for(rows, player):
+    """Return the standings row whose Team contains the given player."""
+    return next(r for r in rows if r['participant'].members.filter(pk=player.pk).exists())
+
+
+def _pos_of(rows, player):
+    """Return the zero-based index of the row whose Team contains the given player."""
+    return next(i for i, r in enumerate(rows) if r['participant'].members.filter(pk=player.pk).exists())
+
+
+def _all_members(rows):
+    """Return a flat list of all Users across all team rows."""
+    return [m for r in rows for m in r['participant'].members.all()]
 
 
 # ─── calculator.calculate_standings tests ─────────────────────────────────────
@@ -97,9 +119,9 @@ class CalculateStandingsEmptyTest(TestCase):
         enroll(self.season, active, tier=1, is_active=True)
         enroll(self.season, inactive, tier=1, is_active=False)
         rows = calculate_standings(self.season, tier=1)
-        players = [r['player'] for r in rows]
-        self.assertIn(active, players)
-        self.assertNotIn(inactive, players)
+        members = _all_members(rows)
+        self.assertIn(active, members)
+        self.assertNotIn(inactive, members)
 
     def test_internal_tiebreaker_fields_not_in_returned_dict(self):
         p = make_player('p1')
@@ -125,13 +147,13 @@ class CalculateStandingsPointsTest(TestCase):
     def test_win_awards_points_for_win(self):
         completed_match(self.season, self.p1, self.p2, winner=self.p1)
         rows = calculate_standings(self.season, tier=1)
-        p1_row = next(r for r in rows if r['player'] == self.p1)
+        p1_row = _row_for(rows, self.p1)
         self.assertEqual(p1_row['points'], 3)
 
     def test_loss_awards_no_points_by_default(self):
         completed_match(self.season, self.p1, self.p2, winner=self.p1)
         rows = calculate_standings(self.season, tier=1)
-        p2_row = next(r for r in rows if r['player'] == self.p2)
+        p2_row = _row_for(rows, self.p2)
         self.assertEqual(p2_row['points'], 0)
 
     def test_loss_awards_points_when_configured(self):
@@ -139,7 +161,7 @@ class CalculateStandingsPointsTest(TestCase):
         self.season.save()
         completed_match(self.season, self.p1, self.p2, winner=self.p1)
         rows = calculate_standings(self.season, tier=1)
-        p2_row = next(r for r in rows if r['player'] == self.p2)
+        p2_row = _row_for(rows, self.p2)
         self.assertEqual(p2_row['points'], 1)
 
     def test_wins_and_losses_counted(self):
@@ -149,7 +171,7 @@ class CalculateStandingsPointsTest(TestCase):
         completed_match(self.season, self.p1, p3, winner=self.p1)
         completed_match(self.season, self.p2, p3, winner=self.p2)
         rows = calculate_standings(self.season, tier=1)
-        p1_row = next(r for r in rows if r['player'] == self.p1)
+        p1_row = _row_for(rows, self.p1)
         self.assertEqual(p1_row['wins'], 2)
         self.assertEqual(p1_row['losses'], 0)
 
@@ -159,7 +181,7 @@ class CalculateStandingsPointsTest(TestCase):
         completed_match(self.season, self.p1, self.p2, winner=self.p1)
         completed_match(self.season, self.p1, p3, winner=self.p1)
         rows = calculate_standings(self.season, tier=1)
-        p1_row = next(r for r in rows if r['player'] == self.p1)
+        p1_row = _row_for(rows, self.p1)
         self.assertEqual(p1_row['points'], 6)
 
 
@@ -178,19 +200,19 @@ class CalculateStandingsPDTest(TestCase):
         completed_match(self.season, self.p1, self.p2, winner=self.p1,
                         sets=[(6, 1), (6, 1)])
         rows = calculate_standings(self.season, tier=1)
-        p1_row = next(r for r in rows if r['player'] == self.p1)
+        p1_row = _row_for(rows, self.p1)
         self.assertEqual(p1_row['pd'], 10)
 
     def test_pd_negative_for_heavy_loss(self):
         completed_match(self.season, self.p1, self.p2, winner=self.p1,
                         sets=[(6, 1), (6, 1)])
         rows = calculate_standings(self.season, tier=1)
-        p2_row = next(r for r in rows if r['player'] == self.p2)
+        p2_row = _row_for(rows, self.p2)
         self.assertEqual(p2_row['pd'], -10)
 
     def test_pd_zero_with_no_matches(self):
         rows = calculate_standings(self.season, tier=1)
-        p1_row = next(r for r in rows if r['player'] == self.p1)
+        p1_row = _row_for(rows, self.p1)
         self.assertEqual(p1_row['pd'], 0)
 
     def test_pd_accumulates_across_matches(self):
@@ -202,13 +224,13 @@ class CalculateStandingsPDTest(TestCase):
         completed_match(self.season, self.p1, p3, winner=self.p1,
                         sets=[(6, 3), (6, 3)])
         rows = calculate_standings(self.season, tier=1)
-        p1_row = next(r for r in rows if r['player'] == self.p1)
+        p1_row = _row_for(rows, self.p1)
         self.assertEqual(p1_row['pd'], (6 - 4) + (6 - 4) + (6 - 3) + (6 - 3))
 
     def test_pd_zero_for_walkover(self):
         walkover_match(self.season, self.p1, self.p2, winner=self.p1)
         rows = calculate_standings(self.season, tier=1)
-        p1_row = next(r for r in rows if r['player'] == self.p1)
+        p1_row = _row_for(rows, self.p1)
         self.assertEqual(p1_row['pd'], 0)
 
     def test_pd_in_returned_dict(self):
@@ -232,14 +254,14 @@ class CalculateStandingsWalkoverTest(TestCase):
     def test_walkover_win_counts_as_win(self):
         walkover_match(self.season, self.p1, self.p2, winner=self.p1)
         rows = calculate_standings(self.season, tier=1)
-        p1_row = next(r for r in rows if r['player'] == self.p1)
+        p1_row = _row_for(rows, self.p1)
         self.assertEqual(p1_row['wins'], 1)
         self.assertEqual(p1_row['points'], 3)
 
     def test_walkover_loss_counts_as_loss_no_points(self):
         walkover_match(self.season, self.p1, self.p2, winner=self.p1)
         rows = calculate_standings(self.season, tier=1)
-        p2_row = next(r for r in rows if r['player'] == self.p2)
+        p2_row = _row_for(rows, self.p2)
         self.assertEqual(p2_row['losses'], 1)
         self.assertEqual(p2_row['points'], 0)
 
@@ -248,13 +270,13 @@ class CalculateStandingsWalkoverTest(TestCase):
         self.season.save()
         walkover_match(self.season, self.p1, self.p2, winner=self.p1)
         rows = calculate_standings(self.season, tier=1)
-        p2_row = next(r for r in rows if r['player'] == self.p2)
+        p2_row = _row_for(rows, self.p2)
         self.assertEqual(p2_row['points'], 1)
 
     def test_walkover_does_not_affect_pd(self):
         walkover_match(self.season, self.p1, self.p2, winner=self.p1)
         rows = calculate_standings(self.season, tier=1)
-        p1_row = next(r for r in rows if r['player'] == self.p1)
+        p1_row = _row_for(rows, self.p1)
         self.assertEqual(p1_row['pd'], 0)
 
 
@@ -274,10 +296,9 @@ class CalculateStandingsRankingTest(TestCase):
         completed_match(self.season, self.p1, self.p3, winner=self.p1)
         completed_match(self.season, self.p2, self.p3, winner=self.p2)
         rows = calculate_standings(self.season, tier=1)
-        players = [r['player'] for r in rows]
-        self.assertEqual(players[0], self.p1)   # 6 pts
-        self.assertEqual(players[1], self.p2)   # 3 pts
-        self.assertEqual(players[2], self.p3)   # 0 pts
+        self.assertTrue(rows[0]['participant'].members.filter(pk=self.p1.pk).exists())
+        self.assertTrue(rows[1]['participant'].members.filter(pk=self.p2.pk).exists())
+        self.assertTrue(rows[2]['participant'].members.filter(pk=self.p3.pk).exists())
 
     def test_equal_points_tiebreak_by_matches_played(self):
         """Player with more matches played at equal points ranks higher."""
@@ -291,12 +312,12 @@ class CalculateStandingsRankingTest(TestCase):
         # p2: beats p5 only → 3 pts, played=1
         completed_match(self.season, self.p2, p5, winner=self.p2)
         rows = calculate_standings(self.season, tier=1)
-        p1_row = next(r for r in rows if r['player'] == self.p1)
-        p2_row = next(r for r in rows if r['player'] == self.p2)
+        p1_row = _row_for(rows, self.p1)
+        p2_row = _row_for(rows, self.p2)
         self.assertEqual(p1_row['points'], 3)
         self.assertEqual(p2_row['points'], 3)
-        p1_pos = next(i for i, r in enumerate(rows) if r['player'] == self.p1)
-        p2_pos = next(i for i, r in enumerate(rows) if r['player'] == self.p2)
+        p1_pos = _pos_of(rows, self.p1)
+        p2_pos = _pos_of(rows, self.p2)
         self.assertLess(p1_pos, p2_pos)
 
     def test_sets_ratio_tiebreaker(self):
@@ -310,8 +331,8 @@ class CalculateStandingsRankingTest(TestCase):
         completed_match(self.season, self.p2, p4, winner=self.p2,
                         sets=[(6, 4), (3, 6), (6, 4)])
         rows = calculate_standings(self.season, tier=1)
-        p1_pos = next(i for i, r in enumerate(rows) if r['player'] == self.p1)
-        p2_pos = next(i for i, r in enumerate(rows) if r['player'] == self.p2)
+        p1_pos = _pos_of(rows, self.p1)
+        p2_pos = _pos_of(rows, self.p2)
         self.assertLess(p1_pos, p2_pos)
 
     def test_games_ratio_tiebreaker(self):
@@ -325,8 +346,8 @@ class CalculateStandingsRankingTest(TestCase):
         completed_match(self.season, self.p2, p4, winner=self.p2,
                         sets=[(7, 5), (7, 5)])
         rows = calculate_standings(self.season, tier=1)
-        p1_pos = next(i for i, r in enumerate(rows) if r['player'] == self.p1)
-        p2_pos = next(i for i, r in enumerate(rows) if r['player'] == self.p2)
+        p1_pos = _pos_of(rows, self.p1)
+        p2_pos = _pos_of(rows, self.p2)
         self.assertLess(p1_pos, p2_pos)
 
 
@@ -348,17 +369,17 @@ class CalculateStandingsTierIsolationTest(TestCase):
 
     def test_tier1_standings_excludes_tier2_players(self):
         rows = calculate_standings(self.season, tier=1)
-        players = [r['player'] for r in rows]
-        self.assertIn(self.p1, players)
-        self.assertIn(self.p2, players)
-        self.assertNotIn(self.p3, players)
-        self.assertNotIn(self.p4, players)
+        members = _all_members(rows)
+        self.assertIn(self.p1, members)
+        self.assertIn(self.p2, members)
+        self.assertNotIn(self.p3, members)
+        self.assertNotIn(self.p4, members)
 
     def test_tier2_standings_excludes_tier1_players(self):
         rows = calculate_standings(self.season, tier=2)
-        players = [r['player'] for r in rows]
-        self.assertNotIn(self.p1, players)
-        self.assertIn(self.p3, players)
+        members = _all_members(rows)
+        self.assertNotIn(self.p1, members)
+        self.assertIn(self.p3, members)
 
     def test_tier2_match_not_counted_in_tier1_standings(self):
         completed_match(self.season, self.p3, self.p4, winner=self.p3, tier=2)
@@ -379,8 +400,8 @@ class CalculateStandingsTierIsolationTest(TestCase):
         completed_match(self.season, self.p3, self.p4, winner=self.p4, tier=2)
         tier1 = calculate_standings(self.season, tier=1)
         tier2 = calculate_standings(self.season, tier=2)
-        p1_row = next(r for r in tier1 if r['player'] == self.p1)
-        p4_row = next(r for r in tier2 if r['player'] == self.p4)
+        p1_row = _row_for(tier1, self.p1)
+        p4_row = _row_for(tier2, self.p4)
         self.assertEqual(p1_row['wins'], 1)
         self.assertEqual(p4_row['wins'], 1)
 
@@ -495,7 +516,7 @@ class StandingsViewTest(TestCase):
         p = make_player('alice', first='Alice', last='Smith')
         enroll(self.season, p, tier=1)
         response = self.client.get(self.url)
-        self.assertContains(response, 'Alice Smith')
+        self.assertContains(response, 'A. Smith')
 
     def test_standings_shows_wins_losses_pts_pd_columns(self):
         enroll(self.season, make_player('p1'), tier=1)

@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 
-from leagues.models import Season, SeasonPlayer, Tier
+from leagues.models import Season, SeasonPlayer, Team, Tier
 from matches.models import Match, PLAYOFF_ROUND_CHOICES
 from .models import PlayoffBracket, PlayoffSlot
 from .generator import bracket_size_for, generate_bracket
@@ -28,6 +28,8 @@ def _make_players(n):
 def _enroll(season, players, tier=1):
     for p in players:
         SeasonPlayer.objects.create(season=season, player=p, tier=tier)
+        team = Team.objects.create(season=season, tier=tier)
+        team.members.add(p)
 
 
 def _complete_match(season, p1, p2, tier=1):
