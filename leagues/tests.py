@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.urls import reverse
 
-from .models import Season, SeasonPlayer, SiteConfig, Tier
+from .models import Season, SeasonPlayer, SiteConfig, Team, Tier
 from .forms import SeasonForm
 from .admin import SiteConfigForm
 from .templatetags.site_branding import get_site_config
@@ -2446,3 +2446,110 @@ class DeleteMatchViewTest(TestCase):
     def test_nonexistent_match_id_returns_400(self):
         resp = self.client.post(self._url(), {'match_id': 99999})
         self.assertEqual(resp.status_code, 400)
+
+
+# ─── Season team configuration field tests ───────────────────────────────────
+
+class SeasonTeamConfigTest(TestCase):
+    def test_players_per_team_defaults_to_1(self):
+        season = Season.objects.create(name='Spring', year=2025)
+        self.assertEqual(season.players_per_team, 1)
+
+    def test_use_team_name_defaults_to_false(self):
+        season = Season.objects.create(name='Spring', year=2025)
+        self.assertFalse(season.use_team_name)
+
+    def test_players_per_team_persists(self):
+        season = Season.objects.create(name='Spring', year=2025, players_per_team=2)
+        season.refresh_from_db()
+        self.assertEqual(season.players_per_team, 2)
+
+    def test_use_team_name_persists(self):
+        season = Season.objects.create(name='Spring', year=2025, use_team_name=True)
+        season.refresh_from_db()
+        self.assertTrue(season.use_team_name)
+
+
+# ─── Team model tests ─────────────────────────────────────────────────────────
+
+def make_team(season, tier=1, name='', seed=None, is_active=True, members=None):
+    team = Team.objects.create(season=season, tier=tier, name=name, seed=seed, is_active=is_active)
+    for m in (members or []):
+        team.members.add(m)
+    return team
+
+
+class TeamModelTest(TestCase):
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025, use_team_name=False)
+        self.alice = User.objects.create_user(username='alice', first_name='Alice', last_name='Smith')
+        self.bob = User.objects.create_user(username='bob', first_name='Bob', last_name='Jones')
+
+    def test_str_calls_display_name(self):
+        team = make_team(self.season, members=[self.alice])
+        self.assertEqual(str(team), team.display_name)
+
+    def test_display_name_singles_uses_initial_dot_last(self):
+        team = make_team(self.season, members=[self.alice])
+        self.assertEqual(team.display_name, 'A. Smith')
+
+    def test_display_name_doubles_joins_with_slash(self):
+        team = make_team(self.season, members=[self.alice, self.bob])
+        names = team.display_name
+        self.assertIn('/', names)
+        self.assertIn('A. Smith', names)
+        self.assertIn('B. Jones', names)
+
+    def test_display_name_uses_username_when_no_last_name(self):
+        user = User.objects.create_user(username='noname')
+        team = make_team(self.season, members=[user])
+        self.assertEqual(team.display_name, 'noname')
+
+    def test_display_name_uses_team_name_when_use_team_name_true(self):
+        self.season.use_team_name = True
+        self.season.save()
+        team = make_team(self.season, name='Aces', members=[self.alice, self.bob])
+        self.assertEqual(team.display_name, 'Aces')
+
+    def test_display_name_falls_back_to_members_when_no_name(self):
+        self.season.use_team_name = True
+        self.season.save()
+        team = make_team(self.season, name='', members=[self.alice])
+        self.assertEqual(team.display_name, 'A. Smith')
+
+    def test_display_name_falls_back_to_members_when_use_team_name_false(self):
+        team = make_team(self.season, name='Aces', members=[self.alice])
+        self.assertEqual(team.display_name, 'A. Smith')
+
+    def test_display_name_doubles_ordered_by_last_name(self):
+        self.season.use_team_name = False
+        self.season.save()
+        team = make_team(self.season, members=[self.bob, self.alice])
+        parts = team.display_name.split(' / ')
+        self.assertEqual(parts[0], 'B. Jones')
+        self.assertEqual(parts[1], 'A. Smith')
+
+    def test_is_active_defaults_to_true(self):
+        team = Team.objects.create(season=self.season)
+        self.assertTrue(team.is_active)
+
+    def test_tier_defaults_to_1(self):
+        team = Team.objects.create(season=self.season)
+        self.assertEqual(team.tier, 1)
+
+    def test_seed_nullable(self):
+        team = Team.objects.create(season=self.season)
+        self.assertIsNone(team.seed)
+
+    def test_members_many_to_many(self):
+        team = make_team(self.season, members=[self.alice, self.bob])
+        self.assertEqual(team.members.count(), 2)
+
+    def test_team_related_name_on_season(self):
+        make_team(self.season, members=[self.alice])
+        make_team(self.season, members=[self.bob])
+        self.assertEqual(self.season.teams.count(), 2)
+
+    def test_teams_related_name_on_user(self):
+        team = make_team(self.season, members=[self.alice])
+        self.assertIn(team, self.alice.teams.all())

@@ -51,6 +51,18 @@ class Match(models.Model):
     scheduled_date = models.DateField(null=True, blank=True)
     played_date = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default=STATUS_SCHEDULED)
+    team1 = models.ForeignKey(
+        'leagues.Team', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='matches_as_team1',
+    )
+    team2 = models.ForeignKey(
+        'leagues.Team', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='matches_as_team2',
+    )
+    winning_team = models.ForeignKey(
+        'leagues.Team', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='matches_won_as_team',
+    )
     winner = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='matches_won',
@@ -72,16 +84,36 @@ class Match(models.Model):
         ordering = [F('scheduled_date').asc(nulls_last=True), 'created_at']
         verbose_name_plural = 'matches'
 
+    @property
+    def side1(self):
+        return self.team1 if self.team1_id else self.player1
+
+    @property
+    def side2(self):
+        return self.team2 if self.team2_id else self.player2
+
+    @property
+    def winning_side(self):
+        return self.winning_team if self.winning_team_id else self.winner
+
     def clean(self):
         errors = {}
         if self.player1_id and self.player2_id and self.player1_id == self.player2_id:
             errors['player2'] = 'A player cannot be matched against themselves.'
         if self.winner_id and self.winner_id not in (self.player1_id, self.player2_id):
             errors['winner'] = 'Winner must be one of the two players in this match.'
+        if self.team1_id and self.team2_id and self.team1_id == self.team2_id:
+            errors['team2'] = 'A team cannot be matched against themselves.'
+        if self.winning_team_id and self.winning_team_id not in (self.team1_id, self.team2_id):
+            errors['winning_team'] = 'Winning team must be one of the two teams in this match.'
         if errors:
             raise ValidationError(errors)
 
     def __str__(self):
+        if self.team1_id or self.team2_id:
+            s1 = self.team1.display_name if self.team1_id else '?'
+            s2 = self.team2.display_name if self.team2_id else '?'
+            return f'{s1} vs {s2} ({self.season})'
         return f'{self.player1} vs {self.player2} ({self.season})'
 
 

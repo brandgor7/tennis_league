@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 
-from leagues.models import Season, SeasonPlayer, Tier
+from leagues.models import Season, SeasonPlayer, Team, Tier
 from .models import Match, MatchSet
 from .forms import MatchScheduleForm, ResultEntryForm, WalkoverForm, PostponeForm
 from .scheduler import _round_robin_rounds, existing_pairs, generate_schedule
@@ -2621,3 +2621,126 @@ class EditResultButtonVisibilityTest(TestCase):
         self.client.login(username='staff', password='pass')
         response = self.client.get(self.detail_url)
         self.assertNotContains(response, self.edit_url)
+
+
+# ─── Match team FK tests ──────────────────────────────────────────────────────
+
+def _make_team(season, tier=1, members=None):
+    team = Team.objects.create(season=season, tier=tier)
+    for m in (members or []):
+        team.members.add(m)
+    return team
+
+
+class MatchTeamFKTest(TestCase):
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025)
+        self.p1 = User.objects.create_user(username='p1', first_name='Alice', last_name='Smith')
+        self.p2 = User.objects.create_user(username='p2', first_name='Bob', last_name='Jones')
+        self.team1 = _make_team(self.season, members=[self.p1])
+        self.team2 = _make_team(self.season, members=[self.p2])
+
+    def _match(self, **kwargs):
+        return Match(season=self.season, player1=self.p1, player2=self.p2, **kwargs)
+
+    # ── FK fields default to null ─────────────────────────────────────────────
+
+    def test_team1_defaults_to_null(self):
+        m = Match.objects.create(season=self.season, player1=self.p1, player2=self.p2)
+        self.assertIsNone(m.team1)
+
+    def test_team2_defaults_to_null(self):
+        m = Match.objects.create(season=self.season, player1=self.p1, player2=self.p2)
+        self.assertIsNone(m.team2)
+
+    def test_winning_team_defaults_to_null(self):
+        m = Match.objects.create(season=self.season, player1=self.p1, player2=self.p2)
+        self.assertIsNone(m.winning_team)
+
+    # ── FK fields persist ─────────────────────────────────────────────────────
+
+    def test_team1_persists(self):
+        m = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2, team1=self.team1,
+        )
+        m.refresh_from_db()
+        self.assertEqual(m.team1, self.team1)
+
+    def test_team2_persists(self):
+        m = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2, team2=self.team2,
+        )
+        m.refresh_from_db()
+        self.assertEqual(m.team2, self.team2)
+
+    def test_winning_team_persists(self):
+        m = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            team1=self.team1, team2=self.team2, winning_team=self.team1,
+        )
+        m.refresh_from_db()
+        self.assertEqual(m.winning_team, self.team1)
+
+    # ── clean() team validation ───────────────────────────────────────────────
+
+    def test_clean_team_against_self_raises(self):
+        m = self._match(team1=self.team1, team2=self.team1)
+        with self.assertRaises(ValidationError) as ctx:
+            m.clean()
+        self.assertIn('team2', ctx.exception.message_dict)
+
+    def test_clean_winning_team_not_in_match_raises(self):
+        team3 = _make_team(self.season)
+        m = self._match(team1=self.team1, team2=self.team2, winning_team=team3)
+        with self.assertRaises(ValidationError) as ctx:
+            m.clean()
+        self.assertIn('winning_team', ctx.exception.message_dict)
+
+    def test_clean_winning_team_in_match_passes(self):
+        m = self._match(team1=self.team1, team2=self.team2, winning_team=self.team1)
+        m.clean()  # must not raise
+
+    def test_clean_no_teams_still_validates_players(self):
+        m = Match(season=self.season, player1=self.p1, player2=self.p1)
+        with self.assertRaises(ValidationError):
+            m.clean()
+
+    # ── side1 / side2 / winning_side properties ───────────────────────────────
+
+    def test_side1_returns_team_when_team1_set(self):
+        m = self._match(team1=self.team1)
+        self.assertEqual(m.side1, self.team1)
+
+    def test_side1_falls_back_to_player1_when_no_team(self):
+        m = self._match()
+        self.assertEqual(m.side1, self.p1)
+
+    def test_side2_returns_team_when_team2_set(self):
+        m = self._match(team2=self.team2)
+        self.assertEqual(m.side2, self.team2)
+
+    def test_side2_falls_back_to_player2_when_no_team(self):
+        m = self._match()
+        self.assertEqual(m.side2, self.p2)
+
+    def test_winning_side_returns_winning_team_when_set(self):
+        m = self._match(team1=self.team1, team2=self.team2, winning_team=self.team1, winner=self.p1)
+        self.assertEqual(m.winning_side, self.team1)
+
+    def test_winning_side_falls_back_to_winner_when_no_winning_team(self):
+        m = self._match(winner=self.p1)
+        self.assertEqual(m.winning_side, self.p1)
+
+    # ── __str__ uses team names when teams are set ────────────────────────────
+
+    def test_str_uses_team_display_names(self):
+        m = Match(season=self.season, team1=self.team1, team2=self.team2)
+        s = str(m)
+        self.assertIn(self.team1.display_name, s)
+        self.assertIn(self.team2.display_name, s)
+
+    def test_str_falls_back_to_player_names_without_teams(self):
+        m = Match(season=self.season, player1=self.p1, player2=self.p2)
+        s = str(m)
+        self.assertIn(str(self.p1), s)
+        self.assertIn(str(self.p2), s)

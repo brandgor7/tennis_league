@@ -14,7 +14,7 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
 from django.utils.html import format_html
 
-from .models import Season, SeasonPlayer, SiteConfig, Tier
+from .models import Season, SeasonPlayer, SiteConfig, Team, Tier
 from matches.models import Match, MatchSet
 from matches.bulk_result_parser import parse_whatsapp_messages, resolve_results
 from matches.scheduler import existing_pairs, generate_schedule, remaining_rounds_count
@@ -98,6 +98,7 @@ class SeasonAdmin(admin.ModelAdmin):
         ('Playoffs', {'fields': ('playoffs_enabled', 'playoffs_public', 'playoff_qualifiers_count', 'playoff_interval_days')}),
         ('Points', {'fields': ('points_for_win', 'points_for_loss', 'points_for_walkover_loss')}),
         ('Rules', {'fields': ('walkover_rule', 'enforce_scheduled_dates', 'postponement_deadline', 'grace_period_days')}),
+        ('Teams', {'fields': ('players_per_team', 'use_team_name')}),
         ('Rules Page', {'fields': ('show_rules', 'rules_content', 'season_markdown_hints')}),
     )
 
@@ -965,6 +966,22 @@ class SeasonPlayerAdmin(admin.ModelAdmin):
     list_filter = ('season', 'tier', 'is_active')
     search_fields = ('player__username', 'player__first_name', 'player__last_name', 'season__name')
     autocomplete_fields = ('player', 'season')
+
+
+class TeamMemberInline(admin.TabularInline):
+    model = Team.members.through
+    extra = 1
+    verbose_name = 'Member'
+    verbose_name_plural = 'Members'
+
+
+@admin.register(Team)
+class TeamAdmin(admin.ModelAdmin):
+    list_display = ('display_name', 'season', 'tier', 'seed', 'is_active', 'joined_at')
+    list_filter = ('season', 'tier')
+    search_fields = ('name', 'members__username', 'members__first_name', 'members__last_name')
+    inlines = [TeamMemberInline]
+    exclude = ('members',)
 
 
 class SiteConfigForm(forms.ModelForm):

@@ -24,6 +24,16 @@
         days.disabled = !enabled;
     }
 
+    function toggleUseTeamName() {
+        var ppt = document.getElementById('id_players_per_team');
+        var utn = document.getElementById('id_use_team_name');
+        if (!ppt || !utn) return;
+        var enabled = parseInt(ppt.value, 10) > 1;
+        var container = utn.closest('.form-row, .field-use_team_name, .field-box');
+        if (container) container.style.opacity = enabled ? '' : '0.4';
+        utn.disabled = !enabled;
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         var enforce = document.getElementById('id_enforce_scheduled_dates');
         if (enforce) {
@@ -35,6 +45,12 @@
         if (mode) {
             toggleScheduleDays();
             mode.addEventListener('change', toggleScheduleDays);
+        }
+
+        var ppt = document.getElementById('id_players_per_team');
+        if (ppt) {
+            toggleUseTeamName();
+            ppt.addEventListener('change', toggleUseTeamName);
         }
     });
 }());

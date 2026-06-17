@@ -141,6 +141,14 @@ class Season(models.Model):
             'any matchup that already occurred in the attached season will be skipped.'
         ),
     )
+    players_per_team = models.IntegerField(
+        default=1,
+        help_text='1 = singles, 2 = doubles',
+    )
+    use_team_name = models.BooleanField(
+        default=False,
+        help_text='Display Team.name instead of concatenated member names (only relevant for doubles)',
+    )
     display = models.BooleanField(
         default=True,
         help_text='Show this season in the dropdown for non-admin users who are not part of this season',
@@ -244,3 +252,27 @@ class SeasonPlayer(models.Model):
 
     def __str__(self):
         return f'{self.player} — {self.season}'
+
+
+class Team(models.Model):
+    season = models.ForeignKey(Season, on_delete=models.CASCADE, related_name='teams')
+    tier = models.IntegerField(default=1)
+    name = models.CharField(max_length=100, blank=True)
+    seed = models.IntegerField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    joined_at = models.DateTimeField(auto_now_add=True)
+    members = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='teams')
+
+    @property
+    def display_name(self):
+        if self.name and self.season.use_team_name:
+            return self.name
+        parts = []
+        for m in self.members.order_by('last_name', 'first_name'):
+            first = m.first_name[:1] + '.' if m.first_name else ''
+            last = m.last_name or m.username
+            parts.append(f'{first} {last}'.strip())
+        return ' / '.join(parts)
+
+    def __str__(self):
+        return self.display_name
