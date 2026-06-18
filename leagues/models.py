@@ -258,10 +258,36 @@ class Team(models.Model):
     season = models.ForeignKey(Season, on_delete=models.CASCADE, related_name='teams')
     tier = models.IntegerField(default=1)
     name = models.CharField(max_length=100, blank=True)
+    slug = models.SlugField(max_length=120, blank=True)
     seed = models.IntegerField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     joined_at = models.DateTimeField(auto_now_add=True)
     members = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='teams')
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new and not self.slug:
+            Team.objects.filter(pk=self.pk).update(slug=f'team-{self.pk}')
+            self.slug = f'team-{self.pk}'
+
+    def _slug_base(self):
+        if self.name and self.season.use_team_name:
+            return slugify(self.name)
+        members = list(self.members.order_by('last_name', 'first_name'))
+        last_names = [m.last_name or m.username for m in members]
+        return slugify('-'.join(last_names)) if last_names else 'team'
+
+    def set_slug(self):
+        base = self._slug_base() or 'team'
+        slug = base
+        n = 1
+        qs = Team.objects.filter(season=self.season).exclude(pk=self.pk)
+        while qs.filter(slug=slug).exists():
+            slug = f'{base}-{n}'
+            n += 1
+        Team.objects.filter(pk=self.pk).update(slug=slug)
+        self.slug = slug
 
     @property
     def display_name(self):

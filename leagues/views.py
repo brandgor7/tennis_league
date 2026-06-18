@@ -43,76 +43,17 @@ class SeasonPlayerDetailView(View):
         season = get_object_or_404(Season, slug=slug)
         player = get_object_or_404(User, username=username)
         season_player = get_object_or_404(SeasonPlayer, season=season, player=player, is_active=True)
-
         tier = season_player.tier
         team = Team.objects.filter(season=season, tier=tier, members=player).first()
-        standings_rows = calculate_standings(season, tier)
-        standing = None
-        rank = None
-        if team:
-            for i, row in enumerate(standings_rows, start=1):
-                if row['participant'].pk == team.pk:
-                    standing = row
-                    rank = i
-                    break
-
-        upcoming = (
-            Match.objects
-            .filter(
-                Q(player1=player) | Q(player2=player),
-                season=season,
-                status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED, Match.STATUS_PENDING],
-            )
-            .select_related('team1', 'team2', 'winning_team', 'season')
-            .prefetch_related('team1__members', 'team2__members')
-            .order_by(F('scheduled_date').desc(nulls_last=True), '-created_at')
-        )
-
-        today = datetime.date.today()
-        mode = season.schedule_display_mode
-        if mode == Season.DISPLAY_CURRENT_DAY:
-            upcoming = upcoming.filter(
-                Q(scheduled_date__isnull=True) | Q(scheduled_date__lte=today)
-            )
-        elif mode == Season.DISPLAY_CURRENT_WEEK:
-            week_end = today + datetime.timedelta(days=6 - today.weekday())
-            upcoming = upcoming.filter(
-                Q(scheduled_date__isnull=True) | Q(scheduled_date__lte=week_end)
-            )
-        elif mode == Season.DISPLAY_NEXT_X_DAYS:
-            cutoff = today + datetime.timedelta(days=season.schedule_display_days)
-            upcoming = upcoming.filter(
-                Q(scheduled_date__isnull=True) | Q(scheduled_date__lte=cutoff)
-            )
-
-        results = (
-            Match.objects
-            .filter(
-                Q(player1=player) | Q(player2=player),
-                season=season,
-                status__in=[Match.STATUS_COMPLETED, Match.STATUS_WALKOVER],
-            )
-            .select_related('team1', 'team2', 'winning_team', 'season')
-            .prefetch_related('team1__members', 'team2__members', 'sets')
-            .order_by('-played_date', '-created_at')
-        )
-
-        return render(request, 'leagues/player_detail.html', {
-            'season': season,
-            'player': player,
-            'season_player': season_player,
-            'tier_name': season.tier_name(tier),
-            'standing': standing,
-            'rank': rank,
-            'upcoming': upcoming,
-            'results': results,
-        })
+        if not team:
+            raise Http404
+        return redirect('leagues:team_detail', slug=season.slug, team_slug=team.slug)
 
 
 class TeamDetailView(View):
-    def get(self, request, slug, team_id):
+    def get(self, request, slug, team_slug):
         season = get_object_or_404(Season, slug=slug)
-        team = get_object_or_404(Team.objects.prefetch_related('members'), pk=team_id, season=season)
+        team = get_object_or_404(Team.objects.prefetch_related('members'), season=season, slug=team_slug)
 
         tier = team.tier
         standings_rows = calculate_standings(season, tier)

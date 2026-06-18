@@ -8,7 +8,7 @@
         {{ forloop.counter }}
       </span>
       <div class="flex-grow-1">
-        <div class="fw-600"><a href="{% url 'leagues:team_detail' current_season.slug row.participant.pk %}" class="text-reset text-decoration-none">{{ row.participant.display_name }}</a></div>
+        <div class="fw-600"><a href="{% url 'leagues:team_detail' current_season.slug row.participant.slug %}" class="text-reset text-decoration-none">{{ row.participant.display_name }}</a></div>
         <small class="fw-500">{{ row.wins }}W &ndash; {{ row.losses }}L <span class="text-muted fw-400 ms-1" style="font-size:0.85em;">(PD {{ row.pd }})</span></small>
       </div>
       <div class="text-end">
@@ -41,7 +41,7 @@
               {{ forloop.counter }}
             </span>
           </td>
-          <td><a href="{% url 'leagues:team_detail' current_season.slug row.participant.pk %}" class="text-reset text-decoration-none">{{ row.participant.display_name }}</a></td>
+          <td><a href="{% url 'leagues:team_detail' current_season.slug row.participant.slug %}" class="text-reset text-decoration-none">{{ row.participant.display_name }}</a></td>
           <td class="text-center stat-value">{{ row.wins }}</td>
           <td class="text-center stat-value">{{ row.losses }}</td>
           <td class="text-center stat-value fw-600">{{ row.points }}</td>

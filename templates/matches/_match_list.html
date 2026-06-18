@@ -6,9 +6,9 @@
   <div class="card mb-2 match-card" style="position:relative;" data-players="{{ match.side1.display_name|lower }} {{ match.side2.display_name|lower }}">
     <div class="card-body py-3 px-3">
       <div class="fw-600 mb-1">
-        {% if match.side1 %}<a href="{% url 'leagues:team_detail' current_season.slug match.side1.pk %}" class="text-reset text-decoration-none">{{ match.side1.display_name }}</a>{% endif %}
+        {% if match.side1.slug %}<a href="{% url 'leagues:team_detail' current_season.slug match.side1.slug %}" class="text-reset text-decoration-none">{{ match.side1.display_name }}</a>{% elif match.side1 %}{{ match.side1.display_name }}{% endif %}
         <span class="text-muted fw-400">vs</span>
-        {% if match.side2 %}<a href="{% url 'leagues:team_detail' current_season.slug match.side2.pk %}" class="text-reset text-decoration-none">{{ match.side2.display_name }}</a>{% endif %}
+        {% if match.side2.slug %}<a href="{% url 'leagues:team_detail' current_season.slug match.side2.slug %}" class="text-reset text-decoration-none">{{ match.side2.display_name }}</a>{% elif match.side2 %}{{ match.side2.display_name }}{% endif %}
       </div>
       <div class="d-flex align-items-center gap-2 flex-wrap">
         {% if match.scheduled_date %}
@@ -20,7 +20,7 @@
         {% if match.round != 'regular' %}<span class="status-badge status-playoffs">Playoffs</span>{% endif %}
         {% if match.winning_side %}
         <small class="text-muted">
-          Won: <a href="{% url 'leagues:team_detail' current_season.slug match.winning_side.pk %}" class="text-reset text-decoration-none">{{ match.winning_side.display_name }}</a>
+          Won: {% if match.winning_side.slug %}<a href="{% url 'leagues:team_detail' current_season.slug match.winning_side.slug %}" class="text-reset text-decoration-none">{% endif %}{{ match.winning_side.display_name }}{% if match.winning_side.slug %}</a>{% endif %}
         </small>
         {% endif %}
       </div>
@@ -47,8 +47,8 @@
       <tbody>
         {% for match in matches %}
         <tr data-players="{{ match.side1.display_name|lower }} {{ match.side2.display_name|lower }}">
-          <td>{% if match.side1 %}<a href="{% url 'leagues:team_detail' current_season.slug match.side1.pk %}" class="text-reset text-decoration-none">{{ match.side1.display_name }}</a>{% endif %}</td>
-          <td>{% if match.side2 %}<a href="{% url 'leagues:team_detail' current_season.slug match.side2.pk %}" class="text-reset text-decoration-none">{{ match.side2.display_name }}</a>{% endif %}</td>
+          <td>{% if match.side1.slug %}<a href="{% url 'leagues:team_detail' current_season.slug match.side1.slug %}" class="text-reset text-decoration-none">{{ match.side1.display_name }}</a>{% elif match.side1 %}{{ match.side1.display_name }}{% endif %}</td>
+          <td>{% if match.side2.slug %}<a href="{% url 'leagues:team_detail' current_season.slug match.side2.slug %}" class="text-reset text-decoration-none">{{ match.side2.display_name }}</a>{% elif match.side2 %}{{ match.side2.display_name }}{% endif %}</td>
           <td class="text-muted">
             {% if match.scheduled_date %}{{ match.scheduled_date }}{% else %}TBD{% endif %}
           </td>

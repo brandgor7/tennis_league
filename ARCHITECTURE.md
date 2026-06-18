@@ -62,7 +62,7 @@ Bootstrap 5's `md` breakpoint (768px) is the single dividing line between **mobi
 - Desktop: stat summary row, then matches as a table
 - Public — no login required
 
-### Team Profile (`/seasons/<slug>/teams/<team_id>/`)
+### Team Profile (`/seasons/<slug>/teams/<team_slug>/`)
 - Page shows the team's standing (rank, W/L, Pts, PD) for the season, followed by upcoming matches and completed results
 - Reuses `_match_list.html` and `_results_list.html` partials — same layout as player profile
 - Public — no login required
@@ -137,7 +137,7 @@ Available blocks: `nav_standings`, `nav_matchups`, `nav_results`, `nav_playoffs`
 
 ### Player Name Links
 
-Every participant name rendered in the UI links to that team's profile page (`leagues:team_detail`). This applies to: `_match_list.html`, `_results_list.html`, `_standings_table.html`, and `match_detail.html`. The link requires `season.slug` and `team.pk`; season context is always available via `current_season` from the context processor.
+Every participant name rendered in the UI links to that team's profile page (`leagues:team_detail`). This applies to: `_match_list.html`, `_results_list.html`, `_standings_table.html`, and `match_detail.html`. The link requires `season.slug` and `team.slug`; season context is always available via `current_season` from the context processor. Templates use `{% if match.side1.slug %}` rather than `{% if match.side1 %}` to gracefully handle legacy matches that predate the `team1`/`team2` FKs — those render names as plain text without links.
 
 Names are displayed via `Team.display_name`: for single-member teams this returns the full name; for multi-member teams it returns abbreviated "F. Last / F. Last"; when `use_team_name=True` it returns the configured team name.
 
@@ -334,12 +334,15 @@ UNIQUE: (season, player)
 season        FK → Season
 tier          IntegerField       matches SeasonPlayer.tier
 members       M2M → User         one member for singles, two for doubles
-use_team_name BooleanField       default False; when True, display_name returns team_name
-team_name     CharField (blank)   custom name shown when use_team_name=True
+name          CharField (blank)   custom team name (used when Season.use_team_name=True)
+slug          SlugField(120)     URL-safe identifier; unique within a season (application-level, no DB constraint)
+seed          IntegerField (nullable)
 is_active     BooleanField
-created_at    DateTimeField
+joined_at     DateTimeField
 ```
-`display_name` property: returns the full name (e.g. `"Alice Smith"`) for single-member teams; returns `"F. Last / F. Last"` (abbreviated) for multi-member teams without a team name; returns `team_name` when `use_team_name=True`.
+`display_name` property: returns the full name (e.g. `"Alice Smith"`) for single-member teams; returns `"F. Last / F. Last"` (abbreviated) for multi-member teams; returns the team `name` when `Season.use_team_name=True`.
+
+Slug generation: `Team.save()` writes a placeholder `team-{pk}` slug immediately on creation (before members are known). After M2M members are populated, `set_slug()` generates the real slug from member last names (joined alphabetically with `-`, slugified) or the team name (when `Season.use_team_name=True`). Collisions within a season are resolved by appending `-1`, `-2`, etc. `SeasonPlayerDetailView` redirects to `team_detail` using the team slug; `TeamDetailView` looks up teams by `(season, slug)`.
 
 `side1` / `side2` / `winning_side` are properties on `Match` that return the corresponding `Team` when set, falling back to the `User` FK for legacy rows.
 
@@ -507,7 +510,7 @@ The admin generate-playoffs page includes an optional start date field. Leaving 
 /seasons/<slug>/playoffs/                  Playoff bracket list (redirects to tier 1 if single-tier)
 /seasons/<slug>/playoffs/<tier>/           Playoff bracket for a specific tier
 /seasons/<slug>/players/<username>/        Player profile — standing, upcoming matches, and results within that season
-/seasons/<slug>/teams/<team_id>/           Team profile — standing, upcoming matches, and results within that season
+/seasons/<slug>/teams/<team_slug>/         Team profile — standing, upcoming matches, and results within that season
 
 /seasons/<slug>/matches/<id>/              Match detail (set scores, status)
 /seasons/<slug>/matches/<id>/enter-result/     Enter score (player in match or admin)

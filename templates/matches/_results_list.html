@@ -13,7 +13,7 @@
           <tbody>
             <tr>
               <td class="pe-3 pb-1 {% if match.winning_team_id == match.team1_id and match.winning_team_id %}fw-bold{% else %}text-muted{% endif %}" style="white-space:nowrap; font-size:0.9rem;">
-                {% if match.side1 %}<a href="{% url 'leagues:team_detail' current_season.slug match.side1.pk %}" class="text-reset text-decoration-none">{{ match.side1.display_name }}</a>{% endif %}
+                {% if match.side1.slug %}<a href="{% url 'leagues:team_detail' current_season.slug match.side1.slug %}" class="text-reset text-decoration-none">{{ match.side1.display_name }}</a>{% elif match.side1 %}{{ match.side1.display_name }}{% endif %}
               </td>
               {% for s in sets %}
               <td class="text-center pb-1 {% if match.winning_team_id == match.team1_id and match.winning_team_id %}score-set{% else %}text-muted{% endif %}" style="min-width:2rem;">
@@ -26,7 +26,7 @@
             </tr>
             <tr>
               <td class="pe-3 {% if match.winning_team_id == match.team2_id and match.winning_team_id %}fw-bold{% else %}text-muted{% endif %}" style="white-space:nowrap; font-size:0.9rem;">
-                {% if match.side2 %}<a href="{% url 'leagues:team_detail' current_season.slug match.side2.pk %}" class="text-reset text-decoration-none">{{ match.side2.display_name }}</a>{% endif %}
+                {% if match.side2.slug %}<a href="{% url 'leagues:team_detail' current_season.slug match.side2.slug %}" class="text-reset text-decoration-none">{{ match.side2.display_name }}</a>{% elif match.side2 %}{{ match.side2.display_name }}{% endif %}
               </td>
               {% for s in sets %}
               <td class="text-center {% if match.winning_team_id == match.team2_id and match.winning_team_id %}score-set{% else %}text-muted{% endif %}" style="min-width:2rem;">
@@ -72,7 +72,7 @@
         <tr data-players="{{ match.side1.display_name|lower }} {{ match.side2.display_name|lower }}">
           <td>
             <div class="result-score-row pb-1">
-              {% if match.side1 %}<a href="{% url 'leagues:team_detail' current_season.slug match.side1.pk %}" class="result-name {% if match.winning_team_id == match.team1_id and match.winning_team_id %}fw-bold{% else %}text-muted{% endif %} text-reset text-decoration-none">{{ match.side1.display_name }}</a>{% endif %}
+              {% if match.side1.slug %}<a href="{% url 'leagues:team_detail' current_season.slug match.side1.slug %}" class="result-name {% if match.winning_team_id == match.team1_id and match.winning_team_id %}fw-bold{% else %}text-muted{% endif %} text-reset text-decoration-none">{{ match.side1.display_name }}</a>{% elif match.side1 %}<span class="result-name {% if match.winning_team_id == match.team1_id and match.winning_team_id %}fw-bold{% else %}text-muted{% endif %}">{{ match.side1.display_name }}</span>{% endif %}
               {% for s in sets %}
               <span class="result-score {% if match.winning_team_id == match.team1_id and match.winning_team_id %}score-set{% else %}text-muted{% endif %}">
                 {{ s.player1_games }}{% if s.tiebreak_player1_points is not None and s.player1_games > s.player2_games %}<sup style="font-size:0.55em; font-family:'DM Sans',sans-serif; font-weight:400; vertical-align:super;">{{ s.tiebreak_player2_points }}</sup>{% endif %}
@@ -81,7 +81,7 @@
               {% if not sets %}<span class="text-muted" style="font-size:0.8rem;">W/O</span>{% endif %}
             </div>
             <div class="result-score-row">
-              {% if match.side2 %}<a href="{% url 'leagues:team_detail' current_season.slug match.side2.pk %}" class="result-name {% if match.winning_team_id == match.team2_id and match.winning_team_id %}fw-bold{% else %}text-muted{% endif %} text-reset text-decoration-none">{{ match.side2.display_name }}</a>{% endif %}
+              {% if match.side2.slug %}<a href="{% url 'leagues:team_detail' current_season.slug match.side2.slug %}" class="result-name {% if match.winning_team_id == match.team2_id and match.winning_team_id %}fw-bold{% else %}text-muted{% endif %} text-reset text-decoration-none">{{ match.side2.display_name }}</a>{% elif match.side2 %}<span class="result-name {% if match.winning_team_id == match.team2_id and match.winning_team_id %}fw-bold{% else %}text-muted{% endif %}">{{ match.side2.display_name }}</span>{% endif %}
               {% for s in sets %}
               <span class="result-score {% if match.winning_team_id == match.team2_id and match.winning_team_id %}score-set{% else %}text-muted{% endif %}">
                 {{ s.player2_games }}{% if s.tiebreak_player2_points is not None and s.player2_games > s.player1_games %}<sup style="font-size:0.55em; font-family:'DM Sans',sans-serif; font-weight:400; vertical-align:super;">{{ s.tiebreak_player1_points }}</sup>{% endif %}

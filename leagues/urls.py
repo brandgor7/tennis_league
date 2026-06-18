@@ -20,5 +20,5 @@ urlpatterns = [
          lambda request, slug, tier: redirect('leagues:playoffs', slug=slug),
          name='playoffs_tier'),
     path('seasons/<slug:slug>/players/<str:username>/', views.SeasonPlayerDetailView.as_view(), name='player_detail'),
-    path('seasons/<slug:slug>/teams/<int:team_id>/', views.TeamDetailView.as_view(), name='team_detail'),
+    path('seasons/<slug:slug>/teams/<slug:team_slug>/', views.TeamDetailView.as_view(), name='team_detail'),
 ]

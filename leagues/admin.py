@@ -982,6 +982,11 @@ class TeamAdmin(admin.ModelAdmin):
     search_fields = ('name', 'members__username', 'members__first_name', 'members__last_name')
     inlines = [TeamMemberInline]
     exclude = ('members',)
+    readonly_fields = ('slug',)
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        form.instance.set_slug()
 
 
 class SiteConfigForm(forms.ModelForm):
