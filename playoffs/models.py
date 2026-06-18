@@ -43,7 +43,7 @@ def advance_playoff_winner(sender, instance, **kwargs):
         return
     if instance.status not in (Match.STATUS_COMPLETED, Match.STATUS_WALKOVER):
         return
-    if not instance.winner_id:
+    if not instance.winning_team_id:
         return
     try:
         slot = instance.playoff_slot
@@ -55,7 +55,7 @@ def advance_playoff_winner(sender, instance, **kwargs):
     next_match = slot.next_slot.match
     prev_slots = list(slot.next_slot.previous_slots.order_by('bracket_position'))
     if prev_slots and slot == prev_slots[0]:
-        next_match.player1 = instance.winner
+        next_match.team1 = instance.winning_team
     else:
-        next_match.player2 = instance.winner
-    next_match.save(update_fields=['player1', 'player2'])
+        next_match.team2 = instance.winning_team
+    next_match.save(update_fields=['team1', 'team2'])

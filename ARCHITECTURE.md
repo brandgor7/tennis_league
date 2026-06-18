@@ -243,7 +243,7 @@ tennis-scores-app/
 ### `matches`
 - `Match` model — scheduling, status, players, result
 - `MatchSet` model — individual set scores (supports tiebreak scores)
-- `scheduler.py` — `generate_schedule(season, start_date, num_rounds)`: round-robin schedule generation across all tiers; idempotent across calls — already-scheduled matchup pairs are filtered out so no pair is ever duplicated within a season, enabling batch scheduling (e.g. schedule first 3 rounds, then 3 more later). `remaining_rounds_count(season, tier)` returns how many rounds remain schedulable for a tier. `existing_pairs(season, tier)` is the single authoritative function for "which pairs must not be re-scheduled" — it checks the current season and, if `season.preseason` is set, the attached preseason.
+- `scheduler.py` — `generate_schedule(season, start_date, num_rounds)`: round-robin schedule generation across all tiers; idempotent across calls — already-scheduled matchup pairs are filtered out so no pair is ever duplicated within a season, enabling batch scheduling (e.g. schedule first 3 rounds, then 3 more later). Uses `Team` objects as participants; created `Match` records have `team1_id`/`team2_id` set (not `player1_id`/`player2_id`). `remaining_rounds_count(season, tier)` returns how many rounds remain schedulable for a tier. `existing_pairs(season, tier)` is the single authoritative function for "which pairs must not be re-scheduled" — returns frozensets of team PKs, checking the current season and, if `season.preseason` is set, the attached preseason.
 - Result entry view (for a player in the match)
 - Result confirmation view (for the opponent)
 - Walkover and postponement views (admin or player)
@@ -473,7 +473,7 @@ In `playoffs/generator.py`:
 
 Brackets are generated **per tier**. `generate_bracket(season, tier, generated_by, start_date=None)` handles one tier at a time. The admin action can call it for each tier in the season.
 
-1. Read standings for `(season, tier)` → top N players, where N = `tier.playoff_qualifiers_count` if set, else `season.playoff_qualifiers_count`
+1. Read standings for `(season, tier)` → top N `Team` objects, where N = `tier.playoff_qualifiers_count` if set, else `season.playoff_qualifiers_count`
 2. Determine bracket size (next power of 2 ≥ qualifier count)
 3. Standard tennis bracket seeding for 16-draw:
    - Position 1: seed 1 vs seed 16
@@ -484,9 +484,9 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
    - Position 6: seed 6 vs seed 11
    - Position 7: seed 7 vs seed 10
    - Position 8: seed 2 vs seed 15
-4. Create `Match` objects (round=`r16` or appropriate, status=`scheduled`, tier=tier). If `start_date` is given, round 1 gets that date and each subsequent round is `season.playoff_interval_days` later.
+4. Create `Match` objects (round=`r16` or appropriate, status=`scheduled`, tier=tier) with `team1`/`team2` FK set to the seeded `Team` instances. If `start_date` is given, round 1 gets that date and each subsequent round is `season.playoff_interval_days` later.
 5. Create `PlayoffBracket` (with `tier` field) + `PlayoffSlot` objects with correct `next_slot` links
-6. When a playoff match completes: a post-save signal sets the winner as `player1` or `player2` in the next round's `Match`
+6. When a playoff match completes: a post-save signal in `playoffs/models.py` (`advance_playoff_winner`) reads `instance.winning_team` and sets `team1` or `team2` on the next round's `Match`
 
 The admin generate-playoffs page includes an optional start date field. Leaving it blank generates the bracket draw without scheduling any match dates.
 

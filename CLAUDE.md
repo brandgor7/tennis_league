@@ -13,11 +13,6 @@ The intent is that this file should be referenced instead of loading each source
 task at hand that aren't directly related to the task that's being performed or that are
 dependencies on the task being performed.
 
-## Implementation Plan Reference
-
-Step-by-step build order is in **[IMPLEMENTATION.md](./IMPLEMENTATION.md)**.
-Record steps executed in that file for future reference.
-
 
 ## Key Conventions
 
@@ -33,6 +28,7 @@ Record steps executed in that file for future reference.
 
 ## Running Tests
 
+Use venv when running tests.
 ```bash
 python manage.py test --settings=config.test_settings --parallel
 ```

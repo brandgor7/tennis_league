@@ -73,7 +73,7 @@ def generate_bracket(season, tier, generated_by, start_date=None):
         raise ValueError('Not enough players to generate a bracket (minimum 2 required).')
 
     bracket_size = bracket_size_for(max_qualifiers)
-    qualifiers = [row['participant'].members.first() for row in standings[:max_qualifiers]]
+    qualifiers = [row['participant'] for row in standings[:max_qualifiers]]
 
     first_round_code = _ROUND_FOR_SIZE[bracket_size]
     first_round_idx = _ROUND_SEQUENCE.index(first_round_code)
@@ -111,8 +111,8 @@ def generate_bracket(season, tier, generated_by, start_date=None):
                     season=season,
                     tier=tier,
                     round=round_code,
-                    player1=p1,
-                    player2=p2,
+                    team1=p1,
+                    team2=p2,
                     status=Match.STATUS_SCHEDULED,
                     scheduled_date=round_date,
                 )
@@ -125,7 +125,7 @@ def generate_bracket(season, tier, generated_by, start_date=None):
                 current_slots.append(slot)
 
                 if round_idx == 0 and (p1 is None) != (p2 is None):
-                    bye_matches.append(match)
+                    bye_matches.append(match)  # one side is None → bye
 
             for i, prev_slot in enumerate(prev_slots):
                 prev_slot.next_slot = current_slots[i // 2]
@@ -136,7 +136,7 @@ def generate_bracket(season, tier, generated_by, start_date=None):
         # Complete bye matches now that next_slot links are wired.
         # The post_save signal advances each bye winner into the next round.
         for match in bye_matches:
-            match.winner = match.player1 or match.player2
+            match.winning_team = match.team1 or match.team2
             match.status = Match.STATUS_WALKOVER
             match.save()
 

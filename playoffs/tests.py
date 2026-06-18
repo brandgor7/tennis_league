@@ -33,9 +33,12 @@ def _enroll(season, players, tier=1):
 
 
 def _complete_match(season, p1, p2, tier=1):
-    """Create a completed match where p1 wins 2-0."""
+    """Create a completed match where p1 wins 2-0, with team FKs set."""
+    team1 = Team.objects.filter(season=season, tier=tier, members=p1).first()
+    team2 = Team.objects.filter(season=season, tier=tier, members=p2).first()
     m = Match.objects.create(
         season=season, player1=p1, player2=p2, tier=tier,
+        team1=team1, team2=team2, winning_team=team1,
         status=Match.STATUS_COMPLETED, winner=p1,
     )
     from matches.models import MatchSet
@@ -141,15 +144,15 @@ class GenerateBracketTest(TestCase):
         bracket = generate_bracket(self.season, 1, self.admin)
         qf_slots = bracket.slots.filter(round=Match.ROUND_QF)
         for slot in qf_slots:
-            self.assertIsNotNone(slot.match.player1)
-            self.assertIsNotNone(slot.match.player2)
+            self.assertIsNotNone(slot.match.team1_id)
+            self.assertIsNotNone(slot.match.team2_id)
 
     def test_later_round_matches_have_no_players(self):
         bracket = generate_bracket(self.season, 1, self.admin)
         sf_slots = bracket.slots.filter(round=Match.ROUND_SF)
         for slot in sf_slots:
-            self.assertIsNone(slot.match.player1)
-            self.assertIsNone(slot.match.player2)
+            self.assertIsNone(slot.match.team1_id)
+            self.assertIsNone(slot.match.team2_id)
 
     def test_next_slot_links_are_set(self):
         bracket = generate_bracket(self.season, 1, self.admin)
@@ -197,15 +200,14 @@ class WinnerAdvancementTest(TestCase):
         final_slot = bracket.slots.filter(round=Match.ROUND_FINAL).first()
         final_match = final_slot.match
 
-        # Complete the first SF match
         sf_slot = bracket.slots.filter(round=Match.ROUND_SF).order_by('bracket_position').first()
         sf_match = sf_slot.match
         sf_match.status = Match.STATUS_COMPLETED
-        sf_match.winner = sf_match.player1
+        sf_match.winning_team = sf_match.team1
         sf_match.save()
 
         final_match.refresh_from_db()
-        self.assertEqual(final_match.player1, sf_match.player1)
+        self.assertEqual(final_match.team1, sf_match.team1)
 
     def test_second_winner_becomes_player2(self):
         bracket = generate_bracket(self.season, 1, self.admin)
@@ -217,16 +219,16 @@ class WinnerAdvancementTest(TestCase):
         second_sf = sf_slots[1].match
 
         first_sf.status = Match.STATUS_COMPLETED
-        first_sf.winner = first_sf.player1
+        first_sf.winning_team = first_sf.team1
         first_sf.save()
 
         second_sf.status = Match.STATUS_COMPLETED
-        second_sf.winner = second_sf.player2
+        second_sf.winning_team = second_sf.team2
         second_sf.save()
 
         final_match.refresh_from_db()
-        self.assertEqual(final_match.player1, first_sf.player1)
-        self.assertEqual(final_match.player2, second_sf.player2)
+        self.assertEqual(final_match.team1, first_sf.team1)
+        self.assertEqual(final_match.team2, second_sf.team2)
 
 
 class GenerateBracketWithByesTest(TestCase):
@@ -254,7 +256,7 @@ class GenerateBracketWithByesTest(TestCase):
         qf_slots = bracket.slots.filter(round=Match.ROUND_QF)
         bye_matches = [
             s.match for s in qf_slots
-            if (s.match.player1 is None) != (s.match.player2 is None)
+            if (s.match.team1_id is None) != (s.match.team2_id is None)
         ]
         self.assertEqual(len(bye_matches), 2)
 
@@ -263,7 +265,7 @@ class GenerateBracketWithByesTest(TestCase):
         qf_slots = bracket.slots.filter(round=Match.ROUND_QF)
         real_matches = [
             s.match for s in qf_slots
-            if s.match.player1 is not None and s.match.player2 is not None
+            if s.match.team1_id is not None and s.match.team2_id is not None
         ]
         self.assertEqual(len(real_matches), 2)
         for m in real_matches:
@@ -274,26 +276,26 @@ class GenerateBracketWithByesTest(TestCase):
         qf_slots = bracket.slots.filter(round=Match.ROUND_QF)
         for slot in qf_slots:
             m = slot.match
-            is_bye = (m.player1 is None) != (m.player2 is None)
+            is_bye = (m.team1_id is None) != (m.team2_id is None)
             if is_bye:
                 self.assertEqual(m.status, Match.STATUS_WALKOVER)
-                self.assertIsNotNone(m.winner)
-                self.assertIn(m.winner, [m.player1, m.player2])
+                self.assertIsNotNone(m.winning_team_id)
+                self.assertIn(m.winning_team_id, [m.team1_id, m.team2_id])
 
     def test_bye_winners_advanced_into_sf(self):
         bracket = generate_bracket(self.season, 1, self.admin)
         qf_slots = bracket.slots.filter(round=Match.ROUND_QF).order_by('bracket_position')
         for slot in qf_slots:
             m = slot.match
-            if (m.player1 is None) != (m.player2 is None):
+            if (m.team1_id is None) != (m.team2_id is None):
                 next_match = slot.next_slot.match
-                self.assertIn(m.winner, [next_match.player1, next_match.player2])
+                self.assertIn(m.winning_team_id, [next_match.team1_id, next_match.team2_id])
 
     def test_sf_has_two_players_from_byes(self):
         bracket = generate_bracket(self.season, 1, self.admin)
         sf_matches = [s.match for s in bracket.slots.filter(round=Match.ROUND_SF)]
-        players_filled = sum(
+        teams_filled = sum(
             1 for m in sf_matches
-            for p in [m.player1, m.player2] if p is not None
+            for t in [m.team1_id, m.team2_id] if t is not None
         )
-        self.assertEqual(players_filled, 2)
+        self.assertEqual(teams_filled, 2)

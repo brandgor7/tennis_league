@@ -398,11 +398,23 @@ class SeasonAdmin(admin.ModelAdmin):
 
         count_map = self._match_count_map(season, tier, tier_players)
 
+        # Map player IDs ↔ team PKs for the existing-pairs lookup (which uses team FKs).
+        player_to_team_pk = {}
+        team_pk_to_player_id = {}
+        for team in Team.objects.filter(season=season, tier=tier, is_active=True).prefetch_related('members'):
+            member = team.members.first()
+            if member:
+                player_to_team_pk[member.pk] = team.pk
+                team_pk_to_player_id[team.pk] = member.pk
+
         played_pairs = existing_pairs(season, tier)
+        selected_team_pk = player_to_team_pk.get(player_id)
         played_opponents = set()
         for pair in played_pairs:
-            if player_id in pair:
-                played_opponents.update(pair - frozenset([player_id]))
+            if selected_team_pk is not None and selected_team_pk in pair:
+                for team_pk in pair:
+                    if team_pk != selected_team_pk and team_pk in team_pk_to_player_id:
+                        played_opponents.add(team_pk_to_player_id[team_pk])
 
         not_played = []
         already_played = []

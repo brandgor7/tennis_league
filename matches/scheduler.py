@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from django.db import transaction
 
-from leagues.models import Season, SeasonPlayer
+from leagues.models import Season, Team
 from .models import Match
 
 
@@ -61,21 +61,21 @@ def existing_pairs(season, tier):
     pairs = set()
     for row in Match.objects.filter(
         season_id__in=season_ids, tier=tier, round=Match.ROUND_REGULAR
-    ).values('player1_id', 'player2_id'):
-        pairs.add(frozenset([row['player1_id'], row['player2_id']]))
+    ).values('team1_id', 'team2_id'):
+        pairs.add(frozenset([row['team1_id'], row['team2_id']]))
     return pairs
 
 
 def remaining_rounds_count(season, tier):
     """Return the number of unscheduled rounds remaining for a tier."""
-    player_ids = list(
-        SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True)
-        .values_list('player_id', flat=True)
+    team_ids = list(
+        Team.objects.filter(season=season, tier=tier, is_active=True)
+        .values_list('pk', flat=True)
     )
     existing = existing_pairs(season, tier)
     count = 0
-    for round_pairs in _round_robin_rounds(player_ids):
-        if any(frozenset([p1, p2]) not in existing for p1, p2 in round_pairs):
+    for round_pairs in _round_robin_rounds(team_ids):
+        if any(frozenset([t1, t2]) not in existing for t1, t2 in round_pairs):
             count += 1
     return count
 
@@ -104,26 +104,26 @@ def generate_schedule(season, start_date, num_rounds):
     to_create = []
 
     for tier in range(1, season.num_tiers + 1):
-        player_ids = list(
-            SeasonPlayer.objects.filter(season=season, tier=tier, is_active=True)
-            .values_list('player_id', flat=True)
+        team_ids = list(
+            Team.objects.filter(season=season, tier=tier, is_active=True)
+            .values_list('pk', flat=True)
         )
 
         existing = existing_pairs(season, tier)
         remaining = []
-        for round_pairs in _round_robin_rounds(player_ids):
-            new_pairs = [(p1, p2) for p1, p2 in round_pairs if frozenset([p1, p2]) not in existing]
+        for round_pairs in _round_robin_rounds(team_ids):
+            new_pairs = [(t1, t2) for t1, t2 in round_pairs if frozenset([t1, t2]) not in existing]
             if new_pairs:
                 remaining.append(new_pairs)
 
         for round_index, pairs in enumerate(remaining[:num_rounds]):
             scheduled_date = start_date if is_single_day else start_date + offset * round_index
 
-            for player1_id, player2_id in pairs:
+            for team1_id, team2_id in pairs:
                 to_create.append(Match(
                     season=season,
-                    player1_id=player1_id,
-                    player2_id=player2_id,
+                    team1_id=team1_id,
+                    team2_id=team2_id,
                     tier=tier,
                     round=Match.ROUND_REGULAR,
                     scheduled_date=scheduled_date,
