@@ -873,7 +873,7 @@ class SeasonPlayerDetailTemplateTest(TestCase):
         opp.save()
         self._make_match(self.player, opp, Match.STATUS_SCHEDULED)
         response = self.client.get(self.url)
-        self.assertContains(response, 'C. White')
+        self.assertContains(response, 'Carol White')
 
     def test_completed_match_rendered_in_results(self):
         opp = self._opponent('dave')
@@ -882,7 +882,7 @@ class SeasonPlayerDetailTemplateTest(TestCase):
         opp.save()
         self._make_match(self.player, opp, Match.STATUS_COMPLETED, winner=self.player)
         response = self.client.get(self.url)
-        self.assertContains(response, 'D. Black')
+        self.assertContains(response, 'Dave Black')
 
 
 # ─── ImportPlayersView tests ──────────────────────────────────────────────────
@@ -2505,9 +2505,9 @@ class TeamModelTest(TestCase):
         team = make_team(self.season, members=[self.alice])
         self.assertEqual(str(team), team.display_name)
 
-    def test_display_name_singles_uses_initial_dot_last(self):
+    def test_display_name_singles_uses_full_name(self):
         team = make_team(self.season, members=[self.alice])
-        self.assertEqual(team.display_name, 'A. Smith')
+        self.assertEqual(team.display_name, 'Alice Smith')
 
     def test_display_name_doubles_joins_with_slash(self):
         team = make_team(self.season, members=[self.alice, self.bob])
@@ -2531,11 +2531,11 @@ class TeamModelTest(TestCase):
         self.season.use_team_name = True
         self.season.save()
         team = make_team(self.season, name='', members=[self.alice])
-        self.assertEqual(team.display_name, 'A. Smith')
+        self.assertEqual(team.display_name, 'Alice Smith')
 
     def test_display_name_falls_back_to_members_when_use_team_name_false(self):
         team = make_team(self.season, name='Aces', members=[self.alice])
-        self.assertEqual(team.display_name, 'A. Smith')
+        self.assertEqual(team.display_name, 'Alice Smith')
 
     def test_display_name_doubles_ordered_by_last_name(self):
         self.season.use_team_name = False
@@ -2819,4 +2819,4 @@ class TeamDetailViewTest(TestCase):
 
     def test_display_name_rendered(self):
         resp = self.client.get(self._url())
-        self.assertContains(resp, 'A. Adams')
+        self.assertContains(resp, 'Alice Adams')

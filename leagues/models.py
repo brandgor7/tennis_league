@@ -267,8 +267,12 @@ class Team(models.Model):
     def display_name(self):
         if self.name and self.season.use_team_name:
             return self.name
+        members = list(self.members.order_by('last_name', 'first_name'))
+        if len(members) == 1:
+            m = members[0]
+            return m.get_full_name() or m.username
         parts = []
-        for m in self.members.order_by('last_name', 'first_name'):
+        for m in members:
             first = m.first_name[:1] + '.' if m.first_name else ''
             last = m.last_name or m.username
             parts.append(f'{first} {last}'.strip())

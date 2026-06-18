@@ -139,7 +139,7 @@ Available blocks: `nav_standings`, `nav_matchups`, `nav_results`, `nav_playoffs`
 
 Every participant name rendered in the UI links to that team's profile page (`leagues:team_detail`). This applies to: `_match_list.html`, `_results_list.html`, `_standings_table.html`, and `match_detail.html`. The link requires `season.slug` and `team.pk`; season context is always available via `current_season` from the context processor.
 
-Names are displayed via `Team.display_name`: for single-member teams this returns an abbreviated "F. Last" format; for doubles teams with `use_team_name=True` it returns the team name.
+Names are displayed via `Team.display_name`: for single-member teams this returns the full name; for multi-member teams it returns abbreviated "F. Last / F. Last"; when `use_team_name=True` it returns the configured team name.
 
 ### Base Template Context
 
@@ -339,7 +339,7 @@ team_name     CharField (blank)   custom name shown when use_team_name=True
 is_active     BooleanField
 created_at    DateTimeField
 ```
-`display_name` property: returns `"F. Last"` (first initial + last name) for single-member teams; returns `team_name` when `use_team_name=True`.
+`display_name` property: returns the full name (e.g. `"Alice Smith"`) for single-member teams; returns `"F. Last / F. Last"` (abbreviated) for multi-member teams without a team name; returns `team_name` when `use_team_name=True`.
 
 `side1` / `side2` / `winning_side` are properties on `Match` that return the corresponding `Team` when set, falling back to the `User` FK for legacy rows.
 

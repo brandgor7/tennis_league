@@ -516,7 +516,7 @@ class StandingsViewTest(TestCase):
         p = make_player('alice', first='Alice', last='Smith')
         enroll(self.season, p, tier=1)
         response = self.client.get(self.url)
-        self.assertContains(response, 'A. Smith')
+        self.assertContains(response, 'Alice Smith')
 
     def test_standings_shows_wins_losses_pts_pd_columns(self):
         enroll(self.season, make_player('p1'), tier=1)
