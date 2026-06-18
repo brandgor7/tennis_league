@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Enter Result — {{ match.player1.get_full_name|default:match.player1.username }} vs {{ match.player2.get_full_name|default:match.player2.username }} — TennisLeague{% endblock %}
+{% block title %}Enter Result — {{ match.side1.display_name }} vs {{ match.side2.display_name }} — TennisLeague{% endblock %}
 
 {% block nav_matchups %}nav-active{% endblock %}
 
@@ -17,9 +17,9 @@
 <div class="page-header">
   <h1>Enter Result</h1>
   <p class="page-meta">
-    {{ match.player1.get_full_name|default:match.player1.username }}
+    {{ match.side1.display_name }}
     <span class="text-muted" style="font-size:0.8em;">vs</span>
-    {{ match.player2.get_full_name|default:match.player2.username }}
+    {{ match.side2.display_name }}
     {% if multi_tier and match.tier %}&nbsp;·&nbsp; Tier {{ match.tier }}{% endif %}
     {% if match.scheduled_date %}&nbsp;·&nbsp; {{ match.scheduled_date }}{% endif %}
   </p>

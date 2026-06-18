@@ -2,14 +2,13 @@
 
 <div class="d-block d-md-none">
   {% for row in rows %}
-  {% with member=row.participant.members.first %}
   <div class="card mb-2" data-player="{{ row.participant.display_name|lower }}">
     <div class="card-body py-2 px-3 d-flex align-items-center gap-3">
       <span class="rank-number {% if forloop.counter <= 3 %}rank-top-3{% endif %}">
         {{ forloop.counter }}
       </span>
       <div class="flex-grow-1">
-        <div class="fw-600">{% if member %}<a href="{% url 'leagues:player_detail' current_season.slug member.username %}" class="text-reset text-decoration-none">{{ row.participant.display_name }}</a>{% else %}{{ row.participant.display_name }}{% endif %}</div>
+        <div class="fw-600"><a href="{% url 'leagues:team_detail' current_season.slug row.participant.pk %}" class="text-reset text-decoration-none">{{ row.participant.display_name }}</a></div>
         <small class="fw-500">{{ row.wins }}W &ndash; {{ row.losses }}L <span class="text-muted fw-400 ms-1" style="font-size:0.85em;">(PD {{ row.pd }})</span></small>
       </div>
       <div class="text-end">
@@ -18,7 +17,6 @@
       </div>
     </div>
   </div>
-  {% endwith %}
   {% endfor %}
 </div>
 
@@ -37,20 +35,18 @@
       </thead>
       <tbody>
         {% for row in rows %}
-        {% with member=row.participant.members.first %}
         <tr data-player="{{ row.participant.display_name|lower }}">
           <td class="text-center">
             <span class="rank-number {% if forloop.counter <= 3 %}rank-top-3{% endif %}">
               {{ forloop.counter }}
             </span>
           </td>
-          <td>{% if member %}<a href="{% url 'leagues:player_detail' current_season.slug member.username %}" class="text-reset text-decoration-none">{{ row.participant.display_name }}</a>{% else %}{{ row.participant.display_name }}{% endif %}</td>
+          <td><a href="{% url 'leagues:team_detail' current_season.slug row.participant.pk %}" class="text-reset text-decoration-none">{{ row.participant.display_name }}</a></td>
           <td class="text-center stat-value">{{ row.wins }}</td>
           <td class="text-center stat-value">{{ row.losses }}</td>
           <td class="text-center stat-value fw-600">{{ row.points }}</td>
           <td class="text-center stat-value">{{ row.pd }}</td>
         </tr>
-        {% endwith %}
         {% endfor %}
       </tbody>
     </table>

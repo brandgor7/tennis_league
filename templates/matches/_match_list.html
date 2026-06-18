@@ -3,12 +3,12 @@
 {# ── Mobile cards ──────────────────────────────────────────────────────── #}
 <div class="d-block d-md-none">
   {% for match in matches %}
-  <div class="card mb-2 match-card" style="position:relative;" data-players="{{ match.player1.get_full_name|default:match.player1.username|lower }} {{ match.player2.get_full_name|default:match.player2.username|lower }}">
+  <div class="card mb-2 match-card" style="position:relative;" data-players="{{ match.side1.display_name|lower }} {{ match.side2.display_name|lower }}">
     <div class="card-body py-3 px-3">
       <div class="fw-600 mb-1">
-        {% if match.player1 %}<a href="{% url 'leagues:player_detail' current_season.slug match.player1.username %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}
+        {% if match.side1 %}<a href="{% url 'leagues:team_detail' current_season.slug match.side1.pk %}" class="text-reset text-decoration-none">{{ match.side1.display_name }}</a>{% endif %}
         <span class="text-muted fw-400">vs</span>
-        {% if match.player2 %}<a href="{% url 'leagues:player_detail' current_season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}
+        {% if match.side2 %}<a href="{% url 'leagues:team_detail' current_season.slug match.side2.pk %}" class="text-reset text-decoration-none">{{ match.side2.display_name }}</a>{% endif %}
       </div>
       <div class="d-flex align-items-center gap-2 flex-wrap">
         {% if match.scheduled_date %}
@@ -18,9 +18,9 @@
         {% endif %}
         <span class="status-badge status-{{ match.status }}">{{ match.get_status_display }}</span>
         {% if match.round != 'regular' %}<span class="status-badge status-playoffs">Playoffs</span>{% endif %}
-        {% if match.winner %}
+        {% if match.winning_side %}
         <small class="text-muted">
-          Won: <a href="{% url 'leagues:player_detail' current_season.slug match.winner.username %}" class="text-reset text-decoration-none">{{ match.winner.get_full_name|default:match.winner.username }}</a>
+          Won: <a href="{% url 'leagues:team_detail' current_season.slug match.winning_side.pk %}" class="text-reset text-decoration-none">{{ match.winning_side.display_name }}</a>
         </small>
         {% endif %}
       </div>
@@ -36,8 +36,8 @@
     <table class="table table-striped table-hover align-middle mb-0">
       <thead>
         <tr>
-          <th scope="col">Player 1</th>
-          <th scope="col">Player 2</th>
+          <th scope="col">Side 1</th>
+          <th scope="col">Side 2</th>
           <th scope="col">Date</th>
           <th scope="col">Status</th>
           {% if show_tier %}<th scope="col" class="text-center">Tier</th>{% endif %}
@@ -46,9 +46,9 @@
       </thead>
       <tbody>
         {% for match in matches %}
-        <tr data-players="{{ match.player1.get_full_name|default:match.player1.username|lower }} {{ match.player2.get_full_name|default:match.player2.username|lower }}">
-          <td>{% if match.player1 %}<a href="{% url 'leagues:player_detail' current_season.slug match.player1.username %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}</td>
-          <td>{% if match.player2 %}<a href="{% url 'leagues:player_detail' current_season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}</td>
+        <tr data-players="{{ match.side1.display_name|lower }} {{ match.side2.display_name|lower }}">
+          <td>{% if match.side1 %}<a href="{% url 'leagues:team_detail' current_season.slug match.side1.pk %}" class="text-reset text-decoration-none">{{ match.side1.display_name }}</a>{% endif %}</td>
+          <td>{% if match.side2 %}<a href="{% url 'leagues:team_detail' current_season.slug match.side2.pk %}" class="text-reset text-decoration-none">{{ match.side2.display_name }}</a>{% endif %}</td>
           <td class="text-muted">
             {% if match.scheduled_date %}{{ match.scheduled_date }}{% else %}TBD{% endif %}
           </td>

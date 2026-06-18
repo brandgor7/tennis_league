@@ -808,6 +808,17 @@ class SeasonPlayerDetailTemplateTest(TestCase):
         enroll(self.season, p, tier=1)
         return p
 
+    def _make_match(self, p1, p2, status, winner=None, tier=1):
+        t1 = Team.objects.filter(season=self.season, tier=tier, members=p1).first()
+        t2 = Team.objects.filter(season=self.season, tier=tier, members=p2).first()
+        tw = Team.objects.filter(season=self.season, tier=tier, members=winner).first() if winner else None
+        return Match.objects.create(
+            season=self.season, player1=p1, player2=p2,
+            tier=tier, status=status, winner=winner,
+            scheduled_date=datetime.date(2025, 6, 1),
+            team1=t1, team2=t2, winning_team=tw,
+        )
+
     def test_player_name_in_heading(self):
         response = self.client.get(self.url)
         self.assertContains(response, '<h1>Alice Smith</h1>')
@@ -860,25 +871,18 @@ class SeasonPlayerDetailTemplateTest(TestCase):
         opp.first_name = 'Carol'
         opp.last_name = 'White'
         opp.save()
-        Match.objects.create(
-            season=self.season, player1=self.player, player2=opp,
-            tier=1, status=Match.STATUS_SCHEDULED,
-            scheduled_date=datetime.date(2025, 6, 1),
-        )
+        self._make_match(self.player, opp, Match.STATUS_SCHEDULED)
         response = self.client.get(self.url)
-        self.assertContains(response, 'Carol White')
+        self.assertContains(response, 'C. White')
 
     def test_completed_match_rendered_in_results(self):
         opp = self._opponent('dave')
         opp.first_name = 'Dave'
         opp.last_name = 'Black'
         opp.save()
-        Match.objects.create(
-            season=self.season, player1=self.player, player2=opp,
-            tier=1, status=Match.STATUS_COMPLETED, winner=self.player,
-        )
+        self._make_match(self.player, opp, Match.STATUS_COMPLETED, winner=self.player)
         response = self.client.get(self.url)
-        self.assertContains(response, 'Dave Black')
+        self.assertContains(response, 'D. Black')
 
 
 # ─── ImportPlayersView tests ──────────────────────────────────────────────────
@@ -2724,3 +2728,95 @@ class DataMigrationTest(TestCase):
         self._run_migration()
         m.refresh_from_db()
         self.assertNotEqual(m.team1_id, m.team2_id)
+
+
+# ─── TeamDetailView tests ─────────────────────────────────────────────────────
+
+class TeamDetailViewTest(TestCase):
+    def setUp(self):
+        self.season = make_season(name='Team Detail Season', year=2025)
+        self.p1 = make_player('tdv_alice', first='Alice', last='Adams')
+        self.p2 = make_player('tdv_bob', first='Bob', last='Baker')
+        enroll(self.season, self.p1, tier=1)
+        enroll(self.season, self.p2, tier=1)
+        self.team1 = Team.objects.get(season=self.season, tier=1, members=self.p1)
+        self.team2 = Team.objects.get(season=self.season, tier=1, members=self.p2)
+
+    def _url(self, season=None, team=None):
+        s = season or self.season
+        t = team or self.team1
+        return reverse('leagues:team_detail', args=[s.slug, t.pk])
+
+    def test_200_for_valid_team(self):
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+
+    def test_404_for_unknown_season(self):
+        url = reverse('leagues:team_detail', args=['no-such-season', self.team1.pk])
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_404_for_team_not_in_season(self):
+        other_season = make_season(name='Other Season', year=2024)
+        url = reverse('leagues:team_detail', args=[other_season.slug, self.team1.pk])
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_uses_team_detail_template(self):
+        resp = self.client.get(self._url())
+        self.assertTemplateUsed(resp, 'leagues/team_detail.html')
+
+    def test_context_contains_team_and_season(self):
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.context['team'], self.team1)
+        self.assertEqual(resp.context['season'], self.season)
+
+    def test_context_contains_standing_and_rank(self):
+        resp = self.client.get(self._url())
+        self.assertIn('standing', resp.context)
+        self.assertIn('rank', resp.context)
+        self.assertIsNotNone(resp.context['rank'])
+
+    def test_context_contains_upcoming_and_results(self):
+        resp = self.client.get(self._url())
+        self.assertIn('upcoming', resp.context)
+        self.assertIn('results', resp.context)
+
+    def test_upcoming_match_appears(self):
+        m = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            tier=1, status=Match.STATUS_SCHEDULED,
+            team1=self.team1, team2=self.team2,
+            scheduled_date=datetime.date(2025, 8, 1),
+        )
+        resp = self.client.get(self._url())
+        self.assertIn(m, resp.context['upcoming'])
+
+    def test_completed_match_appears_in_results(self):
+        m = Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            tier=1, status=Match.STATUS_COMPLETED,
+            team1=self.team1, team2=self.team2, winning_team=self.team1,
+            winner=self.p1,
+            played_date=datetime.date(2025, 7, 1),
+        )
+        resp = self.client.get(self._url())
+        self.assertIn(m, resp.context['results'])
+
+    def test_opponent_team_not_in_upcoming(self):
+        Match.objects.create(
+            season=self.season, player1=self.p1, player2=self.p2,
+            tier=1, status=Match.STATUS_SCHEDULED,
+            team1=self.team1, team2=self.team2,
+            scheduled_date=datetime.date(2025, 8, 1),
+        )
+        resp = self.client.get(self._url(team=self.team2))
+        upcoming = resp.context['upcoming']
+        self.assertEqual(upcoming.count(), 1)
+
+    def test_public_no_login_required(self):
+        self.client.logout()
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+
+    def test_display_name_rendered(self):
+        resp = self.client.get(self._url())
+        self.assertContains(resp, 'A. Adams')

@@ -1,8 +1,7 @@
 {% extends 'base.html' %}
 
 {% block title %}
-  {{ match.player1.get_full_name|default:match.player1.username }} vs
-  {{ match.player2.get_full_name|default:match.player2.username }} — TennisLeague
+  {{ match.side1.display_name }} vs {{ match.side2.display_name }} — TennisLeague
 {% endblock %}
 
 {% block content %}
@@ -10,9 +9,9 @@
 {# ── Page header ───────────────────────────────────────────────────────── #}
 <div class="page-header">
   <h1>
-    {% if match.player1 %}<a href="{% url 'leagues:player_detail' season.slug match.player1.username %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}
+    {% if match.side1 %}<a href="{% url 'leagues:team_detail' season.slug match.side1.pk %}" class="text-reset text-decoration-none">{{ match.side1.display_name }}</a>{% endif %}
     <span class="text-muted" style="font-size:0.7em; font-family:'DM Sans',sans-serif; font-weight:400;">vs</span>
-    {% if match.player2 %}<a href="{% url 'leagues:player_detail' season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}
+    {% if match.side2 %}<a href="{% url 'leagues:team_detail' season.slug match.side2.pk %}" class="text-reset text-decoration-none">{{ match.side2.display_name }}</a>{% endif %}
   </h1>
   <p class="page-meta">
     {{ season }}
@@ -40,10 +39,10 @@
         <dt class="col-5 text-muted fw-500">Played</dt>
         <dd class="col-7">{{ match.played_date }}</dd>
         {% endif %}
-        {% if match.winner %}
+        {% if match.winning_side %}
         <dt class="col-5 text-muted fw-500">Winner</dt>
         <dd class="col-7 fw-600 text-clay">
-          {{ match.winner.get_full_name|default:match.winner.username }}
+          {{ match.winning_side.display_name }}
         </dd>
         {% endif %}
         {% if match.round != 'regular' %}
@@ -77,13 +76,13 @@
           </thead>
           <tbody>
             <tr>
-              <td class="ps-3 {% if match.winner_id == match.player1_id %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.player1 %}<a href="{% url 'leagues:player_detail' season.slug match.player1.username %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}</td>
+              <td class="ps-3 {% if match.winning_team_id == match.team1_id and match.winning_team_id %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.side1 %}<a href="{% url 'leagues:team_detail' season.slug match.side1.pk %}" class="text-reset text-decoration-none">{{ match.side1.display_name }}</a>{% endif %}</td>
               {% for s in sets %}
               <td class="text-center score-set">{{ s.player1_games }}</td>
               {% endfor %}
             </tr>
             <tr>
-              <td class="ps-3 {% if match.winner_id == match.player2_id %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.player2 %}<a href="{% url 'leagues:player_detail' season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}</td>
+              <td class="ps-3 {% if match.winning_team_id == match.team2_id and match.winning_team_id %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.side2 %}<a href="{% url 'leagues:team_detail' season.slug match.side2.pk %}" class="text-reset text-decoration-none">{{ match.side2.display_name }}</a>{% endif %}</td>
               {% for s in sets %}
               <td class="text-center score-set">{{ s.player2_games }}</td>
               {% endfor %}
@@ -176,10 +175,10 @@
             <dt class="col-5 text-muted fw-500">Played</dt>
             <dd class="col-7">{{ match.played_date }}</dd>
             {% endif %}
-            {% if match.winner %}
+            {% if match.winning_side %}
             <dt class="col-5 text-muted fw-500">Winner</dt>
             <dd class="col-7 fw-600 text-clay">
-              <a href="{% url 'leagues:player_detail' season.slug match.winner.username %}" class="text-reset text-decoration-none">{{ match.winner.get_full_name|default:match.winner.username }}</a>
+              <a href="{% url 'leagues:team_detail' season.slug match.winning_side.pk %}" class="text-reset text-decoration-none">{{ match.winning_side.display_name }}</a>
             </dd>
             {% endif %}
             {% if match.round != 'regular' %}
@@ -215,13 +214,13 @@
               </thead>
               <tbody>
                 <tr>
-                  <td class="ps-3 {% if match.winner_id == match.player1_id %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.player1 %}<a href="{% url 'leagues:player_detail' season.slug match.player1.username %}" class="text-reset text-decoration-none">{{ match.player1.get_full_name|default:match.player1.username }}</a>{% endif %}</td>
+                  <td class="ps-3 {% if match.winning_team_id == match.team1_id and match.winning_team_id %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.side1 %}<a href="{% url 'leagues:team_detail' season.slug match.side1.pk %}" class="text-reset text-decoration-none">{{ match.side1.display_name }}</a>{% endif %}</td>
                   {% for s in sets %}
                   <td class="text-center score-set">{{ s.player1_games }}</td>
                   {% endfor %}
                 </tr>
                 <tr>
-                  <td class="ps-3 {% if match.winner_id == match.player2_id %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.player2 %}<a href="{% url 'leagues:player_detail' season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}</td>
+                  <td class="ps-3 {% if match.winning_team_id == match.team2_id and match.winning_team_id %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.side2 %}<a href="{% url 'leagues:team_detail' season.slug match.side2.pk %}" class="text-reset text-decoration-none">{{ match.side2.display_name }}</a>{% endif %}</td>
                   {% for s in sets %}
                   <td class="text-center score-set">{{ s.player2_games }}</td>
                   {% endfor %}

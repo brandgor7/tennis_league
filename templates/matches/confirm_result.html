@@ -1,8 +1,7 @@
 {% extends 'base.html' %}
 
 {% block title %}
-  Confirm Result — {{ match.player1.get_full_name|default:match.player1.username }} vs
-  {{ match.player2.get_full_name|default:match.player2.username }} — TennisLeague
+  Confirm Result — {{ match.side1.display_name }} vs {{ match.side2.display_name }} — TennisLeague
 {% endblock %}
 
 {% block content %}
@@ -10,9 +9,9 @@
 <div class="page-header">
   <h1>Confirm Result</h1>
   <p class="page-meta">
-    {{ match.player1.get_full_name|default:match.player1.username }}
+    {{ match.side1.display_name }}
     <span class="text-muted" style="font-size:0.85em;">vs</span>
-    {{ match.player2.get_full_name|default:match.player2.username }}
+    {{ match.side2.display_name }}
     &nbsp;·&nbsp; {{ season }}
     {% if multi_tier and match.tier %}
     &nbsp;·&nbsp; Tier {{ match.tier }}
@@ -39,7 +38,7 @@
     <dl class="row mb-0">
       <dt class="col-5 text-muted fw-500">Winner</dt>
       <dd class="col-7 fw-600 text-clay">
-        {{ match.winner.get_full_name|default:match.winner.username }}
+        {{ match.winning_side.display_name }}
       </dd>
       {% if match.walkover_reason %}
       <dt class="col-5 text-muted fw-500">Reason</dt>
@@ -66,7 +65,7 @@
         </thead>
         <tbody>
           <tr>
-            <td class="ps-3 fw-500">{{ match.player1.get_full_name|default:match.player1.username }}</td>
+            <td class="ps-3 fw-500">{{ match.side1.display_name }}</td>
             {% for s in sets %}
             <td class="text-center score-set">
               {{ s.player1_games }}
@@ -77,7 +76,7 @@
             {% endfor %}
           </tr>
           <tr>
-            <td class="ps-3 fw-500">{{ match.player2.get_full_name|default:match.player2.username }}</td>
+            <td class="ps-3 fw-500">{{ match.side2.display_name }}</td>
             {% for s in sets %}
             <td class="text-center score-set">
               {{ s.player2_games }}

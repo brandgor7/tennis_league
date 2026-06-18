@@ -28,7 +28,9 @@ def _audit_match(user, match, message):
 def _get_player_match(request, pk):
     """Load a match; require the requesting user to be one of its players or staff."""
     match = get_object_or_404(
-        Match.objects.select_related('player1', 'player2', 'season'),
+        Match.objects.select_related(
+            'player1', 'player2', 'team1', 'team2', 'winning_team', 'season'
+        ).prefetch_related('team1__members', 'team2__members'),
         pk=pk,
     )
     if not (request.user == match.player1 or request.user == match.player2 or request.user.is_staff):
@@ -63,8 +65,8 @@ def _build_result_form_context(form, match):
         'sets_meta': sets_meta,
         'max_sets': max_sets,
         'games_to_win_set': season.games_to_win_set,
-        'player1_name': match.player1.get_full_name() or match.player1.username,
-        'player2_name': match.player2.get_full_name() or match.player2.username,
+        'player1_name': match.side1.display_name if match.team1_id else (match.player1.get_full_name() or match.player1.username),
+        'player2_name': match.side2.display_name if match.team2_id else (match.player2.get_full_name() or match.player2.username),
     }
 
 
@@ -78,7 +80,8 @@ class MatchupsView(TemplateView):
             Match.objects
             .filter(season=season, status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED, Match.STATUS_PENDING],
                     player1__isnull=False, player2__isnull=False)
-            .select_related('player1', 'player2', 'winner')
+            .select_related('team1', 'team2', 'winning_team')
+            .prefetch_related('team1__members', 'team2__members')
             .order_by(F('scheduled_date').desc(nulls_last=True), '-created_at')
         )
 
@@ -122,8 +125,8 @@ class ResultsView(TemplateView):
         qs = (
             Match.objects
             .filter(season=season, status__in=[Match.STATUS_COMPLETED, Match.STATUS_WALKOVER])
-            .select_related('player1', 'player2', 'winner')
-            .prefetch_related('sets')
+            .select_related('team1', 'team2', 'winning_team')
+            .prefetch_related('team1__members', 'team2__members', 'sets')
             .order_by(F('played_date').desc(nulls_last=True), '-created_at')
         )
         multi_tier = season.num_tiers > 1
@@ -143,7 +146,9 @@ class MatchDetailView(DetailView):
     context_object_name = 'match'
 
     def get_queryset(self):
-        return Match.objects.select_related('player1', 'player2', 'winner', 'season')
+        return Match.objects.select_related(
+            'team1', 'team2', 'winning_team', 'season'
+        ).prefetch_related('team1__members', 'team2__members', 'winning_team__members')
 
     def get_object(self, queryset=None):
         obj = super().get_object(queryset)
@@ -245,7 +250,9 @@ class ConfirmResultView(LoginRequiredMixin, View):
 
     def _get_match(self, request, pk):
         match = get_object_or_404(
-            Match.objects.select_related('player1', 'player2', 'season', 'entered_by'),
+            Match.objects.select_related(
+                'player1', 'player2', 'team1', 'team2', 'winning_team', 'season', 'entered_by'
+            ).prefetch_related('team1__members', 'team2__members'),
             pk=pk,
         )
         # Check authorization before status so unauthorized users always get 403
@@ -351,7 +358,9 @@ class EditResultView(LoginRequiredMixin, View):
         if not request.user.is_staff:
             raise PermissionDenied
         match = get_object_or_404(
-            Match.objects.select_related('player1', 'player2', 'season').prefetch_related('sets'),
+            Match.objects.select_related(
+                'player1', 'player2', 'team1', 'team2', 'winning_team', 'season'
+            ).prefetch_related('team1__members', 'team2__members', 'sets'),
             pk=pk,
         )
         if match.status != Match.STATUS_COMPLETED:
@@ -364,7 +373,9 @@ class EditResultView(LoginRequiredMixin, View):
         if not request.user.is_staff:
             raise PermissionDenied
         match = get_object_or_404(
-            Match.objects.select_related('player1', 'player2', 'season'),
+            Match.objects.select_related(
+                'player1', 'player2', 'team1', 'team2', 'winning_team', 'season'
+            ).prefetch_related('team1__members', 'team2__members'),
             pk=pk,
         )
         if match.status != Match.STATUS_COMPLETED:

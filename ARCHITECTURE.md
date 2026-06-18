@@ -55,11 +55,16 @@ Bootstrap 5's `md` breakpoint (768px) is the single dividing line between **mobi
 - Mobile: Horizontal-scroll container (`overflow-x: auto`) wrapping the bracket; bracket rendered as a horizontal flow (rounds left to right); player names truncated with full name in tooltip
 - Desktop: Full bracket rendered in CSS grid, all rounds visible simultaneously without scrolling
 
-### Player Profile (`/seasons/<id>/players/<player_id>/`)
+### Player Profile (`/seasons/<slug>/players/<username>/`)
 - Page shows the player's standing (rank, W/L, Pts, PD) for the season, followed by upcoming matches and completed results
 - Reuses `_match_list.html` and `_results_list.html` partials
 - Mobile: stat summary row, then matches as cards
 - Desktop: stat summary row, then matches as a table
+- Public — no login required
+
+### Team Profile (`/seasons/<slug>/teams/<team_id>/`)
+- Page shows the team's standing (rank, W/L, Pts, PD) for the season, followed by upcoming matches and completed results
+- Reuses `_match_list.html` and `_results_list.html` partials — same layout as player profile
 - Public — no login required
 
 ### Forms (login, walkover, postpone)
@@ -132,7 +137,9 @@ Available blocks: `nav_standings`, `nav_matchups`, `nav_results`, `nav_playoffs`
 
 ### Player Name Links
 
-Every player name rendered in the UI links to that player's profile page (`leagues:player_detail`). This applies to: `_match_list.html`, `_results_list.html`, `_standings_table.html`, `match_detail.html`, and `accounts/profile.html`. The link requires `season.pk` and `player.pk`; season context is always available via `current_season` from the context processor.
+Every participant name rendered in the UI links to that team's profile page (`leagues:team_detail`). This applies to: `_match_list.html`, `_results_list.html`, `_standings_table.html`, and `match_detail.html`. The link requires `season.slug` and `team.pk`; season context is always available via `current_season` from the context processor.
+
+Names are displayed via `Team.display_name`: for single-member teams this returns an abbreviated "F. Last" format; for doubles teams with `use_team_name=True` it returns the team name.
 
 ### Base Template Context
 
@@ -208,6 +215,7 @@ tennis-scores-app/
     │   ├── season_list.html
     │   ├── season_detail.html
     │   ├── player_detail.html       # player profile within a season
+    │   ├── team_detail.html         # team profile within a season
     │   └── rules.html               # league rules page; Markdown rendered via marked.js CDN
     └── playoffs/
         └── bracket.html
@@ -225,9 +233,11 @@ tennis-scores-app/
 ### `leagues`
 - `Season` model — all per-season configuration
 - `SeasonPlayer` model — roster (which users are in which season)
+- `Team` model — universal participant unit; one per `SeasonPlayer` for singles, one per pair for doubles; carries `display_name` property
 - `SiteConfig` model — singleton; stores `site_name` and `logo_svg` (sanitized SVG text); configurable in admin
 - Season list, detail views
 - `SeasonPlayerDetailView` — public player profile page showing standing, upcoming matches, and results for a player within a season
+- `TeamDetailView` — public team profile page showing standing, upcoming matches, and results for a team within a season
 - Admin: create/edit seasons, manage rosters, edit site name and logo
 
 ### `matches`
@@ -319,11 +329,28 @@ joined_at DateTimeField
 UNIQUE: (season, player)
 ```
 
+### `leagues.Team`
+```
+season        FK → Season
+tier          IntegerField       matches SeasonPlayer.tier
+members       M2M → User         one member for singles, two for doubles
+use_team_name BooleanField       default False; when True, display_name returns team_name
+team_name     CharField (blank)   custom name shown when use_team_name=True
+is_active     BooleanField
+created_at    DateTimeField
+```
+`display_name` property: returns `"F. Last"` (first initial + last name) for single-member teams; returns `team_name` when `use_team_name=True`.
+
+`side1` / `side2` / `winning_side` are properties on `Match` that return the corresponding `Team` when set, falling back to the `User` FK for legacy rows.
+
 ### `matches.Match`
 ```
 season          FK → Season
 player1         FK → User (nullable)   null for TBD playoff slots until winner is determined
 player2         FK → User (nullable)   null for TBD playoff slots until winner is determined
+team1           FK → Team (nullable)   team participant for side 1
+team2           FK → Team (nullable)   team participant for side 2
+winning_team    FK → Team (nullable)   winning team once result is recorded
 tier            IntegerField (nullable)   which tier this match belongs to; set from players' tier at match creation
 round           CharField    regular | r32 | r16 | qf | sf | f
 scheduled_date  DateField (nullable)
@@ -378,15 +405,15 @@ Standings are **per-tier**: the calculator takes a season and tier number, retur
 
 **Algorithm (for a given season + tier):**
 ```
-For each active SeasonPlayer in season where tier == requested_tier:
+For each active Team in season where tier == requested_tier:
   matches = Match.objects.filter(
       season=season,
       tier=requested_tier,
       status__in=['completed', 'walkover'],
-      player in [player1, player2]
+      team in [team1, team2]
   )
-  wins   = matches where winner == player
-  losses = matches - wins (not counting walkovers where player isn't winner)
+  wins   = matches where winning_team == team
+  losses = matches - wins (not counting walkovers where team isn't winner)
 
   points = (wins * season.points_for_win)
          + (walkover_losses * season.points_for_walkover_loss)
@@ -395,7 +422,7 @@ For each active SeasonPlayer in season where tier == requested_tier:
   games_won, games_lost = sum from MatchSet (walkovers contribute 0)
   pd = games_won - games_lost
 
-Returned dict per player: player, wins, losses, points, pd
+Returned dict per team: participant (Team), wins, losses, points, pd
 
 Ranking tiebreakers (applied internally, not exposed in the returned dict):
   1. points (desc)
@@ -405,7 +432,7 @@ Ranking tiebreakers (applied internally, not exposed in the returned dict):
   5. head-to-head result (if still equal — not yet implemented)
 ```
 
-`calculate_standings(season, tier)` → ranked list for one tier.
+`calculate_standings(season, tier)` → ranked list for one tier; each row's `participant` key holds a `Team` instance.
 The standings view calls this for each tier in `range(1, season.num_tiers + 1)`.
 
 ---
@@ -480,6 +507,7 @@ The admin generate-playoffs page includes an optional start date field. Leaving 
 /seasons/<slug>/playoffs/                  Playoff bracket list (redirects to tier 1 if single-tier)
 /seasons/<slug>/playoffs/<tier>/           Playoff bracket for a specific tier
 /seasons/<slug>/players/<username>/        Player profile — standing, upcoming matches, and results within that season
+/seasons/<slug>/teams/<team_id>/           Team profile — standing, upcoming matches, and results within that season
 
 /seasons/<slug>/matches/<id>/              Match detail (set scores, status)
 /seasons/<slug>/matches/<id>/enter-result/     Enter score (player in match or admin)
