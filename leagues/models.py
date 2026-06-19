@@ -153,6 +153,15 @@ class Season(models.Model):
         blank=True,
         help_text='Rules text in Markdown format.',
     )
+    site_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text='Overrides the global site name when this season is current. Leave blank to use the global setting.',
+    )
+    logo = models.TextField(
+        blank=True,
+        help_text='Overrides the global logo when this season is current (managed via admin upload). Leave blank to use the global setting.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -169,6 +178,10 @@ class Season(models.Model):
     @property
     def is_tiebreak_final_format(self):
         return self.final_set_format == self.FINAL_SET_TIEBREAK
+
+    @property
+    def logo_url(self):
+        return self.logo if self.logo.startswith('data:image/') else None
 
     def save(self, *args, **kwargs):
         base = slugify(f'{self.name}-{self.year}')

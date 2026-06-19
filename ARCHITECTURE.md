@@ -225,7 +225,7 @@ tennis-scores-app/
 ### `leagues`
 - `Season` model — all per-season configuration
 - `SeasonPlayer` model — roster (which users are in which season)
-- `SiteConfig` model — singleton; stores `site_name` and `logo_svg` (sanitized SVG text); configurable in admin
+- `SiteConfig` model — singleton; stores global `site_name` and `logo` as base64 data URL; configurable in admin. Acts as fallback when a season has no branding override.
 - Season list, detail views
 - `SeasonPlayerDetailView` — public player profile page showing standing, upcoming matches, and results for a player within a season
 - Admin: create/edit seasons, manage rosters, edit site name and logo
@@ -255,11 +255,11 @@ tennis-scores-app/
 
 ### `leagues.SiteConfig`
 ```
-site_name      CharField(100)   Navbar brand name and page footer; default "TennisLeague"
-logo           TextField        Base64 data URL (data:image/png;base64,… or data:image/jpeg;base64,…); blank = default icon shown
+site_name      CharField(100)   Global fallback site name (navbar brand, page footer); default "TennisLeague"
+logo           TextField        Global fallback logo as base64 data URL; blank = default icon shown
 pk             always 1         Singleton — enforced by model.save() and admin
 ```
-Logo uploads are validated in the admin form: magic bytes are checked (PNG `\x89PNG\r\n\x1a\n`, JPEG `\xff\xd8\xff`) to confirm the file type regardless of extension, and size is capped at 2 MB. The data URL is stored in the database — no file system writes, no MEDIA configuration needed.
+`SiteConfig` is the **global fallback**. When a `Season` has its own `site_name` or `logo` set, those take priority for requests scoped to that season (resolved by the `season_context` context processor). Logo uploads are validated by magic bytes (PNG `\x89PNG\r\n\x1a\n`, JPEG `\xff\xd8\xff`) and capped at 2 MB. The data URL is stored in the database — no file system writes, no MEDIA configuration needed.
 
 ### `accounts.User`
 ```
@@ -295,6 +295,8 @@ rules_content             TextField       Rules text stored as Markdown; blank =
 preseason                 FK → Season (nullable, self-referential)  if set, matchups from the linked season are also excluded when generating the schedule, preventing rematches across seasons
 show_rules                BooleanField    default False; when True, a "Rules" link appears in the navbar and /seasons/<slug>/rules/ is accessible
 rules_content             TextField       Rules text stored as Markdown; blank = no content; rendered via marked.js on the rules page
+site_name                 CharField(100)  Optional branding override for this season; blank = use global SiteConfig.site_name
+logo                      TextField       Optional logo override for this season as base64 data URL; blank = use global SiteConfig.logo. Has a logo_url property matching SiteConfig.
 created_at                DateTimeField
 ```
 
