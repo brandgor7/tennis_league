@@ -13,6 +13,14 @@ class UserModelTest(TestCase):
         user = User(username='jdoe')
         self.assertEqual(str(user), 'jdoe')
 
+    def test_slash_stripped_from_username_on_save(self):
+        user = User.objects.create_user(username='o/brien')
+        self.assertEqual(user.username, 'obrien')
+
+    def test_multiple_slashes_stripped(self):
+        user = User.objects.create_user(username='a/b/c')
+        self.assertEqual(user.username, 'abc')
+
 
 class LoginViewTest(TestCase):
     def setUp(self):
