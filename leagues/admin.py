@@ -28,6 +28,23 @@ _JPEG_MAGIC = b'\xff\xd8\xff'
 _MAX_LOGO_BYTES = 2 * 1024 * 1024  # 2 MB
 
 
+def _clean_logo_upload(f):
+    """Validate a logo file upload and return (mime_type, bytes), or None if no file."""
+    if not f:
+        return None
+    if f.size > _MAX_LOGO_BYTES:
+        raise forms.ValidationError('Logo must be under 2 MB.')
+    header = f.read(8)
+    f.seek(0)
+    if header[:8] == _PNG_MAGIC:
+        mime = 'image/png'
+    elif header[:3] == _JPEG_MAGIC:
+        mime = 'image/jpeg'
+    else:
+        raise forms.ValidationError('File must be a PNG or JPEG image.')
+    return (mime, f.read())
+
+
 class TierInline(admin.TabularInline):
     model = Tier
     extra = 0
@@ -71,6 +88,37 @@ class TierInline(admin.TabularInline):
                     messages.success(request, f'{obj.name} playoff bracket deleted, tier reset to regular season.')
 
 
+class SeasonAdminForm(forms.ModelForm):
+    logo_upload = forms.FileField(
+        required=False,
+        label='Upload logo override (PNG or JPEG)',
+        help_text='Max 2 MB. Replaces the current season logo override.',
+    )
+    clear_logo = forms.BooleanField(
+        required=False,
+        label='Remove season logo override',
+        help_text="Tick to clear this season's logo — the global site logo will be used instead.",
+    )
+
+    class Meta:
+        model = Season
+        exclude = ('logo',)
+
+    def clean_logo_upload(self):
+        return _clean_logo_upload(self.cleaned_data.get('logo_upload'))
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if self.cleaned_data.get('clear_logo'):
+            instance.logo = ''
+        elif self.cleaned_data.get('logo_upload'):
+            mime, data = self.cleaned_data['logo_upload']
+            instance.logo = f'data:{mime};base64,{base64.b64encode(data).decode()}'
+        if commit:
+            instance.save()
+        return instance
+
+
 class SeasonPlayerInline(admin.TabularInline):
     model = SeasonPlayer
     extra = 1
@@ -83,11 +131,12 @@ class SeasonAdmin(admin.ModelAdmin):
     class Media:
         js = ('js/admin_season_form.js',)
 
+    form = SeasonAdminForm
     list_display = ('name', 'year', 'status', 'schedule_type', 'sets_to_win', 'final_set_format', 'playoff_qualifiers_count')
     list_filter = ('status', 'year', 'final_set_format', 'walkover_rule')
     search_fields = ('name',)
     inlines = [TierInline, SeasonPlayerInline]
-    readonly_fields = ('season_markdown_hints',)
+    readonly_fields = ('season_markdown_hints', 'season_logo_preview')
     formfield_overrides = {
         models.TextField: {'widget': forms.Textarea(attrs={'rows': 20, 'style': 'font-family: monospace;'})},
     }
@@ -99,6 +148,13 @@ class SeasonAdmin(admin.ModelAdmin):
         ('Points', {'fields': ('points_for_win', 'points_for_loss', 'points_for_walkover_loss')}),
         ('Rules', {'fields': ('walkover_rule', 'enforce_scheduled_dates', 'postponement_deadline', 'grace_period_days')}),
         ('Rules Page', {'fields': ('show_rules', 'rules_content', 'season_markdown_hints')}),
+        ('Branding Override', {
+            'description': (
+                'Overrides the global site name and logo for this season. '
+                'Leave both blank to use the global defaults configured in Site Configuration.'
+            ),
+            'fields': ('site_name', 'season_logo_preview', 'logo_upload', 'clear_logo'),
+        }),
     )
 
     def season_markdown_hints(self, obj):
@@ -123,6 +179,16 @@ class SeasonAdmin(admin.ModelAdmin):
             '</tbody></table>'
         )
     season_markdown_hints.short_description = 'Markdown reference'
+
+    def season_logo_preview(self, obj):
+        if not obj or not obj.pk or not obj.logo:
+            return '(none — global site logo will be used)'
+        return format_html(
+            '<img src="{}" alt="Season logo override"'
+            ' style="max-height:80px;background:#1B3D2B;padding:8px;border-radius:4px;">',
+            obj.logo,
+        )
+    season_logo_preview.short_description = 'Current season logo override'
 
     def get_urls(self):
         urls = super().get_urls()
@@ -984,20 +1050,7 @@ class SiteConfigForm(forms.ModelForm):
         fields = ('site_name',)
 
     def clean_logo_upload(self):
-        f = self.cleaned_data.get('logo_upload')
-        if not f:
-            return None
-        if f.size > _MAX_LOGO_BYTES:
-            raise forms.ValidationError('Logo must be under 2 MB.')
-        header = f.read(8)
-        f.seek(0)
-        if header[:8] == _PNG_MAGIC:
-            mime = 'image/png'
-        elif header[:3] == _JPEG_MAGIC:
-            mime = 'image/jpeg'
-        else:
-            raise forms.ValidationError('File must be a PNG or JPEG image.')
-        return (mime, f.read())
+        return _clean_logo_upload(self.cleaned_data.get('logo_upload'))
 
     def save(self, commit=True):
         instance = super().save(commit=False)

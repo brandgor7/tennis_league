@@ -10,7 +10,7 @@ from django.urls import reverse
 
 from .models import Season, SeasonPlayer, SiteConfig, Tier
 from .forms import SeasonForm
-from .admin import SiteConfigForm
+from .admin import SeasonAdminForm, SiteConfigForm
 from .templatetags.site_branding import get_site_config
 from matches.models import Match
 
@@ -2446,3 +2446,220 @@ class DeleteMatchViewTest(TestCase):
     def test_nonexistent_match_id_returns_400(self):
         resp = self.client.post(self._url(), {'match_id': 99999})
         self.assertEqual(resp.status_code, 400)
+
+
+# ─── Season branding override model tests ─────────────────────────────────────
+
+class SeasonBrandingModelTest(TestCase):
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025)
+
+    def test_site_name_defaults_blank(self):
+        self.assertEqual(self.season.site_name, '')
+
+    def test_logo_defaults_blank(self):
+        self.assertEqual(self.season.logo, '')
+
+    def test_site_name_override_persists(self):
+        self.season.site_name = 'Spring League'
+        self.season.save()
+        self.season.refresh_from_db()
+        self.assertEqual(self.season.site_name, 'Spring League')
+
+    def test_logo_override_persists(self):
+        data_url = 'data:image/png;base64,abc123'
+        self.season.logo = data_url
+        self.season.save()
+        self.season.refresh_from_db()
+        self.assertEqual(self.season.logo, data_url)
+
+    def test_logo_url_returns_data_url_when_valid(self):
+        self.season.logo = 'data:image/png;base64,abc123'
+        self.assertEqual(self.season.logo_url, 'data:image/png;base64,abc123')
+
+    def test_logo_url_returns_none_when_blank(self):
+        self.season.logo = ''
+        self.assertIsNone(self.season.logo_url)
+
+    def test_logo_url_returns_none_for_invalid_scheme(self):
+        self.season.logo = 'javascript:evil()'
+        self.assertIsNone(self.season.logo_url)
+
+    def test_logo_url_returns_none_for_http_url(self):
+        self.season.logo = 'http://example.com/logo.png'
+        self.assertIsNone(self.season.logo_url)
+
+
+# ─── Season branding context processor override tests ─────────────────────────
+
+class SeasonBrandingContextProcessorTest(TestCase):
+    def setUp(self):
+        SiteConfig.objects.create(pk=1, site_name='Global League', logo='data:image/png;base64,global==')
+
+    def _get_season_url(self, season):
+        return self.client.get(reverse('leagues:season_detail', kwargs={'slug': season.slug}))
+
+    def test_season_site_name_overrides_global(self):
+        season = Season.objects.create(name='Spring', year=2025, site_name='Spring Club')
+        response = self._get_season_url(season)
+        self.assertEqual(response.context['site_name'], 'Spring Club')
+
+    def test_global_site_name_used_when_season_override_blank(self):
+        season = Season.objects.create(name='Spring', year=2025, site_name='')
+        response = self._get_season_url(season)
+        self.assertEqual(response.context['site_name'], 'Global League')
+
+    def test_season_logo_overrides_global(self):
+        season_logo = 'data:image/png;base64,season=='
+        season = Season.objects.create(name='Spring', year=2025, logo=season_logo)
+        response = self._get_season_url(season)
+        self.assertEqual(response.context['logo_data_url'], season_logo)
+
+    def test_global_logo_used_when_season_override_blank(self):
+        season = Season.objects.create(name='Spring', year=2025, logo='')
+        response = self._get_season_url(season)
+        self.assertEqual(response.context['logo_data_url'], 'data:image/png;base64,global==')
+
+    def test_global_logo_used_when_season_logo_invalid_scheme(self):
+        season = Season.objects.create(name='Spring', year=2025, logo='javascript:evil()')
+        response = self._get_season_url(season)
+        self.assertEqual(response.context['logo_data_url'], 'data:image/png;base64,global==')
+
+    def test_no_current_season_falls_back_to_global(self):
+        response = self.client.get(reverse('leagues:season_list'))
+        self.assertEqual(response.context['site_name'], 'Global League')
+
+    def test_different_seasons_can_have_different_site_names(self):
+        s1 = Season.objects.create(name='Spring', year=2025, site_name='Spring Club')
+        s2 = Season.objects.create(name='Fall', year=2025, site_name='Fall Club', status=Season.STATUS_UPCOMING)
+        r1 = self._get_season_url(s1)
+        r2 = self._get_season_url(s2)
+        self.assertEqual(r1.context['site_name'], 'Spring Club')
+        self.assertEqual(r2.context['site_name'], 'Fall Club')
+
+    def test_season_site_name_rendered_in_navbar(self):
+        season = Season.objects.create(name='Spring', year=2025, site_name='Ace Tennis Club')
+        response = self._get_season_url(season)
+        self.assertContains(response, 'Ace Tennis Club')
+
+    def test_season_logo_rendered_when_override_set(self):
+        season_logo = 'data:image/png;base64,season=='
+        season = Season.objects.create(name='Spring', year=2025, logo=season_logo)
+        response = self._get_season_url(season)
+        self.assertContains(response, season_logo)
+
+
+# ─── Season branding admin tests ──────────────────────────────────────────────
+
+class SeasonBrandingAdminTest(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username='admin', password='pass', is_staff=True, is_superuser=True,
+        )
+        self.client.login(username='admin', password='pass')
+        self.season = make_season()
+        self.change_url = reverse('admin:leagues_season_change', args=[self.season.pk])
+
+    def _post(self, extra=None):
+        data = {
+            'name': self.season.name,
+            'year': self.season.year,
+            'status': self.season.status,
+            'display': '1',
+            'schedule_type': Season.SCHEDULE_WEEKLY,
+            'schedule_display_mode': Season.DISPLAY_ALL,
+            'schedule_display_days': '7',
+            'sets_to_win': '2',
+            'games_to_win_set': '6',
+            'win_by_two': '1',
+            'final_set_format': Season.FINAL_SET_FULL,
+            'playoffs_enabled': '1',
+            'playoffs_public': '1',
+            'playoff_qualifiers_count': '8',
+            'playoff_interval_days': '7',
+            'points_for_win': '3',
+            'points_for_loss': '0',
+            'points_for_walkover_loss': '0',
+            'walkover_rule': Season.WALKOVER_WINNER,
+            'enforce_scheduled_dates': '1',
+            'postponement_deadline': '14',
+            'grace_period_days': '7',
+            'show_rules': '',
+            'rules_content': '',
+            'site_name': '',
+            # inline management forms
+            'tiers-TOTAL_FORMS': '0',
+            'tiers-INITIAL_FORMS': '0',
+            'tiers-MIN_NUM_FORMS': '0',
+            'tiers-MAX_NUM_FORMS': '1000',
+            'season_players-TOTAL_FORMS': '0',
+            'season_players-INITIAL_FORMS': '0',
+            'season_players-MIN_NUM_FORMS': '0',
+            'season_players-MAX_NUM_FORMS': '1000',
+        }
+        if extra:
+            data.update(extra)
+        return self.client.post(self.change_url, data)
+
+    def test_branding_override_fieldset_visible(self):
+        response = self.client.get(self.change_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Branding Override')
+
+    def test_override_description_explains_global_fallback(self):
+        response = self.client.get(self.change_url)
+        self.assertContains(response, 'global')
+
+    def test_post_updates_site_name_override(self):
+        self._post({'site_name': 'Spring Club'})
+        self.season.refresh_from_db()
+        self.assertEqual(self.season.site_name, 'Spring Club')
+
+    def test_post_blank_site_name_stores_blank(self):
+        self.season.site_name = 'Old Name'
+        self.season.save()
+        self._post({'site_name': ''})
+        self.season.refresh_from_db()
+        self.assertEqual(self.season.site_name, '')
+
+    def test_post_png_stores_logo_data_url(self):
+        self._post({'logo_upload': _png_file()})
+        self.season.refresh_from_db()
+        self.assertTrue(self.season.logo.startswith('data:image/png;base64,'))
+
+    def test_post_jpeg_stores_logo_data_url(self):
+        self._post({'logo_upload': _jpeg_file()})
+        self.season.refresh_from_db()
+        self.assertTrue(self.season.logo.startswith('data:image/jpeg;base64,'))
+
+    def test_post_clear_logo_removes_logo(self):
+        self.season.logo = 'data:image/png;base64,abc123'
+        self.season.save()
+        self._post({'clear_logo': '1'})
+        self.season.refresh_from_db()
+        self.assertEqual(self.season.logo, '')
+
+    def test_post_no_upload_leaves_existing_logo_unchanged(self):
+        self.season.logo = 'data:image/png;base64,existing=='
+        self.season.save()
+        self._post()
+        self.season.refresh_from_db()
+        self.assertEqual(self.season.logo, 'data:image/png;base64,existing==')
+
+    def test_post_invalid_file_does_not_save_logo(self):
+        self.season.logo = 'data:image/png;base64,original=='
+        self.season.save()
+        bad_file = SimpleUploadedFile('bad.png', b'not an image', content_type='image/png')
+        self._post({'logo_upload': bad_file})
+        self.season.refresh_from_db()
+        self.assertEqual(self.season.logo, 'data:image/png;base64,original==')
+
+    def test_season_logo_preview_shown_when_logo_set(self):
+        self.season.logo = 'data:image/png;base64,abc123'
+        self.season.save()
+        response = self.client.get(self.change_url)
+        self.assertContains(response, 'data:image/png;base64,abc123')
+
+    def test_season_logo_preview_shows_placeholder_when_no_logo(self):
+        response = self.client.get(self.change_url)
+        self.assertContains(response, 'global site logo will be used')

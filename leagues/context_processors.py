@@ -8,10 +8,6 @@ def season_context(request):
     if request.path.startswith('/admin/'):
         return {}
 
-    config = SiteConfig.get()
-    site_name = config.site_name
-    logo_data_url = config.logo_url
-
     user = request.user
 
     # Build the seasons visible in the dropdown.
@@ -52,6 +48,11 @@ def season_context(request):
         current_season = next(
             (s for s in all_seasons if s.status == Season.STATUS_ACTIVE), None
         )
+
+    # Branding: season-level overrides take priority over the global SiteConfig fallback.
+    config = SiteConfig.get()
+    site_name = (current_season.site_name if current_season and current_season.site_name else None) or config.site_name
+    logo_data_url = (current_season.logo_url if current_season else None) or config.logo_url
 
     return {
         'current_season': current_season,
