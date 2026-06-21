@@ -161,6 +161,185 @@
       max-width: 1000px;
     }
   }
+
+  /* ============================================================
+   * Centered bracket — draws converge from both sides to a
+   * central champion. Each player / winner is a separate node;
+   * connectors are drawn with a pseudo-element per node.
+   * ============================================================ */
+  .cb-scroll {
+    overflow-x: auto;
+    padding: 0.5rem 0 1rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .cb-grid {
+    --cb-gap: 2rem;
+    --cb-line: #C2B69F;
+    display: grid;
+    column-gap: var(--cb-gap);
+    align-items: center;
+    width: max-content;
+    margin: 0 auto;
+  }
+
+  .cb-node { position: relative; }
+
+  .cb-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.12s ease;
+  }
+  a.cb-link:hover { transform: translateY(-1px); }
+
+  .cb-leaf,
+  .cb-winner,
+  .cb-champion {
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--white);
+    margin: 2px 3px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.8rem;
+    line-height: 1.2;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  }
+
+  .cb-leaf {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .cb-seed {
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--muted);
+    background: var(--sand);
+    border-radius: 4px;
+    padding: 0.05rem 0.32rem;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cb-name {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cb-winner {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.05rem;
+  }
+  .cb-winner.is-decided {
+    border-color: var(--clay-light);
+    background: rgba(196, 82, 42, 0.06);
+    font-weight: 700;
+    color: var(--clay-dark);
+  }
+  .cb-winner.is-tbd {
+    background: var(--cream);
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .cb-score {
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cb-champion {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.12rem;
+    text-align: center;
+    border: 2px solid var(--border);
+    background: var(--sand);
+    padding: 0.6rem 0.5rem;
+  }
+  .cb-champion.is-decided {
+    border-color: var(--clay);
+    background: linear-gradient(165deg, #FBEFE7, #F3D9C9);
+    color: var(--clay-dark);
+  }
+  .cb-trophy {
+    font-size: 1.1rem;
+    color: var(--muted);
+    line-height: 1;
+  }
+  .cb-champion.is-decided .cb-trophy { color: var(--clay); }
+  .cb-champion .cb-name { font-weight: 700; font-size: 0.88rem; max-width: 100%; }
+  .cb-champ-label {
+    font-size: 0.58rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    color: var(--clay);
+  }
+
+  .cb-tbd {
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* Connectors: a single pseudo-element draws the horizontal run plus a
+   * vertical arm (height = --v-h) reaching the merged node's centre line. */
+  .cb-left-up::after,
+  .cb-left-down::after,
+  .cb-left-straight::after,
+  .cb-right-up::after,
+  .cb-right-down::after,
+  .cb-right-straight::after {
+    content: '';
+    position: absolute;
+    width: var(--cb-gap);
+    height: var(--v-h, 0px);
+  }
+  .cb-left-up::after,
+  .cb-left-down::after,
+  .cb-left-straight::after { left: 100%; }
+  .cb-right-up::after,
+  .cb-right-down::after,
+  .cb-right-straight::after { right: 100%; }
+
+  .cb-left-up::after {
+    top: 50%;
+    border-top: 1px solid var(--cb-line);
+    border-right: 1px solid var(--cb-line);
+  }
+  .cb-left-down::after {
+    bottom: 50%;
+    border-bottom: 1px solid var(--cb-line);
+    border-right: 1px solid var(--cb-line);
+  }
+  .cb-left-straight::after {
+    top: 50%;
+    height: 0;
+    border-top: 1px solid var(--cb-line);
+  }
+  .cb-right-up::after {
+    top: 50%;
+    border-top: 1px solid var(--cb-line);
+    border-left: 1px solid var(--cb-line);
+  }
+  .cb-right-down::after {
+    bottom: 50%;
+    border-bottom: 1px solid var(--cb-line);
+    border-left: 1px solid var(--cb-line);
+  }
+  .cb-right-straight::after {
+    top: 50%;
+    height: 0;
+    border-top: 1px solid var(--cb-line);
+  }
 </style>
 {% endblock %}
 

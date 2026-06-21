@@ -295,3 +295,119 @@ class GenerateBracketWithByesTest(TestCase):
             for p in [m.player1, m.player2] if p is not None
         )
         self.assertEqual(players_filled, 2)
+
+
+class CenteredBracketStyleTest(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin', is_staff=True)
+        self.season = _make_season(
+            playoff_qualifiers_count=8,
+            playoff_bracket_style=Season.BRACKET_STYLE_CENTERED,
+        )
+        self.players = _make_players(8)
+        _enroll(self.season, self.players)
+        # Give every player a completed match so standings are populated.
+        for i in range(0, 8, 2):
+            _complete_match(self.season, self.players[i], self.players[i + 1])
+        generate_bracket(self.season, 1, self.admin)
+
+    def _url(self):
+        from django.urls import reverse
+        return reverse('leagues:playoffs', args=[self.season.slug])
+
+    def test_centered_page_renders(self):
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'class="cb-node')
+        self.assertNotContains(resp, 'class="bracket-match')
+
+    def test_generated_bracket_not_shown_as_preview_without_tier(self):
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.context['tiers_data'][0]['is_preview'])
+        self.assertNotContains(resp, 'badge bg-secondary">Preview')
+
+    def test_completed_match_winner_advances_only_one_round(self):
+        from .views import _bracket_context, _centered_layout
+        bracket = PlayoffBracket.objects.get(season=self.season, tier=1)
+        qf_match = bracket.slots.filter(
+            round=Match.ROUND_QF
+        ).order_by('bracket_position').first().match
+        qf_match.status = Match.STATUS_COMPLETED
+        qf_match.winner = qf_match.player1
+        qf_match.save()
+        winner = qf_match.player1
+
+        rounds_data, bracket_size = _bracket_context(bracket)
+        layout = _centered_layout(rounds_data, bracket_size)
+        winner_nodes = [
+            n for n in layout['nodes']
+            if n['kind'] in ('winner', 'champion') and n['player'] == winner
+        ]
+        self.assertEqual(len(winner_nodes), 1)
+
+    def test_traditional_page_still_renders(self):
+        self.season.playoff_bracket_style = Season.BRACKET_STYLE_TRADITIONAL
+        self.season.save(update_fields=['playoff_bracket_style'])
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'class="bracket-match')
+        self.assertNotContains(resp, 'class="cb-node')
+
+    def test_centered_preview_renders_without_bracket(self):
+        season = _make_season(
+            name='Autumn', year=2025,
+            playoff_qualifiers_count=4,
+            playoff_bracket_style=Season.BRACKET_STYLE_CENTERED,
+        )
+        players = [User.objects.create_user(username=f'q{i}') for i in range(4)]
+        _enroll(season, players)
+        _complete_match(season, players[0], players[1])
+        _complete_match(season, players[2], players[3])
+        from django.urls import reverse
+        resp = self.client.get(reverse('leagues:playoffs', args=[season.slug]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'class="cb-node')
+
+
+class BracketClickabilityTest(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin', is_staff=True)
+        self.season = _make_season(playoff_qualifiers_count=8)
+        self.players = _make_players(8)
+        _enroll(self.season, self.players)
+        for i in range(0, 8, 2):
+            _complete_match(self.season, self.players[i], self.players[i + 1])
+        self.bracket = generate_bracket(self.season, 1, self.admin)
+
+    def test_first_round_slots_clickable_later_rounds_not(self):
+        from .views import _bracket_context
+        rounds_data, _ = _bracket_context(self.bracket)
+        for slot in rounds_data[0]['slots']:
+            self.assertTrue(slot.is_clickable)
+        for round_data in rounds_data[1:]:
+            for slot in round_data['slots']:
+                self.assertFalse(slot.is_clickable)
+
+    def test_decided_later_round_slot_becomes_clickable(self):
+        from .views import _bracket_context
+        sf_match = self.bracket.slots.filter(
+            round=Match.ROUND_SF
+        ).order_by('bracket_position').first().match
+        sf_match.player1 = self.players[0]
+        sf_match.player2 = self.players[2]
+        sf_match.save()
+        rounds_data, _ = _bracket_context(self.bracket)
+        sf_round = next(r for r in rounds_data if r['code'] == Match.ROUND_SF)
+        self.assertTrue(sf_round['slots'][0].is_clickable)
+
+    def test_tbd_match_not_linked_in_rendered_bracket(self):
+        from django.urls import reverse
+        tbd_match = self.bracket.slots.filter(
+            round=Match.ROUND_FINAL
+        ).first().match
+        resp = self.client.get(reverse('leagues:playoffs', args=[self.season.slug]))
+        self.assertNotContains(
+            resp,
+            reverse('matches:match_detail', args=[self.season.slug, tbd_match.pk]),
+        )

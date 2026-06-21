@@ -36,6 +36,19 @@ def _get_player_match(request, pk):
     return match
 
 
+def _redirect_if_incomplete(request, match, slug, pk):
+    """Guard result actions against not-yet-decided playoff matches.
+
+    Future bracket rounds exist as matches with both players unset; acting on one
+    has no meaning and would dereference a missing player. Send the user back to
+    the match with a clear message instead of erroring.
+    """
+    if match.player1_id is None or match.player2_id is None:
+        messages.info(request, 'This match is not ready yet — both players must be decided first.')
+        return redirect('matches:match_detail', slug=slug, pk=pk)
+    return None
+
+
 def _build_result_form_context(form, match):
     season = match.season
     max_sets = season.max_sets_in_match
@@ -182,6 +195,9 @@ class EnterResultView(LoginRequiredMixin, View):
 
     def get(self, request, slug, pk):
         match = _get_player_match(request, pk)
+        incomplete = _redirect_if_incomplete(request, match, slug, pk)
+        if incomplete:
+            return incomplete
         if not self._check_can_enter(request, match):
             return redirect('matches:match_detail', slug=slug, pk=pk)
         form = ResultEntryForm(match=match)
@@ -189,6 +205,9 @@ class EnterResultView(LoginRequiredMixin, View):
 
     def post(self, request, slug, pk):
         match = _get_player_match(request, pk)
+        incomplete = _redirect_if_incomplete(request, match, slug, pk)
+        if incomplete:
+            return incomplete
         if not self._check_can_enter(request, match):
             return redirect('matches:match_detail', slug=slug, pk=pk)
 
@@ -418,10 +437,16 @@ class WalkoverView(LoginRequiredMixin, View):
 
     def get(self, request, slug, pk):
         match = _get_player_match(request, pk)
+        incomplete = _redirect_if_incomplete(request, match, slug, pk)
+        if incomplete:
+            return incomplete
         return render(request, self.template_name, self._context(WalkoverForm(match=match), match))
 
     def post(self, request, slug, pk):
         match = _get_player_match(request, pk)
+        incomplete = _redirect_if_incomplete(request, match, slug, pk)
+        if incomplete:
+            return incomplete
         if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
             messages.error(request, 'Walkovers can only be recorded for scheduled or postponed matches.')
             return redirect('matches:match_detail', slug=slug, pk=pk)
@@ -495,10 +520,16 @@ class PostponeView(LoginRequiredMixin, View):
 
     def get(self, request, slug, pk):
         match = _get_player_match(request, pk)
+        incomplete = _redirect_if_incomplete(request, match, slug, pk)
+        if incomplete:
+            return incomplete
         return render(request, self.template_name, self._context(PostponeForm(), match))
 
     def post(self, request, slug, pk):
         match = _get_player_match(request, pk)
+        incomplete = _redirect_if_incomplete(request, match, slug, pk)
+        if incomplete:
+            return incomplete
         if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
             messages.error(request, 'Only scheduled or postponed matches can be rescheduled.')
             return redirect('matches:match_detail', slug=slug, pk=pk)

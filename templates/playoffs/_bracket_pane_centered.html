@@ -1,0 +1,52 @@
+{% with c=td.centered %}
+<div class="cb-scroll">
+  <div class="cb-grid"
+       style="grid-template-columns: repeat({{ c.columns }}, 132px); grid-template-rows: repeat({{ c.rows }}, {{ c.row_px }}px);">
+    {% for n in c.nodes %}
+    <div class="cb-node {{ n.connector }}"
+         style="grid-column: {{ n.grid_column }}; grid-row: {{ n.row_start }} / {{ n.row_end }};{% if n.v_px %} --v-h: {{ n.v_px }}px;{% endif %}">
+      {% if n.match_pk %}
+      <a href="{% url 'matches:match_detail' current_season.slug n.match_pk %}" class="cb-link">
+      {% else %}
+      <div class="cb-link">
+      {% endif %}
+
+        {% if n.kind == 'champion' %}
+        <div class="cb-champion{% if n.player %} is-decided{% endif %}">
+          <span class="cb-trophy" aria-hidden="true">&#9733;</span>
+          {% if n.player %}
+          <span class="cb-name">{% include "playoffs/_cb_name.html" with player=n.player %}</span>
+          {% if n.score %}<span class="cb-score">{{ n.score }}</span>{% endif %}
+          <span class="cb-champ-label">Champion</span>
+          {% else %}
+          <span class="cb-tbd">TBD</span>
+          {% endif %}
+        </div>
+
+        {% elif n.kind == 'leaf' %}
+        <div class="cb-leaf">
+          {% if n.seed %}<span class="cb-seed">{{ n.seed }}</span>{% endif %}
+          {% if n.player %}
+          <span class="cb-name">{% include "playoffs/_cb_name.html" with player=n.player %}</span>
+          {% else %}
+          <span class="cb-tbd">{% if n.is_bye %}Bye{% else %}&mdash;{% endif %}</span>
+          {% endif %}
+        </div>
+
+        {% else %}
+        <div class="cb-winner {% if n.player %}is-decided{% else %}is-tbd{% endif %}">
+          {% if n.player %}
+          <span class="cb-name">{% include "playoffs/_cb_name.html" with player=n.player %}</span>
+          {% if n.score %}<span class="cb-score">{{ n.score }}</span>{% endif %}
+          {% else %}
+          <span class="cb-name">TBD</span>
+          {% endif %}
+        </div>
+        {% endif %}
+
+      {% if n.match_pk %}</a>{% else %}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endwith %}

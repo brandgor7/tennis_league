@@ -1,0 +1,1 @@
+<span class="bracket-full-name">{{ player.get_full_name|default:player.username }}</span><span class="bracket-short-name">{% if player.first_name %}{{ player.first_name|first }}.&nbsp;{% endif %}{{ player.last_name|default:player.username }}</span>

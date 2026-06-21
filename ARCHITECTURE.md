@@ -52,8 +52,16 @@ Bootstrap 5's `md` breakpoint (768px) is the single dividing line between **mobi
 - Desktop: Sets displayed in a grid; all fields visible at once; tab-friendly navigation
 
 ### Playoff Bracket
-- Mobile: Horizontal-scroll container (`overflow-x: auto`) wrapping the bracket; bracket rendered as a horizontal flow (rounds left to right); player names truncated with full name in tooltip
-- Desktop: Full bracket rendered in CSS grid, all rounds visible simultaneously without scrolling
+Two layout styles, selected per season via `Season.playoff_bracket_style`:
+
+- **Traditional** (`traditional`, default): rounds flow left → right with the final on the right. Each match is a two-player card; connectors drawn with CSS pseudo-elements. Template body in `playoffs/_bracket_pane.html`.
+- **Centered** (`centered`): the draw splits into two halves that converge from the left and the right onto a central champion node, with the final in the centre. Players are rendered as **separate single nodes** (not paired cards); the winner of each match appears on the line where its two feeders meet, advancing toward the centre. Template body in `playoffs/_bracket_pane_centered.html`; layout computed by `playoffs.views._centered_layout`.
+
+Both styles:
+- Mobile: Horizontal-scroll container (`overflow-x: auto`) wrapping the bracket; player names truncated (short form on mobile via `.bracket-short-name`)
+- Desktop: Full bracket rendered in CSS grid; centred horizontally, scrolls when wider than the viewport
+
+All bracket CSS (traditional `.bracket-*` and centered `.cb-*`) lives in the `extra_css` block of `playoffs/bracket.html`.
 
 ### Player Profile (`/seasons/<id>/players/<player_id>/`)
 - Page shows the player's standing (rank, W/L, Pts, PD) for the season, followed by upcoming matches and completed results
@@ -247,7 +255,8 @@ tennis-scores-app/
 - `PlayoffBracket` model — one per season, records when generated
 - `PlayoffSlot` model — one per bracket position; links to a `Match`; has `next_slot` FK for winner advancement
 - Generator: reads standings, seeds bracket, creates `Match` + `PlayoffSlot` objects
-- Bracket view renders the visual bracket
+- Bracket view (`PlayoffView`) renders the visual bracket. Per tier, if a `PlayoffBracket` exists it renders the real bracket via `_bracket_context`; otherwise, when playoffs are enabled, it renders a live standings-based preview via `_preview_context`. The real-vs-preview choice is driven solely by bracket existence (not the `Tier.is_playoffs` flag), so seasons with no `Tier` records still show their generated bracket instead of a perpetual preview. Each tier also gets a `centered` layout via `_centered_layout`. The template picks traditional vs centered markup based on `Season.playoff_bracket_style`.
+- Bracket slots/nodes link to `matches:match_detail` only when the match is a real contest (`_match_is_clickable`: both players known, or the match is already decided). Future TBD rounds — created up front with both players unset — render as non-clickable placeholders. Defensively, the result-action views (`EnterResultView`, `WalkoverView`, `PostponeView`) call `_redirect_if_incomplete`, which redirects back to the match with an info message when either player is unset, so a TBD match reached by direct URL can't trigger an error.
 
 ---
 
@@ -278,6 +287,7 @@ final_set_format          CharField       full | tiebreak | super
 playoff_qualifiers_count  IntegerField    default per-tier qualifier count; can be overridden per tier on the Tier model
 playoffs_public           BooleanField    default True; when False, only staff can view playoff brackets and the nav tab is hidden for players
 playoff_interval_days     IntegerField    default 7; days between playoff rounds when scheduling with a start date
+playoff_bracket_style     CharField       traditional | centered — layout of the playoffs page bracket (see Responsive Design → Playoff Bracket)
 schedule_type             CharField       single_day | consecutive_days | weekly
 walkover_rule             CharField       winner | split | none
 postponement_deadline     IntegerField    days allowed to reschedule
