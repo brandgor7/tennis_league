@@ -31,7 +31,7 @@
       {% with match=slot.match %}
       <div class="bracket-match {{ slot.connector_class }}{% if slot.has_incoming %} bracket-incoming{% endif %}"
            style="grid-row: {{ slot.grid_row_start }} / {{ slot.grid_row_end }}; grid-column: {{ round.col_index }};{% if slot.v_connector_px %} --v-h: {{ slot.v_connector_px }}px;{% endif %}">
-        {% if match.pk %}
+        {% if slot.is_clickable %}
         <a href="{% url 'matches:match_detail' current_season.slug match.pk %}" class="bracket-card text-decoration-none text-reset">
         {% else %}
         <div class="bracket-card">
@@ -73,7 +73,7 @@
           <div class="bracket-player"><span class="bracket-tbd">{% if slot.is_bye %}Bye{% else %}TBD{% endif %}</span></div>
           {% endif %}
 
-        {% if match.pk %}</a>{% else %}</div>{% endif %}
+        {% if slot.is_clickable %}</a>{% else %}</div>{% endif %}
       </div>
       {% endwith %}
       {% endfor %}

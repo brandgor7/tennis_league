@@ -20,6 +20,19 @@ _ROUND_LABELS = {
 }
 
 
+def _match_is_clickable(match):
+    """A bracket match is worth opening only once it's a real contest.
+
+    Future rounds are created up front with both players unset (TBD); linking to
+    them leads to a detail page with no opponents and result actions that can't be
+    used yet. Treat a match as clickable only when both players are known or it has
+    already been decided (e.g. a bye/walkover).
+    """
+    if match is None or match.pk is None:
+        return False
+    return bool((match.player1_id and match.player2_id) or match.winner_id)
+
+
 def _bracket_context(bracket):
     """
     Build the rounds_data and bracket_size needed to render a bracket.
@@ -62,6 +75,7 @@ def _bracket_context(bracket):
             # v_connector_px: half the match height in px (row height = 52px)
             slot.v_connector_px = 0 if is_final_round else span * 26
             slot.has_incoming = col_idx > 0
+            slot.is_clickable = _match_is_clickable(slot.match)
             if col_idx == 0:
                 slot.player1_seed = first_round_order[i * 2]
                 slot.player2_seed = first_round_order[i * 2 + 1]
@@ -158,6 +172,7 @@ def _preview_context(season, tier_num):
                 player1_seed=p1_seed,
                 player2_seed=p2_seed,
                 is_bye=round_idx == 0 and (p1 is None) != (p2 is None),
+                is_clickable=False,
             )
             slots.append(slot)
 
@@ -228,10 +243,11 @@ def _centered_layout(rounds_data, bracket_size):
     if R == 1:
         slot = rounds_data[0]['slots'][0]
         m = slot.match
+        pk = m.pk if _match_is_clickable(m) else None
         nodes.append(_leaf_node(m.player1, slot.player1_seed, m.player1 is None,
-                                1, 1, 'cb-left-straight', 0, m.pk))
+                                1, 1, 'cb-left-straight', 0, pk))
         nodes.append(_leaf_node(m.player2, slot.player2_seed, m.player2 is None,
-                                total_columns, 1, 'cb-right-straight', 0, m.pk))
+                                total_columns, 1, 'cb-right-straight', 0, pk))
     else:
         first_slots = rounds_data[0]['slots']
         mid = len(first_slots) // 2
@@ -241,10 +257,11 @@ def _centered_layout(rounds_data, bracket_size):
             row = 1
             for slot in group:
                 m = slot.match
+                pk = m.pk if _match_is_clickable(m) else None
                 nodes.append(_leaf_node(m.player1, slot.player1_seed, slot.is_bye,
-                                        grid_column, row, f'cb-{side}-up', v, m.pk))
+                                        grid_column, row, f'cb-{side}-up', v, pk))
                 nodes.append(_leaf_node(m.player2, slot.player2_seed, slot.is_bye,
-                                        grid_column, row + 1, f'cb-{side}-down', v, m.pk))
+                                        grid_column, row + 1, f'cb-{side}-down', v, pk))
                 row += 2
 
     # Winner nodes — one per match, advancing toward the centre.
@@ -264,7 +281,7 @@ def _centered_layout(rounds_data, bracket_size):
                 'connector': '',
                 'v_px': 0,
                 'score': _winner_score(m),
-                'match_pk': m.pk,
+                'match_pk': m.pk if _match_is_clickable(m) else None,
             })
             continue
 
@@ -291,7 +308,7 @@ def _centered_layout(rounds_data, bracket_size):
                 'connector': connector,
                 'v_px': v_px,
                 'score': _winner_score(m),
-                'match_pk': m.pk,
+                'match_pk': m.pk if _match_is_clickable(m) else None,
             })
 
     return {

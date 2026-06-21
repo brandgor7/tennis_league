@@ -368,3 +368,46 @@ class CenteredBracketStyleTest(TestCase):
         resp = self.client.get(reverse('leagues:playoffs', args=[season.slug]))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'class="cb-node')
+
+
+class BracketClickabilityTest(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin', is_staff=True)
+        self.season = _make_season(playoff_qualifiers_count=8)
+        self.players = _make_players(8)
+        _enroll(self.season, self.players)
+        for i in range(0, 8, 2):
+            _complete_match(self.season, self.players[i], self.players[i + 1])
+        self.bracket = generate_bracket(self.season, 1, self.admin)
+
+    def test_first_round_slots_clickable_later_rounds_not(self):
+        from .views import _bracket_context
+        rounds_data, _ = _bracket_context(self.bracket)
+        for slot in rounds_data[0]['slots']:
+            self.assertTrue(slot.is_clickable)
+        for round_data in rounds_data[1:]:
+            for slot in round_data['slots']:
+                self.assertFalse(slot.is_clickable)
+
+    def test_decided_later_round_slot_becomes_clickable(self):
+        from .views import _bracket_context
+        sf_match = self.bracket.slots.filter(
+            round=Match.ROUND_SF
+        ).order_by('bracket_position').first().match
+        sf_match.player1 = self.players[0]
+        sf_match.player2 = self.players[2]
+        sf_match.save()
+        rounds_data, _ = _bracket_context(self.bracket)
+        sf_round = next(r for r in rounds_data if r['code'] == Match.ROUND_SF)
+        self.assertTrue(sf_round['slots'][0].is_clickable)
+
+    def test_tbd_match_not_linked_in_rendered_bracket(self):
+        from django.urls import reverse
+        tbd_match = self.bracket.slots.filter(
+            round=Match.ROUND_FINAL
+        ).first().match
+        resp = self.client.get(reverse('leagues:playoffs', args=[self.season.slug]))
+        self.assertNotContains(
+            resp,
+            reverse('matches:match_detail', args=[self.season.slug, tbd_match.pk]),
+        )

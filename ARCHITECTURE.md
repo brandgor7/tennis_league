@@ -256,6 +256,7 @@ tennis-scores-app/
 - `PlayoffSlot` model — one per bracket position; links to a `Match`; has `next_slot` FK for winner advancement
 - Generator: reads standings, seeds bracket, creates `Match` + `PlayoffSlot` objects
 - Bracket view (`PlayoffView`) renders the visual bracket. Per tier, if a `PlayoffBracket` exists it renders the real bracket via `_bracket_context`; otherwise, when playoffs are enabled, it renders a live standings-based preview via `_preview_context`. The real-vs-preview choice is driven solely by bracket existence (not the `Tier.is_playoffs` flag), so seasons with no `Tier` records still show their generated bracket instead of a perpetual preview. Each tier also gets a `centered` layout via `_centered_layout`. The template picks traditional vs centered markup based on `Season.playoff_bracket_style`.
+- Bracket slots/nodes link to `matches:match_detail` only when the match is a real contest (`_match_is_clickable`: both players known, or the match is already decided). Future TBD rounds — created up front with both players unset — render as non-clickable placeholders. Defensively, the result-action views (`EnterResultView`, `WalkoverView`, `PostponeView`) call `_redirect_if_incomplete`, which redirects back to the match with an info message when either player is unset, so a TBD match reached by direct URL can't trigger an error.
 
 ---
 

@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
 
 {% block title %}
-  {{ match.player1.get_full_name|default:match.player1.username }} vs
-  {{ match.player2.get_full_name|default:match.player2.username }} — TennisLeague
+  {% if match.player1 %}{{ match.player1.get_full_name|default:match.player1.username }}{% else %}TBD{% endif %} vs
+  {% if match.player2 %}{{ match.player2.get_full_name|default:match.player2.username }}{% else %}TBD{% endif %} — TennisLeague
 {% endblock %}
 
 {% block content %}

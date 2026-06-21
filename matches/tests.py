@@ -983,6 +983,37 @@ class EnterResultViewGetTest(TestCase):
         self.assertEqual(response.status_code, 302)
 
 
+class IncompleteMatchActionGuardTest(TestCase):
+    """Result actions on a not-yet-decided playoff match redirect gracefully."""
+
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025, sets_to_win=2)
+        self.admin = User.objects.create_user(username='admin', password='pass', is_staff=True)
+        self.match = Match.objects.create(
+            season=self.season, player1=None, player2=None,
+            round=Match.ROUND_SF, status=Match.STATUS_SCHEDULED,
+        )
+        self.detail_url = reverse('matches:match_detail', kwargs={'slug': self.season.slug, 'pk': self.match.pk})
+        self.client.login(username='admin', password='pass')
+
+    def _assert_graceful(self, url):
+        response = self.client.get(url)
+        self.assertRedirects(response, self.detail_url)
+
+    def test_detail_page_renders_for_tbd_match(self):
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_enter_result_redirects(self):
+        self._assert_graceful(reverse('matches:enter_result', kwargs={'slug': self.season.slug, 'pk': self.match.pk}))
+
+    def test_walkover_redirects(self):
+        self._assert_graceful(reverse('matches:walkover', kwargs={'slug': self.season.slug, 'pk': self.match.pk}))
+
+    def test_postpone_redirects(self):
+        self._assert_graceful(reverse('matches:postpone', kwargs={'slug': self.season.slug, 'pk': self.match.pk}))
+
+
 class EnterResultViewPostTest(TestCase):
     """POST requests to EnterResultView."""
 
