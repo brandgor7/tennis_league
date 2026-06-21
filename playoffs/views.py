@@ -171,6 +171,150 @@ def _preview_context(season, tier_num):
     return rounds_data, bracket_size
 
 
+_CENTERED_ROW_PX = 48
+
+
+def _winner_of(match):
+    """Return the player advancing from a match, or None if undecided.
+
+    A match with exactly one player (a bye) auto-advances that player.
+    """
+    if match.winner_id:
+        if match.player1_id == match.winner_id:
+            return match.player1
+        if match.player2_id == match.winner_id:
+            return match.player2
+    if (match.player1 is None) != (match.player2 is None):
+        return match.player1 or match.player2
+    return None
+
+
+def _winner_score(match):
+    """Set scores from the winner's perspective, e.g. '6–3 6–4', or '' if not completed."""
+    if getattr(match, 'status', None) != 'completed':
+        return ''
+    p1_won = match.player1_id == match.winner_id
+    parts = []
+    for s in match.sets.all():
+        w = s.player1_games if p1_won else s.player2_games
+        l = s.player2_games if p1_won else s.player1_games
+        parts.append(f'{w}–{l}')
+    return ' '.join(parts)
+
+
+def _centered_layout(rounds_data, bracket_size):
+    """
+    Transform rounds_data (first round → final) into a centered bracket layout.
+
+    Each player and each match winner becomes its own node. The two halves of
+    the draw converge from the left and right onto a central champion node, with
+    the winner of each match shown on the line where the two feeders meet.
+
+    Returns {columns, rows, row_px, nodes} or None when not applicable.
+    """
+    if not rounds_data or bracket_size < 2:
+        return None
+
+    R = len(rounds_data)
+    half = bracket_size // 2
+    total_columns = 2 * R + 1
+    center_col = R + 1
+    nodes = []
+
+    # Leaves — the individual first-round participants flanking each half.
+    if R == 1:
+        slot = rounds_data[0]['slots'][0]
+        m = slot.match
+        nodes.append(_leaf_node(m.player1, slot.player1_seed, m.player1 is None,
+                                1, 1, 'cb-left-straight', 0, m.pk))
+        nodes.append(_leaf_node(m.player2, slot.player2_seed, m.player2 is None,
+                                total_columns, 1, 'cb-right-straight', 0, m.pk))
+    else:
+        first_slots = rounds_data[0]['slots']
+        mid = len(first_slots) // 2
+        v = _CENTERED_ROW_PX // 2
+        for grid_column, side, group in ((1, 'left', first_slots[:mid]),
+                                         (total_columns, 'right', first_slots[mid:])):
+            row = 1
+            for slot in group:
+                m = slot.match
+                nodes.append(_leaf_node(m.player1, slot.player1_seed, slot.is_bye,
+                                        grid_column, row, f'cb-{side}-up', v, m.pk))
+                nodes.append(_leaf_node(m.player2, slot.player2_seed, slot.is_bye,
+                                        grid_column, row + 1, f'cb-{side}-down', v, m.pk))
+                row += 2
+
+    # Winner nodes — one per match, advancing toward the centre.
+    for r in range(R):
+        slots = rounds_data[r]['slots']
+        span = 2 ** (r + 1)
+        if r == R - 1:
+            m = slots[0].match
+            nodes.append({
+                'kind': 'champion',
+                'player': _winner_of(m),
+                'seed': None,
+                'is_bye': False,
+                'grid_column': center_col,
+                'row_start': 1,
+                'row_end': half + 1,
+                'connector': '',
+                'v_px': 0,
+                'score': _winner_score(m),
+                'match_pk': m.pk,
+            })
+            continue
+
+        left_count = len(slots) // 2
+        for k, slot in enumerate(slots):
+            m = slot.match
+            if k < left_count:
+                side, local, grid_column = 'left', k, r + 2
+            else:
+                side, local, grid_column = 'right', k - left_count, total_columns - (r + 1)
+            if span == half:  # this round's winners are the finalists
+                connector, v_px = f'cb-{side}-straight', 0
+            else:
+                connector = f'cb-{side}-{"up" if local % 2 == 0 else "down"}'
+                v_px = span * _CENTERED_ROW_PX // 2
+            nodes.append({
+                'kind': 'winner',
+                'player': _winner_of(m),
+                'seed': None,
+                'is_bye': False,
+                'grid_column': grid_column,
+                'row_start': local * span + 1,
+                'row_end': (local + 1) * span + 1,
+                'connector': connector,
+                'v_px': v_px,
+                'score': _winner_score(m),
+                'match_pk': m.pk,
+            })
+
+    return {
+        'columns': total_columns,
+        'rows': half,
+        'row_px': _CENTERED_ROW_PX,
+        'nodes': nodes,
+    }
+
+
+def _leaf_node(player, seed, is_bye, grid_column, row, connector, v_px, match_pk):
+    return {
+        'kind': 'leaf',
+        'player': player,
+        'seed': seed,
+        'is_bye': is_bye and player is None,
+        'grid_column': grid_column,
+        'row_start': row,
+        'row_end': row + 1,
+        'connector': connector,
+        'v_px': v_px,
+        'score': '',
+        'match_pk': match_pk,
+    }
+
+
 class PlayoffView(TemplateView):
     template_name = 'playoffs/bracket.html'
 
@@ -215,11 +359,13 @@ class PlayoffView(TemplateView):
                 'bracket_size': bracket_size,
                 'num_rounds': len(rounds_data),
                 'is_preview': is_preview,
+                'centered': _centered_layout(rounds_data, bracket_size),
             })
 
         ctx.update({
             'season': season,
             'tiers_data': tiers_data,
             'multi_tier': season.num_tiers > 1,
+            'bracket_style': season.playoff_bracket_style,
         })
         return ctx

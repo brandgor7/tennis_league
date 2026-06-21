@@ -2575,6 +2575,7 @@ class SeasonBrandingAdminTest(TestCase):
             'final_set_format': Season.FINAL_SET_FULL,
             'playoffs_enabled': '1',
             'playoffs_public': '1',
+            'playoff_bracket_style': Season.BRACKET_STYLE_TRADITIONAL,
             'playoff_qualifiers_count': '8',
             'playoff_interval_days': '7',
             'points_for_win': '3',

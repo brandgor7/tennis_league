@@ -74,6 +74,13 @@ class Season(models.Model):
         (SCHEDULE_WEEKLY, 'Weekly'),
     ]
 
+    BRACKET_STYLE_TRADITIONAL = 'traditional'
+    BRACKET_STYLE_CENTERED = 'centered'
+    BRACKET_STYLE_CHOICES = [
+        (BRACKET_STYLE_TRADITIONAL, 'Traditional (rounds left to right, final on the right)'),
+        (BRACKET_STYLE_CENTERED, 'Centered (draws converge from both sides, final in the centre)'),
+    ]
+
     DISPLAY_ALL = 'all'
     DISPLAY_CURRENT_DAY = 'current_day'
     DISPLAY_CURRENT_WEEK = 'current_week'
@@ -129,6 +136,12 @@ class Season(models.Model):
     playoff_interval_days = models.IntegerField(
         default=7,
         help_text='Days between playoff rounds when scheduling with a start date',
+    )
+    playoff_bracket_style = models.CharField(
+        max_length=20,
+        choices=BRACKET_STYLE_CHOICES,
+        default=BRACKET_STYLE_TRADITIONAL,
+        help_text='How the playoff bracket is laid out on the playoffs page.',
     )
     preseason = models.ForeignKey(
         'self',

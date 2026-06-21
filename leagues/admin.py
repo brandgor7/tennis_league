@@ -144,7 +144,7 @@ class SeasonAdmin(admin.ModelAdmin):
         (None, {'fields': ('name', 'year', 'status', 'display')}),
         ('Schedule', {'fields': ('schedule_type', 'schedule_display_mode', 'schedule_display_days', 'preseason')}),
         ('Match Format', {'fields': ('sets_to_win', 'games_to_win_set', 'win_by_two', 'final_set_format')}),
-        ('Playoffs', {'fields': ('playoffs_enabled', 'playoffs_public', 'playoff_qualifiers_count', 'playoff_interval_days')}),
+        ('Playoffs', {'fields': ('playoffs_enabled', 'playoffs_public', 'playoff_bracket_style', 'playoff_qualifiers_count', 'playoff_interval_days')}),
         ('Points', {'fields': ('points_for_win', 'points_for_loss', 'points_for_walkover_loss')}),
         ('Rules', {'fields': ('walkover_rule', 'enforce_scheduled_dates', 'postponement_deadline', 'grace_period_days')}),
         ('Rules Page', {'fields': ('show_rules', 'rules_content', 'season_markdown_hints')}),

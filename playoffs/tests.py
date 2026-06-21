@@ -295,3 +295,51 @@ class GenerateBracketWithByesTest(TestCase):
             for p in [m.player1, m.player2] if p is not None
         )
         self.assertEqual(players_filled, 2)
+
+
+class CenteredBracketStyleTest(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin', is_staff=True)
+        self.season = _make_season(
+            playoff_qualifiers_count=8,
+            playoff_bracket_style=Season.BRACKET_STYLE_CENTERED,
+        )
+        self.players = _make_players(8)
+        _enroll(self.season, self.players)
+        # Give every player a completed match so standings are populated.
+        for i in range(0, 8, 2):
+            _complete_match(self.season, self.players[i], self.players[i + 1])
+        generate_bracket(self.season, 1, self.admin)
+
+    def _url(self):
+        from django.urls import reverse
+        return reverse('leagues:playoffs', args=[self.season.slug])
+
+    def test_centered_page_renders(self):
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'class="cb-node')
+        self.assertNotContains(resp, 'class="bracket-match')
+
+    def test_traditional_page_still_renders(self):
+        self.season.playoff_bracket_style = Season.BRACKET_STYLE_TRADITIONAL
+        self.season.save(update_fields=['playoff_bracket_style'])
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'class="bracket-match')
+        self.assertNotContains(resp, 'class="cb-node')
+
+    def test_centered_preview_renders_without_bracket(self):
+        season = _make_season(
+            name='Autumn', year=2025,
+            playoff_qualifiers_count=4,
+            playoff_bracket_style=Season.BRACKET_STYLE_CENTERED,
+        )
+        players = [User.objects.create_user(username=f'q{i}') for i in range(4)]
+        _enroll(season, players)
+        _complete_match(season, players[0], players[1])
+        _complete_match(season, players[2], players[3])
+        from django.urls import reverse
+        resp = self.client.get(reverse('leagues:playoffs', args=[season.slug]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'class="cb-node')
