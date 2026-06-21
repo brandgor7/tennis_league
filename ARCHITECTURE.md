@@ -255,7 +255,7 @@ tennis-scores-app/
 - `PlayoffBracket` model — one per season, records when generated
 - `PlayoffSlot` model — one per bracket position; links to a `Match`; has `next_slot` FK for winner advancement
 - Generator: reads standings, seeds bracket, creates `Match` + `PlayoffSlot` objects
-- Bracket view (`PlayoffView`) renders the visual bracket. Per tier it builds `rounds_data` (from a generated bracket via `_bracket_context`, or a live standings-based `_preview_context`) plus a `centered` layout via `_centered_layout`. The template picks traditional vs centered markup based on `Season.playoff_bracket_style`.
+- Bracket view (`PlayoffView`) renders the visual bracket. Per tier, if a `PlayoffBracket` exists it renders the real bracket via `_bracket_context`; otherwise, when playoffs are enabled, it renders a live standings-based preview via `_preview_context`. The real-vs-preview choice is driven solely by bracket existence (not the `Tier.is_playoffs` flag), so seasons with no `Tier` records still show their generated bracket instead of a perpetual preview. Each tier also gets a `centered` layout via `_centered_layout`. The template picks traditional vs centered markup based on `Season.playoff_bracket_style`.
 
 ---
 

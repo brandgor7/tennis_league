@@ -177,14 +177,17 @@ _CENTERED_ROW_PX = 48
 def _winner_of(match):
     """Return the player advancing from a match, or None if undecided.
 
-    A match with exactly one player (a bye) auto-advances that player.
+    A saved match advances only its recorded winner; a later-round match that
+    holds just one player so far is still awaiting its opponent. In the live
+    preview (no saved match), a structural bye is one-sided and auto-advances
+    its lone player.
     """
     if match.winner_id:
         if match.player1_id == match.winner_id:
             return match.player1
         if match.player2_id == match.winner_id:
             return match.player2
-    if (match.player1 is None) != (match.player2 is None):
+    if match.pk is None and (match.player1 is None) != (match.player2 is None):
         return match.player1 or match.player2
     return None
 
@@ -332,15 +335,12 @@ class PlayoffView(TemplateView):
         brackets_by_tier = {
             b.tier: b for b in PlayoffBracket.objects.filter(season=season)
         }
-        tiers_by_num = {t.number: t for t in season.tiers.all()}
 
         tiers_data = []
         for t in range(1, season.num_tiers + 1):
-            tier_obj = tiers_by_num.get(t)
-            is_playoffs = tier_obj.is_playoffs if tier_obj else False
             bracket = brackets_by_tier.get(t)
 
-            if is_playoffs and bracket:
+            if bracket:
                 rounds_data, bracket_size = _bracket_context(bracket)
                 is_preview = False
             elif season.playoffs_enabled:

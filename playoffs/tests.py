@@ -321,6 +321,31 @@ class CenteredBracketStyleTest(TestCase):
         self.assertContains(resp, 'class="cb-node')
         self.assertNotContains(resp, 'class="bracket-match')
 
+    def test_generated_bracket_not_shown_as_preview_without_tier(self):
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.context['tiers_data'][0]['is_preview'])
+        self.assertNotContains(resp, 'badge bg-secondary">Preview')
+
+    def test_completed_match_winner_advances_only_one_round(self):
+        from .views import _bracket_context, _centered_layout
+        bracket = PlayoffBracket.objects.get(season=self.season, tier=1)
+        qf_match = bracket.slots.filter(
+            round=Match.ROUND_QF
+        ).order_by('bracket_position').first().match
+        qf_match.status = Match.STATUS_COMPLETED
+        qf_match.winner = qf_match.player1
+        qf_match.save()
+        winner = qf_match.player1
+
+        rounds_data, bracket_size = _bracket_context(bracket)
+        layout = _centered_layout(rounds_data, bracket_size)
+        winner_nodes = [
+            n for n in layout['nodes']
+            if n['kind'] in ('winner', 'champion') and n['player'] == winner
+        ]
+        self.assertEqual(len(winner_nodes), 1)
+
     def test_traditional_page_still_renders(self):
         self.season.playoff_bracket_style = Season.BRACKET_STYLE_TRADITIONAL
         self.season.save(update_fields=['playoff_bracket_style'])
