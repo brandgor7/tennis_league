@@ -19,6 +19,10 @@ media/
 preview.sqlite3
 config/settings_preview.py
 
+# Visual test database (file-based SQLite for live server cross-thread access)
+visual.sqlite3
+test_visual.sqlite3
+
 # IDE
 .idea/
 .vscode/
