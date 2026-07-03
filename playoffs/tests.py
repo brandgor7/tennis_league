@@ -267,14 +267,14 @@ class GenerateBracketWithByesTest(TestCase):
         for m in real_matches:
             self.assertEqual(m.status, Match.STATUS_SCHEDULED)
 
-    def test_bye_matches_are_walkovers_with_winner(self):
+    def test_bye_matches_have_bye_status_with_winner(self):
         bracket = generate_bracket(self.season, 1, self.admin)
         qf_slots = bracket.slots.filter(round=Match.ROUND_QF)
         for slot in qf_slots:
             m = slot.match
             is_bye = (m.player1 is None) != (m.player2 is None)
             if is_bye:
-                self.assertEqual(m.status, Match.STATUS_WALKOVER)
+                self.assertEqual(m.status, Match.STATUS_BYE)
                 self.assertIsNotNone(m.winner)
                 self.assertIn(m.winner, [m.player1, m.player2])
 
