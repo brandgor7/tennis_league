@@ -143,6 +143,10 @@ class Season(models.Model):
         default=BRACKET_STYLE_TRADITIONAL,
         help_text='How the playoff bracket is laid out on the playoffs page.',
     )
+    playoff_hide_scores = models.BooleanField(
+        default=False,
+        help_text='When enabled, playoff matches record only the winner — no set scores are captured or displayed.',
+    )
     preseason = models.ForeignKey(
         'self',
         null=True,

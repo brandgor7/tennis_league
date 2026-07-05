@@ -288,6 +288,7 @@ playoff_qualifiers_count  IntegerField    default per-tier qualifier count; can 
 playoffs_public           BooleanField    default True; when False, only staff can view playoff brackets and the nav tab is hidden for players
 playoff_interval_days     IntegerField    default 7; days between playoff rounds when scheduling with a start date
 playoff_bracket_style     CharField       traditional | centered — layout of the playoffs page bracket (see Responsive Design → Playoff Bracket)
+playoff_hide_scores       BooleanField    default False; when True, playoff matches record only the winner (no set scores captured or displayed); match detail shows "Record Winner" and "Undo Winner" buttons instead of the normal result-entry flow
 schedule_type             CharField       single_day | consecutive_days | weekly
 walkover_rule             CharField       winner | split | none
 postponement_deadline     IntegerField    days allowed to reschedule
@@ -500,6 +501,8 @@ The admin generate-playoffs page includes an optional start date field. Leaving 
 /seasons/<slug>/matches/<id>/walkover/         Mark walkover (admin)
 /seasons/<slug>/matches/<id>/postpone/         Mark postponed / set new date (admin)
 /seasons/<slug>/matches/<id>/undo-walkover/    Reset a walkover back to scheduled (admin POST)
+/seasons/<slug>/matches/<id>/playoff-winner/   Record winner in score-hidden playoff mode (player or admin)
+/seasons/<slug>/matches/<id>/undo-playoff-winner/  Reset a score-hidden playoff winner back to scheduled (player or admin POST)
 
 /admin/                                    Django admin
 /admin/seasons/<id>/generate-playoffs/<tier>/  Custom admin action: generate bracket for one tier
