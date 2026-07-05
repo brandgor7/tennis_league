@@ -26,6 +26,7 @@ class Match(models.Model):
     STATUS_PENDING = 'pending_confirmation'
     STATUS_COMPLETED = 'completed'
     STATUS_WALKOVER = 'walkover'
+    STATUS_BYE = 'bye'
     STATUS_POSTPONED = 'postponed'
     STATUS_CANCELLED = 'cancelled'
     STATUS_CHOICES = [
@@ -33,6 +34,7 @@ class Match(models.Model):
         (STATUS_PENDING, 'Pending Confirmation'),
         (STATUS_COMPLETED, 'Completed'),
         (STATUS_WALKOVER, 'Walkover'),
+        (STATUS_BYE, 'Bye'),
         (STATUS_POSTPONED, 'Postponed'),
         (STATUS_CANCELLED, 'Cancelled'),
     ]

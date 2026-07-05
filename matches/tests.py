@@ -2652,3 +2652,47 @@ class EditResultButtonVisibilityTest(TestCase):
         self.client.login(username='staff', password='pass')
         response = self.client.get(self.detail_url)
         self.assertNotContains(response, self.edit_url)
+
+
+class BackfillByeStatusMigrationTest(TestCase):
+    """Migration 0006 converts walkover bye matches to STATUS_BYE."""
+
+    def setUp(self):
+        import importlib
+        from django.apps import apps
+        mod = importlib.import_module('matches.migrations.0006_backfill_bye_status')
+        self.backfill = lambda: mod.backfill_bye_status(apps, None)
+        self.season = Season.objects.create(name='Spring', year=2025)
+        self.p1 = User.objects.create_user(username='mig_p1')
+        self.p2 = User.objects.create_user(username='mig_p2')
+
+    def _match(self, **kwargs):
+        return Match.objects.create(season=self.season, **kwargs)
+
+    def test_bye_walkover_converted(self):
+        """Walkover with one null player and a winner is converted to bye."""
+        m = self._match(player1=self.p1, player2=None, status=Match.STATUS_WALKOVER, winner=self.p1)
+        self.backfill()
+        m.refresh_from_db()
+        self.assertEqual(m.status, Match.STATUS_BYE)
+
+    def test_regular_walkover_unchanged(self):
+        """Walkover with both players set is not affected."""
+        m = self._match(player1=self.p1, player2=self.p2, status=Match.STATUS_WALKOVER, winner=self.p1)
+        self.backfill()
+        m.refresh_from_db()
+        self.assertEqual(m.status, Match.STATUS_WALKOVER)
+
+    def test_walkover_without_winner_unchanged(self):
+        """Walkover with a null player but no winner set is not affected."""
+        m = self._match(player1=self.p1, player2=None, status=Match.STATUS_WALKOVER, winner=None)
+        self.backfill()
+        m.refresh_from_db()
+        self.assertEqual(m.status, Match.STATUS_WALKOVER)
+
+    def test_completed_match_unchanged(self):
+        """Completed matches with null players are not affected."""
+        m = self._match(player1=self.p1, player2=None, status=Match.STATUS_COMPLETED, winner=self.p1)
+        self.backfill()
+        m.refresh_from_db()
+        self.assertEqual(m.status, Match.STATUS_COMPLETED)

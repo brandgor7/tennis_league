@@ -109,7 +109,7 @@ All Bootstrap 5 semantic colour variables (`--bs-primary`, `--bs-body-bg`, etc.)
 <span class="status-badge status-{value}">Label</span>
 ```
 
-`{value}` maps directly to `Match.status` field values: `scheduled` (blue), `pending` (amber), `completed` (green), `walkover` (orange), `postponed` (grey-brown), `cancelled` (red).
+`{value}` maps directly to `Match.status` field values: `scheduled` (blue), `pending` (amber), `completed` (green), `walkover` (orange), `bye` (no dedicated style — falls back to default), `postponed` (grey-brown), `cancelled` (red).
 
 ### Component Classes
 
@@ -340,7 +340,7 @@ tier            IntegerField (nullable)   which tier this match belongs to; set 
 round           CharField    regular | r32 | r16 | qf | sf | f
 scheduled_date  DateField (nullable)
 played_date     DateField (nullable)
-status          CharField    scheduled | pending_confirmation | completed | walkover | postponed | cancelled
+status          CharField    scheduled | pending_confirmation | completed | walkover | bye | postponed | cancelled
 winner          FK → User (nullable)
 entered_by      FK → User (nullable)   who entered the result
 confirmed_by    FK → User (nullable)   who confirmed the result
@@ -468,7 +468,7 @@ Brackets are generated **per tier**. `generate_bracket(season, tier, generated_b
    - Position 8: seed 2 vs seed 15
 4. Create `Match` objects (round=`r16` or appropriate, status=`scheduled`, tier=tier). If `start_date` is given, round 1 gets that date and each subsequent round is `season.playoff_interval_days` later.
 5. Create `PlayoffBracket` (with `tier` field) + `PlayoffSlot` objects with correct `next_slot` links
-6. When a playoff match completes: a post-save signal sets the winner as `player1` or `player2` in the next round's `Match`
+6. Bye slots (one real player, one `None`) are immediately resolved: `winner` is set and `status` is set to `STATUS_BYE`. A post-save signal (`advance_playoff_winner` in `playoffs/models.py`) fires on `completed`, `walkover`, and `bye` to place the winner as `player1` or `player2` in the next round's `Match`. Bye matches are excluded from results, standings, and player match history — they are an internal bracket-generation detail, not real match results.
 
 The admin generate-playoffs page includes an optional start date field. Leaving it blank generates the bracket draw without scheduling any match dates.
 

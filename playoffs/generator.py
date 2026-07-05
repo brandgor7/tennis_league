@@ -137,7 +137,7 @@ def generate_bracket(season, tier, generated_by, start_date=None):
         # The post_save signal advances each bye winner into the next round.
         for match in bye_matches:
             match.winner = match.player1 or match.player2
-            match.status = Match.STATUS_WALKOVER
+            match.status = Match.STATUS_BYE
             match.save()
 
     return bracket

@@ -134,7 +134,12 @@ class ResultsView(TemplateView):
         season = get_object_or_404(Season.objects.prefetch_related('tiers'), slug=self.kwargs['slug'])
         qs = (
             Match.objects
-            .filter(season=season, status__in=[Match.STATUS_COMPLETED, Match.STATUS_WALKOVER])
+            .filter(
+                season=season,
+                status__in=[Match.STATUS_COMPLETED, Match.STATUS_WALKOVER],
+                player1__isnull=False,
+                player2__isnull=False,
+            )
             .select_related('player1', 'player2', 'winner')
             .prefetch_related('sets')
             .order_by(F('played_date').desc(nulls_last=True), '-created_at')
