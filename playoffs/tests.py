@@ -460,3 +460,14 @@ class PlayoffHideScoresBracketTest(TestCase):
         resp = self.client.get(self._url())
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, '<span class="bracket-player-score">')
+
+    def test_traditional_bracket_hides_wo_for_walkover(self):
+        self.season.playoff_bracket_style = Season.BRACKET_STYLE_TRADITIONAL
+        self.season.save(update_fields=['playoff_bracket_style'])
+        sf_match = self.bracket.slots.filter(round=Match.ROUND_SF).last().match
+        sf_match.status = Match.STATUS_WALKOVER
+        sf_match.winner = sf_match.player1
+        sf_match.save(update_fields=['status', 'winner'])
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, 'W/O')
