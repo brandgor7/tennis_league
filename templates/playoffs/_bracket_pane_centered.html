@@ -16,7 +16,7 @@
           <span class="cb-trophy" aria-hidden="true">&#9733;</span>
           {% if n.player %}
           <span class="cb-name">{% include "playoffs/_cb_name.html" with player=n.player %}</span>
-          {% if n.score %}<span class="cb-score">{{ n.score }}</span>{% endif %}
+          {% if n.score and not current_season.playoff_hide_scores %}<span class="cb-score">{{ n.score }}</span>{% endif %}
           <span class="cb-champ-label">Champion</span>
           {% else %}
           <span class="cb-tbd">TBD</span>
@@ -37,7 +37,7 @@
         <div class="cb-winner {% if n.player %}is-decided{% else %}is-tbd{% endif %}">
           {% if n.player %}
           <span class="cb-name">{% include "playoffs/_cb_name.html" with player=n.player %}</span>
-          {% if n.score %}<span class="cb-score">{{ n.score }}</span>{% endif %}
+          {% if n.score and not current_season.playoff_hide_scores %}<span class="cb-score">{{ n.score }}</span>{% endif %}
           {% else %}
           <span class="cb-name">TBD</span>
           {% endif %}
