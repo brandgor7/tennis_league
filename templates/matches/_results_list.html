@@ -20,7 +20,7 @@
                 {{ s.player1_games }}{% if s.tiebreak_player1_points is not None and s.player1_games > s.player2_games %}<sup style="font-size:0.55em; font-family:'DM Sans',sans-serif; font-weight:400; vertical-align:super;">{{ s.tiebreak_player2_points }}</sup>{% endif %}
               </td>
               {% endfor %}
-              {% if not sets %}
+              {% if not sets and not current_season.playoff_hide_scores or not sets and match.round == 'regular' %}
               <td class="text-muted pb-1" style="font-size:0.8rem; padding-left:0.5rem;">W/O</td>
               {% endif %}
             </tr>
@@ -78,7 +78,7 @@
                 {{ s.player1_games }}{% if s.tiebreak_player1_points is not None and s.player1_games > s.player2_games %}<sup style="font-size:0.55em; font-family:'DM Sans',sans-serif; font-weight:400; vertical-align:super;">{{ s.tiebreak_player2_points }}</sup>{% endif %}
               </span>
               {% endfor %}
-              {% if not sets %}<span class="text-muted" style="font-size:0.8rem;">W/O</span>{% endif %}
+              {% if not sets and not current_season.playoff_hide_scores or not sets and match.round == 'regular' %}<span class="text-muted" style="font-size:0.8rem;">W/O</span>{% endif %}
             </div>
             <div class="result-score-row">
               {% if match.player2 %}<a href="{% url 'leagues:player_detail' current_season.slug match.player2.username %}" class="result-name {% if match.winner_id == match.player2_id %}fw-bold{% else %}text-muted{% endif %} text-reset text-decoration-none">{{ match.player2.get_full_name|default:match.player2.username }}</a>{% endif %}

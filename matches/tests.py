@@ -2876,3 +2876,30 @@ class PlayoffWinnerViewTest(TestCase):
         )
         self.assertContains(resp, 'Enter Result')
         self.assertNotContains(resp, 'Record Winner')
+
+    def _make_multi_tier(self):
+        Tier.objects.create(season=self.season, number=1, name='Tier 1')
+        Tier.objects.create(season=self.season, number=2, name='Tier 2')
+
+    def test_results_page_hides_wo_for_playoff_walkover(self):
+        self._make_multi_tier()
+        self.match.status = Match.STATUS_WALKOVER
+        self.match.winner = self.p1
+        self.match.tier = 1
+        self.match.save(update_fields=['status', 'winner', 'tier'])
+        resp = self.client.get(reverse('leagues:results', args=[self.season.slug]))
+        self.assertNotContains(resp, 'W/O')
+
+    def test_results_page_shows_wo_for_regular_walkover(self):
+        self._make_multi_tier()
+        Match.objects.create(
+            season=self.season,
+            player1=self.p1,
+            player2=self.p2,
+            round=Match.ROUND_REGULAR,
+            tier=1,
+            status=Match.STATUS_WALKOVER,
+            winner=self.p1,
+        )
+        resp = self.client.get(reverse('leagues:results', args=[self.season.slug]))
+        self.assertContains(resp, 'W/O')
