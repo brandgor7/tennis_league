@@ -61,7 +61,7 @@
             </span>
             {% if match.status == 'completed' and not current_season.playoff_hide_scores %}
             <span class="bracket-player-score">{% for s in match.sets.all %}{{ s.player1_games }}{% if not forloop.last %}&thinsp;{% endif %}{% endfor %}</span>
-            {% elif match.status == 'walkover' and match.winner_id == match.player1_id %}
+            {% elif match.status == 'walkover' and match.winner_id == match.player1_id and not current_season.playoff_hide_scores %}
             <span class="bracket-player-score">W/O</span>
             {% endif %}
           </div>
@@ -79,7 +79,7 @@
             </span>
             {% if match.status == 'completed' and not current_season.playoff_hide_scores %}
             <span class="bracket-player-score">{% for s in match.sets.all %}{{ s.player2_games }}{% if not forloop.last %}&thinsp;{% endif %}{% endfor %}</span>
-            {% elif match.status == 'walkover' and match.winner_id == match.player2_id %}
+            {% elif match.status == 'walkover' and match.winner_id == match.player2_id and not current_season.playoff_hide_scores %}
             <span class="bracket-player-score">W/O</span>
             {% endif %}
           </div>
