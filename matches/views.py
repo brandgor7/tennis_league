@@ -486,6 +486,77 @@ class WalkoverView(LoginRequiredMixin, View):
         return render(request, self.template_name, self._context(form, match))
 
 
+class PlayoffWinnerView(LoginRequiredMixin, View):
+    template_name = 'matches/playoff_winner.html'
+
+    def _context(self, match):
+        return {
+            'match': match,
+            'season': match.season,
+            'multi_tier': match.season.num_tiers > 1,
+            'player1_name': match.player1.get_full_name() or match.player1.username,
+            'player2_name': match.player2.get_full_name() or match.player2.username,
+        }
+
+    def get(self, request, slug, pk):
+        match = _get_player_match(request, pk)
+        incomplete = _redirect_if_incomplete(request, match, slug, pk)
+        if incomplete:
+            return incomplete
+        if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
+            messages.error(request, 'Winner can only be set for scheduled or postponed matches.')
+            return redirect('matches:match_detail', slug=slug, pk=pk)
+        return render(request, self.template_name, self._context(match))
+
+    def post(self, request, slug, pk):
+        match = _get_player_match(request, pk)
+        incomplete = _redirect_if_incomplete(request, match, slug, pk)
+        if incomplete:
+            return incomplete
+        if match.status not in [Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED]:
+            messages.error(request, 'Winner can only be set for scheduled or postponed matches.')
+            return redirect('matches:match_detail', slug=slug, pk=pk)
+
+        winner_choice = request.POST.get('winner')
+        if winner_choice not in ('p1', 'p2'):
+            messages.error(request, 'Please select a winner.')
+            return render(request, self.template_name, self._context(match))
+
+        winner = match.player1 if winner_choice == 'p1' else match.player2
+        with transaction.atomic():
+            match.winner = winner
+            match.entered_by = request.user
+            match.confirmed_by = request.user
+            match.status = Match.STATUS_COMPLETED
+            match.played_date = datetime.date.today()
+            match.save(update_fields=['winner', 'entered_by', 'confirmed_by', 'status', 'played_date'])
+
+        winner_name = winner.get_full_name() or winner.username
+        _audit_match(request.user, match, f'Playoff winner recorded: {winner_name}.')
+        messages.success(request, f'{winner_name} recorded as winner.')
+        return redirect('matches:match_detail', slug=slug, pk=pk)
+
+
+class UndoPlayoffWinnerView(LoginRequiredMixin, View):
+
+    def post(self, request, slug, pk):
+        match = _get_player_match(request, pk)
+        if match.season.slug != slug:
+            raise Http404
+        if match.status != Match.STATUS_COMPLETED:
+            messages.error(request, 'Only completed matches can have their winner undone.')
+            return redirect('matches:match_detail', slug=slug, pk=pk)
+        match.status = Match.STATUS_SCHEDULED
+        match.winner = None
+        match.entered_by = None
+        match.confirmed_by = None
+        match.played_date = None
+        match.save(update_fields=['status', 'winner', 'entered_by', 'confirmed_by', 'played_date'])
+        _audit_match(request.user, match, 'Playoff winner undone — match reset to scheduled.')
+        messages.success(request, 'Winner removed. Match has been reset to scheduled.')
+        return redirect('matches:match_detail', slug=slug, pk=pk)
+
+
 class UndoWalkoverView(LoginRequiredMixin, View):
 
     def post(self, request, slug, pk):

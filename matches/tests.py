@@ -2696,3 +2696,183 @@ class BackfillByeStatusMigrationTest(TestCase):
         self.backfill()
         m.refresh_from_db()
         self.assertEqual(m.status, Match.STATUS_COMPLETED)
+
+
+class PlayoffWinnerViewTest(TestCase):
+    """Tests for PlayoffWinnerView and UndoPlayoffWinnerView."""
+
+    def setUp(self):
+        self.season = Season.objects.create(
+            name='Spring', year=2025,
+            playoff_hide_scores=True,
+        )
+        self.p1 = User.objects.create_user(username='player1', password='pw')
+        self.p2 = User.objects.create_user(username='player2', password='pw')
+        self.other = User.objects.create_user(username='other', password='pw')
+        self.staff = User.objects.create_user(username='admin', password='pw', is_staff=True)
+        SeasonPlayer.objects.create(season=self.season, player=self.p1)
+        SeasonPlayer.objects.create(season=self.season, player=self.p2)
+        self.match = Match.objects.create(
+            season=self.season,
+            player1=self.p1,
+            player2=self.p2,
+            round=Match.ROUND_QF,
+            status=Match.STATUS_SCHEDULED,
+        )
+        self.winner_url = reverse(
+            'matches:playoff_winner',
+            args=[self.season.slug, self.match.pk],
+        )
+        self.undo_url = reverse(
+            'matches:undo_playoff_winner',
+            args=[self.season.slug, self.match.pk],
+        )
+
+    def test_get_renders_for_player(self):
+        self.client.login(username='player1', password='pw')
+        resp = self.client.get(self.winner_url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Record Winner')
+
+    def test_get_renders_for_staff(self):
+        self.client.login(username='admin', password='pw')
+        resp = self.client.get(self.winner_url)
+        self.assertEqual(resp.status_code, 200)
+
+    def test_get_requires_login(self):
+        resp = self.client.get(self.winner_url)
+        self.assertRedirects(resp, f'/accounts/login/?next={self.winner_url}')
+
+    def test_get_forbidden_for_non_player(self):
+        self.client.login(username='other', password='pw')
+        resp = self.client.get(self.winner_url)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_post_p1_wins_marks_completed(self):
+        self.client.login(username='player1', password='pw')
+        resp = self.client.post(self.winner_url, {'winner': 'p1'})
+        self.assertRedirects(
+            resp,
+            reverse('matches:match_detail', args=[self.season.slug, self.match.pk]),
+        )
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_COMPLETED)
+        self.assertEqual(self.match.winner, self.p1)
+        self.assertIsNotNone(self.match.played_date)
+
+    def test_post_p2_wins(self):
+        self.client.login(username='player2', password='pw')
+        self.client.post(self.winner_url, {'winner': 'p2'})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.winner, self.p2)
+
+    def test_post_no_sets_created(self):
+        self.client.login(username='player1', password='pw')
+        self.client.post(self.winner_url, {'winner': 'p1'})
+        self.assertEqual(self.match.sets.count(), 0)
+
+    def test_post_invalid_winner_stays_on_page(self):
+        self.client.login(username='player1', password='pw')
+        resp = self.client.post(self.winner_url, {'winner': 'bad'})
+        self.assertEqual(resp.status_code, 200)
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_SCHEDULED)
+
+    def test_post_already_completed_redirects_with_error(self):
+        self.match.status = Match.STATUS_COMPLETED
+        self.match.winner = self.p1
+        self.match.save()
+        self.client.login(username='player1', password='pw')
+        resp = self.client.post(self.winner_url, {'winner': 'p1'})
+        self.assertRedirects(
+            resp,
+            reverse('matches:match_detail', args=[self.season.slug, self.match.pk]),
+        )
+
+    def test_undo_resets_to_scheduled(self):
+        self.match.status = Match.STATUS_COMPLETED
+        self.match.winner = self.p1
+        self.match.played_date = datetime.date.today()
+        self.match.save()
+        self.client.login(username='player1', password='pw')
+        resp = self.client.post(self.undo_url)
+        self.assertRedirects(
+            resp,
+            reverse('matches:match_detail', args=[self.season.slug, self.match.pk]),
+        )
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_SCHEDULED)
+        self.assertIsNone(self.match.winner)
+        self.assertIsNone(self.match.played_date)
+
+    def test_undo_forbidden_for_non_player(self):
+        self.match.status = Match.STATUS_COMPLETED
+        self.match.winner = self.p1
+        self.match.save()
+        self.client.login(username='other', password='pw')
+        resp = self.client.post(self.undo_url)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_undo_requires_completed_status(self):
+        self.client.login(username='player1', password='pw')
+        resp = self.client.post(self.undo_url)
+        self.assertRedirects(
+            resp,
+            reverse('matches:match_detail', args=[self.season.slug, self.match.pk]),
+        )
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_SCHEDULED)
+
+    def test_match_detail_shows_record_winner_button(self):
+        self.client.login(username='player1', password='pw')
+        resp = self.client.get(
+            reverse('matches:match_detail', args=[self.season.slug, self.match.pk])
+        )
+        self.assertContains(resp, 'Record Winner')
+        self.assertNotContains(resp, 'Enter Result')
+
+    def test_match_detail_hides_scores_when_flag_set(self):
+        MatchSet.objects.create(
+            match=self.match, set_number=1,
+            player1_games=6, player2_games=3,
+        )
+        self.client.login(username='player1', password='pw')
+        resp = self.client.get(
+            reverse('matches:match_detail', args=[self.season.slug, self.match.pk])
+        )
+        self.assertNotContains(resp, 'Set Scores')
+
+    def test_match_detail_shows_undo_button_when_completed(self):
+        self.match.status = Match.STATUS_COMPLETED
+        self.match.winner = self.p1
+        self.match.save()
+        self.client.login(username='player1', password='pw')
+        resp = self.client.get(
+            reverse('matches:match_detail', args=[self.season.slug, self.match.pk])
+        )
+        self.assertContains(resp, 'Undo Winner')
+
+    def test_regular_match_unaffected_by_flag(self):
+        regular = Match.objects.create(
+            season=self.season,
+            player1=self.p1,
+            player2=self.p2,
+            round=Match.ROUND_REGULAR,
+            status=Match.STATUS_SCHEDULED,
+        )
+        self.client.login(username='player1', password='pw')
+        resp = self.client.get(
+            reverse('matches:match_detail', args=[self.season.slug, regular.pk])
+        )
+        self.assertContains(resp, 'Enter Result')
+        self.assertNotContains(resp, 'Record Winner')
+
+    def test_playoff_flag_off_shows_normal_enter_result(self):
+        self.season.playoff_hide_scores = False
+        self.season.save(update_fields=['playoff_hide_scores'])
+        self.client.login(username='player1', password='pw')
+        resp = self.client.get(
+            reverse('matches:match_detail', args=[self.season.slug, self.match.pk])
+        )
+        self.assertContains(resp, 'Enter Result')
+        self.assertNotContains(resp, 'Record Winner')

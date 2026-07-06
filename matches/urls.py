@@ -12,4 +12,6 @@ urlpatterns = [
     path('seasons/<slug:slug>/matches/<int:pk>/walkover/', views.WalkoverView.as_view(), name='walkover'),
     path('seasons/<slug:slug>/matches/<int:pk>/postpone/', views.PostponeView.as_view(), name='postpone'),
     path('seasons/<slug:slug>/matches/<int:pk>/undo-walkover/', views.UndoWalkoverView.as_view(), name='undo_walkover'),
+    path('seasons/<slug:slug>/matches/<int:pk>/playoff-winner/', views.PlayoffWinnerView.as_view(), name='playoff_winner'),
+    path('seasons/<slug:slug>/matches/<int:pk>/undo-playoff-winner/', views.UndoPlayoffWinnerView.as_view(), name='undo_playoff_winner'),
 ]

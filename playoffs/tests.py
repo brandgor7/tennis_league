@@ -411,3 +411,52 @@ class BracketClickabilityTest(TestCase):
             resp,
             reverse('matches:match_detail', args=[self.season.slug, tbd_match.pk]),
         )
+
+
+class PlayoffHideScoresBracketTest(TestCase):
+    """Bracket page hides set scores when playoff_hide_scores is enabled."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin', is_staff=True)
+        self.season = _make_season(
+            playoff_qualifiers_count=4,
+            playoff_hide_scores=True,
+        )
+        self.players = _make_players(4)
+        _enroll(self.season, self.players)
+        for i in range(0, 4, 2):
+            _complete_match(self.season, self.players[i], self.players[i + 1])
+        self.bracket = generate_bracket(self.season, 1, self.admin)
+        # Complete the first SF match so there's a score to potentially show
+        sf_match = self.bracket.slots.filter(round=Match.ROUND_SF).first().match
+        sf_match.status = Match.STATUS_COMPLETED
+        sf_match.winner = sf_match.player1
+        sf_match.save()
+        from matches.models import MatchSet
+        MatchSet.objects.create(match=sf_match, set_number=1, player1_games=6, player2_games=3)
+
+    def _url(self):
+        from django.urls import reverse
+        return reverse('leagues:playoffs', args=[self.season.slug])
+
+    def test_traditional_bracket_hides_scores(self):
+        self.season.playoff_bracket_style = Season.BRACKET_STYLE_TRADITIONAL
+        self.season.save(update_fields=['playoff_bracket_style'])
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, '<span class="bracket-player-score">')
+
+    def test_centered_bracket_hides_scores(self):
+        self.season.playoff_bracket_style = Season.BRACKET_STYLE_CENTERED
+        self.season.save(update_fields=['playoff_bracket_style'])
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, '<span class="cb-score">')
+
+    def test_scores_visible_when_flag_off(self):
+        self.season.playoff_hide_scores = False
+        self.season.playoff_bracket_style = Season.BRACKET_STYLE_TRADITIONAL
+        self.season.save(update_fields=['playoff_hide_scores', 'playoff_bracket_style'])
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, '<span class="bracket-player-score">')

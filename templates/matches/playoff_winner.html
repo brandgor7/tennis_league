@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block title %}Record Winner — {{ match.player1.get_full_name|default:match.player1.username }} vs {{ match.player2.get_full_name|default:match.player2.username }} — TennisLeague{% endblock %}
+
+{% block nav_playoffs %}nav-active{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <h1>Record Winner</h1>
+  <p class="page-meta">
+    {{ match.player1.get_full_name|default:match.player1.username }}
+    <span class="text-muted" style="font-size:0.8em;">vs</span>
+    {{ match.player2.get_full_name|default:match.player2.username }}
+    {% if multi_tier and match.tier %}&nbsp;·&nbsp; Tier {{ match.tier }}{% endif %}
+    &nbsp;·&nbsp; {{ match.get_round_display }}
+    {% if match.scheduled_date %}&nbsp;·&nbsp; {{ match.scheduled_date }}{% endif %}
+  </p>
+</div>
+
+<div style="max-width:480px;">
+  <p class="text-muted mb-4">Select the winner of this playoff match.</p>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="d-grid gap-3">
+      <button type="submit" name="winner" value="p1" class="btn btn-primary btn-lg" style="min-height:60px; font-size:1.1rem;">
+        {{ player1_name }} Won
+      </button>
+      <button type="submit" name="winner" value="p2" class="btn btn-primary btn-lg" style="min-height:60px; font-size:1.1rem;">
+        {{ player2_name }} Won
+      </button>
+    </div>
+  </form>
+
+  <div class="mt-3">
+    <a href="{% url 'matches:match_detail' season.slug match.pk %}" class="btn btn-outline-secondary w-100">
+      Cancel
+    </a>
+  </div>
+</div>
+
+{% endblock %}
