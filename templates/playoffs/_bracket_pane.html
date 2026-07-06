@@ -3,12 +3,25 @@
 
 {% else %}
 
-{% if td.is_preview %}
-<div class="d-flex align-items-center gap-2 mb-3">
-  <span class="badge bg-secondary">Preview</span>
-  <span class="text-muted small">Projected bracket based on current standings.</span>
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  {% if td.is_preview %}
+  <div class="d-flex align-items-center gap-2">
+    <span class="badge bg-secondary">Preview</span>
+    <span class="text-muted small">Projected bracket based on current standings.</span>
+  </div>
+  {% else %}
+  <div></div>
+  {% endif %}
+  <div class="bracket-search-wrap">
+    <i class="bi bi-search bracket-search-icon" aria-hidden="true"></i>
+    <input type="text"
+           class="form-control form-control-sm bracket-search-input"
+           placeholder="Search player…"
+           autocomplete="off"
+           aria-label="Search player in bracket">
+    <button class="bracket-search-clear d-none" type="button" aria-label="Clear search">&times;</button>
+  </div>
 </div>
-{% endif %}
 
 <p class="d-md-none text-muted small mb-2">
   <i class="bi bi-arrow-left-right me-1"></i>Scroll sideways to see all rounds
@@ -30,6 +43,7 @@
       {% for slot in round.slots %}
       {% with match=slot.match %}
       <div class="bracket-match {{ slot.connector_class }}{% if slot.has_incoming %} bracket-incoming{% endif %}"
+           data-players="{% if match.player1 %}{{ match.player1.get_full_name|default:match.player1.username }}{% if match.player2 %},{% endif %}{% endif %}{% if match.player2 %}{{ match.player2.get_full_name|default:match.player2.username }}{% endif %}"
            style="grid-row: {{ slot.grid_row_start }} / {{ slot.grid_row_end }}; grid-column: {{ round.col_index }};{% if slot.v_connector_px %} --v-h: {{ slot.v_connector_px }}px;{% endif %}">
         {% if slot.is_clickable %}
         <a href="{% url 'matches:match_detail' current_season.slug match.pk %}" class="bracket-card text-decoration-none text-reset">
@@ -89,3 +103,43 @@
 {% endif %}
 
 {% endif %}
+
+<script>
+(function () {
+  var pane = document.getElementById('tier-{{ td.tier_num }}-pane');
+  if (!pane) return;
+  var input = pane.querySelector('.bracket-search-input');
+  var clearBtn = pane.querySelector('.bracket-search-clear');
+  if (!input) return;
+
+  function run() {
+    var q = input.value.trim().toLowerCase();
+    var nodes = pane.querySelectorAll('[data-players]');
+    if (!q) {
+      nodes.forEach(function (n) { n.classList.remove('bracket-highlighted', 'bracket-dimmed'); });
+      if (clearBtn) clearBtn.classList.add('d-none');
+      return;
+    }
+    if (clearBtn) clearBtn.classList.remove('d-none');
+    nodes.forEach(function (n) {
+      var players = (n.dataset.players || '').toLowerCase();
+      if (players && players.includes(q)) {
+        n.classList.add('bracket-highlighted');
+        n.classList.remove('bracket-dimmed');
+      } else {
+        n.classList.remove('bracket-highlighted');
+        n.classList.add('bracket-dimmed');
+      }
+    });
+  }
+
+  input.addEventListener('input', run);
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function () {
+      input.value = '';
+      run();
+      input.focus();
+    });
+  }
+})();
+</script>

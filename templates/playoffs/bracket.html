@@ -162,6 +162,87 @@
     }
   }
 
+  /* ── Player search ─────────────────────────────────────── */
+  .bracket-search-wrap {
+    position: relative;
+    width: 190px;
+  }
+  @media (max-width: 767.98px) {
+    .bracket-search-wrap { width: 100%; }
+  }
+  .bracket-search-icon {
+    position: absolute;
+    left: 0.6rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 0.78rem;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .bracket-search-input {
+    padding-left: 1.85rem;
+    padding-right: 1.7rem;
+    border-radius: 20px;
+    background: var(--white);
+    border-color: var(--border);
+    font-size: 0.8rem;
+    color: var(--charcoal);
+  }
+  .bracket-search-input:focus {
+    border-color: var(--clay-light);
+    box-shadow: 0 0 0 0.18rem rgba(196, 82, 42, 0.14);
+  }
+  .bracket-search-clear {
+    position: absolute;
+    right: 0.45rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--muted);
+    padding: 0 0.15rem;
+    line-height: 1;
+    font-size: 1rem;
+    cursor: pointer;
+    z-index: 1;
+  }
+  .bracket-search-clear:hover { color: var(--charcoal); }
+
+  /* ── Transition base ───────────────────────────────────── */
+  .bracket-card {
+    transition: opacity 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+  }
+  .cb-leaf, .cb-winner, .cb-champion {
+    transition: opacity 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  /* ── Traditional bracket search states ────────────────── */
+  .bracket-match.bracket-dimmed .bracket-card {
+    opacity: 0.18;
+    filter: grayscale(0.5);
+  }
+  .bracket-match.bracket-dimmed.bracket-upper::after,
+  .bracket-match.bracket-dimmed.bracket-lower::after { opacity: 0.15; }
+  .bracket-match.bracket-dimmed.bracket-incoming::before { opacity: 0.15; }
+  .bracket-match.bracket-highlighted .bracket-card {
+    box-shadow: 0 0 0 2px var(--clay), 0 2px 12px rgba(196, 82, 42, 0.18);
+  }
+
+  /* ── Centered bracket search states ───────────────────── */
+  .cb-node.bracket-dimmed .cb-leaf,
+  .cb-node.bracket-dimmed .cb-winner,
+  .cb-node.bracket-dimmed .cb-champion {
+    opacity: 0.18;
+    filter: grayscale(0.5);
+  }
+  .cb-node.bracket-dimmed::after { opacity: 0.15; }
+  .cb-node.bracket-highlighted .cb-leaf,
+  .cb-node.bracket-highlighted .cb-winner,
+  .cb-node.bracket-highlighted .cb-champion {
+    box-shadow: 0 0 0 2px var(--clay), 0 2px 8px rgba(196, 82, 42, 0.18);
+  }
+
   /* ============================================================
    * Centered bracket — draws converge from both sides to a
    * central champion. Each player / winner is a separate node;
@@ -379,7 +460,9 @@
 
 {% else %}
 {% for td in tiers_data %}
+<div id="tier-{{ td.tier_num }}-pane">
 {% include "playoffs/_bracket_pane.html" %}
+</div>
 {% endfor %}
 {% endif %}
 

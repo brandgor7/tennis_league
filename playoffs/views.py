@@ -244,10 +244,11 @@ def _centered_layout(rounds_data, bracket_size):
         slot = rounds_data[0]['slots'][0]
         m = slot.match
         pk = m.pk if _match_is_clickable(m) else None
+        match_players = [p for p in [m.player1, m.player2] if p]
         nodes.append(_leaf_node(m.player1, slot.player1_seed, m.player1 is None,
-                                1, 1, 'cb-left-straight', 0, pk))
+                                1, 1, 'cb-left-straight', 0, pk, match_players=match_players))
         nodes.append(_leaf_node(m.player2, slot.player2_seed, m.player2 is None,
-                                total_columns, 1, 'cb-right-straight', 0, pk))
+                                total_columns, 1, 'cb-right-straight', 0, pk, match_players=match_players))
     else:
         first_slots = rounds_data[0]['slots']
         mid = len(first_slots) // 2
@@ -258,10 +259,11 @@ def _centered_layout(rounds_data, bracket_size):
             for slot in group:
                 m = slot.match
                 pk = m.pk if _match_is_clickable(m) else None
+                match_players = [p for p in [m.player1, m.player2] if p]
                 nodes.append(_leaf_node(m.player1, slot.player1_seed, slot.is_bye,
-                                        grid_column, row, f'cb-{side}-up', v, pk))
+                                        grid_column, row, f'cb-{side}-up', v, pk, match_players=match_players))
                 nodes.append(_leaf_node(m.player2, slot.player2_seed, slot.is_bye,
-                                        grid_column, row + 1, f'cb-{side}-down', v, pk))
+                                        grid_column, row + 1, f'cb-{side}-down', v, pk, match_players=match_players))
                 row += 2
 
     # Winner nodes — one per match, advancing toward the centre.
@@ -273,6 +275,7 @@ def _centered_layout(rounds_data, bracket_size):
             nodes.append({
                 'kind': 'champion',
                 'player': _winner_of(m),
+                'players': [p for p in [m.player1, m.player2] if p],
                 'seed': None,
                 'is_bye': False,
                 'grid_column': center_col,
@@ -300,6 +303,7 @@ def _centered_layout(rounds_data, bracket_size):
             nodes.append({
                 'kind': 'winner',
                 'player': _winner_of(m),
+                'players': [p for p in [m.player1, m.player2] if p],
                 'seed': None,
                 'is_bye': False,
                 'grid_column': grid_column,
@@ -319,7 +323,7 @@ def _centered_layout(rounds_data, bracket_size):
     }
 
 
-def _leaf_node(player, seed, is_bye, grid_column, row, connector, v_px, match_pk):
+def _leaf_node(player, seed, is_bye, grid_column, row, connector, v_px, match_pk, match_players=None):
     return {
         'kind': 'leaf',
         'player': player,
@@ -332,6 +336,7 @@ def _leaf_node(player, seed, is_bye, grid_column, row, connector, v_px, match_pk
         'v_px': v_px,
         'score': '',
         'match_pk': match_pk,
+        'players': match_players if match_players is not None else ([player] if player else []),
     }
 
 
