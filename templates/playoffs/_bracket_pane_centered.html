@@ -4,6 +4,7 @@
        style="grid-template-columns: repeat({{ c.columns }}, 132px); grid-template-rows: repeat({{ c.rows }}, {{ c.row_px }}px);">
     {% for n in c.nodes %}
     <div class="cb-node {{ n.connector }}"
+         data-players="{% for p in n.players %}{{ p.get_full_name|default:p.username }}{% if not forloop.last %},{% endif %}{% endfor %}"
          style="grid-column: {{ n.grid_column }}; grid-row: {{ n.row_start }} / {{ n.row_end }};{% if n.v_px %} --v-h: {{ n.v_px }}px;{% endif %}">
       {% if n.match_pk %}
       <a href="{% url 'matches:match_detail' current_season.slug n.match_pk %}" class="cb-link">

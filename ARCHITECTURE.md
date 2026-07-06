@@ -63,6 +63,12 @@ Both styles:
 
 All bracket CSS (traditional `.bracket-*` and centered `.cb-*`) lives in the `extra_css` block of `playoffs/bracket.html`.
 
+### Player search
+
+A search input rendered in `_bracket_pane.html` lets users filter the bracket by player name. Typing a name dims all non-matching matches (`.bracket-dimmed`) and rings matching ones with a clay border (`.bracket-highlighted`). The filter is scoped per tier pane via `data-players` attributes on each match node and a per-pane IIFE; no server round-trip needed. Each tier pane (both multi-tier tab panes and single-tier wrapper divs) carries `id="tier-<N>-pane"` as the JS scope anchor.
+
+For the traditional bracket, `data-players` is on each `.bracket-match` div. For the centered bracket, `data-players` is on each `.cb-node` and contains all players who participated in that match (not just the winner), enabling correct highlighting of both the winner and loser nodes for a given match. The `players` list is computed in `playoffs/views.py` (`_centered_layout`, `_leaf_node`).
+
 ### Player Profile (`/seasons/<id>/players/<player_id>/`)
 - Page shows the player's standing (rank, W/L, Pts, PD) for the season, followed by upcoming matches and completed results
 - Reuses `_match_list.html` and `_results_list.html` partials
