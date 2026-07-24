@@ -48,12 +48,12 @@ class Match(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
         null=True, blank=True, related_name='matches_as_player2',
     )
-    external_player1_name = models.CharField(
-        max_length=120, blank=True, default='',
+    player1_is_external = models.BooleanField(
+        default=False,
         help_text='Set instead of player1 when this side is a player not registered in the system.',
     )
-    external_player2_name = models.CharField(
-        max_length=120, blank=True, default='',
+    player2_is_external = models.BooleanField(
+        default=False,
         help_text='Set instead of player2 when this side is a player not registered in the system.',
     )
     tier = models.IntegerField(null=True, blank=True, help_text='Tier this match belongs to; set from players\' tier at match creation')
@@ -90,26 +90,26 @@ class Match(models.Model):
     def decided_players_q():
         """Q object matching matches where both sides are filled in (real or external)."""
         return (
-            (Q(player1__isnull=False) | ~Q(external_player1_name='')) &
-            (Q(player2__isnull=False) | ~Q(external_player2_name=''))
+            (Q(player1__isnull=False) | Q(player1_is_external=True)) &
+            (Q(player2__isnull=False) | Q(player2_is_external=True))
         )
 
     def clean(self):
         errors = {}
         if self.player1_id and self.player2_id and self.player1_id == self.player2_id:
             errors['player2'] = 'A player cannot be matched against themselves.'
-        if self.player1_id and self.external_player1_name:
-            errors['external_player1_name'] = 'Cannot set both a registered player and an external player name for Player 1.'
-        if self.player2_id and self.external_player2_name:
-            errors['external_player2_name'] = 'Cannot set both a registered player and an external player name for Player 2.'
-        if self.external_player1_name and self.external_player2_name:
-            errors['external_player2_name'] = 'A match cannot have external players on both sides.'
-        if self.external_player1_name or self.external_player2_name:
+        if self.player1_id and self.player1_is_external:
+            errors['player1_is_external'] = 'Cannot set both a registered player and mark Player 1 external.'
+        if self.player2_id and self.player2_is_external:
+            errors['player2_is_external'] = 'Cannot set both a registered player and mark Player 2 external.'
+        if self.player1_is_external and self.player2_is_external:
+            errors['player2_is_external'] = 'A match cannot have external players on both sides.'
+        if self.player1_is_external or self.player2_is_external:
             if self.round != self.ROUND_REGULAR:
                 errors['round'] = 'External players are only allowed in regular season matches.'
             if self.season_id and not self.season.allow_external_players:
                 errors['__all__'] = 'This season does not allow matches with external players.'
-        if self.winner_is_external and not (self.external_player1_name or self.external_player2_name):
+        if self.winner_is_external and not (self.player1_is_external or self.player2_is_external):
             errors['winner_is_external'] = 'There is no external player on this match to mark as the winner.'
         if self.winner_id and self.winner_id not in (self.player1_id, self.player2_id):
             errors['winner'] = 'Winner must be one of the two players in this match.'
@@ -120,16 +120,16 @@ class Match(models.Model):
 
     @property
     def has_external_player(self):
-        return bool(self.external_player1_name or self.external_player2_name)
+        return self.player1_is_external or self.player2_is_external
 
     @property
     def both_sides_decided(self):
-        """True once both slots are filled in, whether by a real player or an external name.
+        """True once both slots are filled in, whether by a real player or an external side.
 
         False for future playoff-bracket rounds where both players are still TBD.
         """
-        p1_decided = self.player1_id is not None or bool(self.external_player1_name)
-        p2_decided = self.player2_id is not None or bool(self.external_player2_name)
+        p1_decided = self.player1_id is not None or self.player1_is_external
+        p2_decided = self.player2_id is not None or self.player2_is_external
         return p1_decided and p2_decided
 
     def set_winner_side(self, player1_won):
@@ -145,22 +145,28 @@ class Match(models.Model):
             self.winner = self.player2
             self.winner_is_external = self.player2_id is None
 
+    EXTERNAL_PLAYER_LABEL = 'External Player'
+
     @property
     def player1_display_name(self):
         if self.player1_id:
             return self.player1.get_full_name() or self.player1.username
-        return self.external_player1_name or 'TBD'
+        if self.player1_is_external:
+            return self.EXTERNAL_PLAYER_LABEL
+        return 'TBD'
 
     @property
     def player2_display_name(self):
         if self.player2_id:
             return self.player2.get_full_name() or self.player2.username
-        return self.external_player2_name or 'TBD'
+        if self.player2_is_external:
+            return self.EXTERNAL_PLAYER_LABEL
+        return 'TBD'
 
     @property
     def winner_display_name(self):
         if self.winner_is_external:
-            return self.external_player1_name or self.external_player2_name
+            return self.EXTERNAL_PLAYER_LABEL
         if self.winner_id:
             return self.winner.get_full_name() or self.winner.username
         return ''
@@ -169,13 +175,13 @@ class Match(models.Model):
     def player1_is_winner(self):
         if self.winner_id:
             return self.winner_id == self.player1_id
-        return self.winner_is_external and bool(self.external_player1_name)
+        return self.winner_is_external and self.player1_is_external
 
     @property
     def player2_is_winner(self):
         if self.winner_id:
             return self.winner_id == self.player2_id
-        return self.winner_is_external and bool(self.external_player2_name)
+        return self.winner_is_external and self.player2_is_external
 
     def __str__(self):
         return f'{self.player1_display_name} vs {self.player2_display_name} ({self.season})'

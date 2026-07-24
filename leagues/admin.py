@@ -499,9 +499,9 @@ class SeasonAdmin(admin.ModelAdmin):
         except (ValueError, TypeError):
             return JsonResponse({'error': 'Invalid parameters'}, status=400)
 
-        external_name = request.POST.get('external_player2_name', '').strip()
+        external_opponent = request.POST.get('external_player2') == '1'
 
-        if external_name:
+        if external_opponent:
             if not season.allow_external_players:
                 return JsonResponse({'error': 'This season does not allow external players'}, status=400)
             if not SeasonPlayer.objects.filter(
@@ -541,7 +541,7 @@ class SeasonAdmin(admin.ModelAdmin):
             season=season,
             player1_id=player1_id,
             player2_id=player2_id,
-            external_player2_name=external_name,
+            player2_is_external=external_opponent,
             tier=tier,
             round=Match.ROUND_REGULAR,
             scheduled_date=scheduled_date,

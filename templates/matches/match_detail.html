@@ -9,9 +9,9 @@
 {# ── Page header ───────────────────────────────────────────────────────── #}
 <div class="page-header">
   <h1>
-    {% if match.player1 %}<a href="{% url 'leagues:player_detail' season.slug match.player1.username %}" class="text-reset text-decoration-none">{{ match.player1_display_name }}</a>{% elif match.external_player1_name %}<span class="fst-italic">{{ match.external_player1_name }}</span>{% endif %}
+    {% if match.player1 %}<a href="{% url 'leagues:player_detail' season.slug match.player1.username %}" class="text-reset text-decoration-none">{{ match.player1_display_name }}</a>{% elif match.player1_is_external %}<span class="fst-italic">{{ match.player1_display_name }}</span>{% endif %}
     <span class="text-muted" style="font-size:0.7em; font-family:'DM Sans',sans-serif; font-weight:400;">vs</span>
-    {% if match.player2 %}<a href="{% url 'leagues:player_detail' season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2_display_name }}</a>{% elif match.external_player2_name %}<span class="fst-italic">{{ match.external_player2_name }}</span>{% endif %}
+    {% if match.player2 %}<a href="{% url 'leagues:player_detail' season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2_display_name }}</a>{% elif match.player2_is_external %}<span class="fst-italic">{{ match.player2_display_name }}</span>{% endif %}
   </h1>
   <p class="page-meta">
     {{ season }}
@@ -76,13 +76,13 @@
           </thead>
           <tbody>
             <tr>
-              <td class="ps-3 {% if match.player1_is_winner %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.player1 %}<a href="{% url 'leagues:player_detail' season.slug match.player1.username %}" class="text-reset text-decoration-none">{{ match.player1_display_name }}</a>{% elif match.external_player1_name %}<span class="fst-italic">{{ match.external_player1_name }}</span>{% endif %}</td>
+              <td class="ps-3 {% if match.player1_is_winner %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.player1 %}<a href="{% url 'leagues:player_detail' season.slug match.player1.username %}" class="text-reset text-decoration-none">{{ match.player1_display_name }}</a>{% elif match.player1_is_external %}<span class="fst-italic">{{ match.player1_display_name }}</span>{% endif %}</td>
               {% for s in sets %}
               <td class="text-center score-set">{{ s.player1_games }}</td>
               {% endfor %}
             </tr>
             <tr>
-              <td class="ps-3 {% if match.player2_is_winner %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.player2 %}<a href="{% url 'leagues:player_detail' season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2_display_name }}</a>{% elif match.external_player2_name %}<span class="fst-italic">{{ match.external_player2_name }}</span>{% endif %}</td>
+              <td class="ps-3 {% if match.player2_is_winner %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.player2 %}<a href="{% url 'leagues:player_detail' season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2_display_name }}</a>{% elif match.player2_is_external %}<span class="fst-italic">{{ match.player2_display_name }}</span>{% endif %}</td>
               {% for s in sets %}
               <td class="text-center score-set">{{ s.player2_games }}</td>
               {% endfor %}
@@ -245,13 +245,13 @@
               </thead>
               <tbody>
                 <tr>
-                  <td class="ps-3 {% if match.player1_is_winner %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.player1 %}<a href="{% url 'leagues:player_detail' season.slug match.player1.username %}" class="text-reset text-decoration-none">{{ match.player1_display_name }}</a>{% elif match.external_player1_name %}<span class="fst-italic">{{ match.external_player1_name }}</span>{% endif %}</td>
+                  <td class="ps-3 {% if match.player1_is_winner %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.player1 %}<a href="{% url 'leagues:player_detail' season.slug match.player1.username %}" class="text-reset text-decoration-none">{{ match.player1_display_name }}</a>{% elif match.player1_is_external %}<span class="fst-italic">{{ match.player1_display_name }}</span>{% endif %}</td>
                   {% for s in sets %}
                   <td class="text-center score-set">{{ s.player1_games }}</td>
                   {% endfor %}
                 </tr>
                 <tr>
-                  <td class="ps-3 {% if match.player2_is_winner %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.player2 %}<a href="{% url 'leagues:player_detail' season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2_display_name }}</a>{% elif match.external_player2_name %}<span class="fst-italic">{{ match.external_player2_name }}</span>{% endif %}</td>
+                  <td class="ps-3 {% if match.player2_is_winner %}fw-bold{% else %}fw-500 text-muted{% endif %}">{% if match.player2 %}<a href="{% url 'leagues:player_detail' season.slug match.player2.username %}" class="text-reset text-decoration-none">{{ match.player2_display_name }}</a>{% elif match.player2_is_external %}<span class="fst-italic">{{ match.player2_display_name }}</span>{% endif %}</td>
                   {% for s in sets %}
                   <td class="text-center score-set">{{ s.player2_games }}</td>
                   {% endfor %}
