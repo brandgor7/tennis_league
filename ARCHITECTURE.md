@@ -251,6 +251,7 @@ tennis-scores-app/
 - Result entry view (for a player in the match)
 - Result confirmation view (for the opponent)
 - Walkover and postponement views (admin or player)
+- **External players** (regular season only, gated by `Season.allow_external_players`): a match's `player1`/`player2` side can be replaced with a free-text name (`Match.external_player1_name` / `external_player2_name`) instead of a `User` FK, for an opponent who isn't registered in the system. At most one side of a match may be external; `Match.clean()` enforces mutual exclusivity with the FK, blocks external players on non-regular rounds, and requires the season setting to be enabled. Since an external side has no `User` to point `Match.winner` at, `Match.winner_is_external` records a win for that side instead (`Match.set_winner_side(player1_won)` is the single place that decides between the two). Display helpers — `player1_display_name`, `player2_display_name`, `winner_display_name`, `player1_is_winner`, `player2_is_winner` — let templates render either a linked real player or a plain external name uniformly. `Match.both_sides_decided` (real or external on both sides) is what `_redirect_if_incomplete` checks, and `Match.decided_players_q()` is the queryset filter `MatchupsView`/`ResultsView` use in place of `player1__isnull=False, player2__isnull=False` so external-opponent matches still appear. Because there's no second account to confirm a score, `EnterResultView` and `WalkoverView` auto-complete (skip `pending_confirmation`) whenever `Match.has_external_player` is true, same as staff entry. External opponents are never `SeasonPlayer` rows, so `standings/calculator.py` needs no special-casing — they simply never appear as a queried player. Checkboxes to mark a side external exist in two places: the Django admin `MatchAdmin` (`player1_is_external`/`player2_is_external` form-only fields, toggled via `static/js/admin_match_form.js`) and the custom "Schedule a Match" widget on the season admin page (external-opponent text input, shown only when `season.allow_external_players`).
 
 ### `standings`
 - No models — standings are computed dynamically from `Match` + `MatchSet` data
@@ -295,6 +296,7 @@ playoffs_public           BooleanField    default True; when False, only staff c
 playoff_interval_days     IntegerField    default 7; days between playoff rounds when scheduling with a start date
 playoff_bracket_style     CharField       traditional | centered — layout of the playoffs page bracket (see Responsive Design → Playoff Bracket)
 playoff_hide_scores       BooleanField    default False; when True, playoff matches record only the winner (no set scores captured or displayed); match detail shows "Record Winner" and "Undo Winner" buttons instead of the normal result-entry flow
+allow_external_players    BooleanField    default False; when True, regular-season matches can be created against a player not registered in the system (name recorded only, see matches app section)
 schedule_type             CharField       single_day | consecutive_days | weekly
 walkover_rule             CharField       winner | split | none
 postponement_deadline     IntegerField    days allowed to reschedule
@@ -342,13 +344,16 @@ UNIQUE: (season, player)
 ```
 season          FK → Season
 player1         FK → User (nullable)   null for TBD playoff slots until winner is determined
-player2         FK → User (nullable)   null for TBD playoff slots until winner is determined
+player2         FK → User (nullable)   null for TBD playoff slots until winner is determined, or for an external player (see below)
+external_player1_name  CharField(120), blank   set instead of player1 when that side is a player not registered in the system; mutually exclusive with player1
+external_player2_name  CharField(120), blank   set instead of player2 when that side is a player not registered in the system; mutually exclusive with player2
 tier            IntegerField (nullable)   which tier this match belongs to; set from players' tier at match creation
 round           CharField    regular | r32 | r16 | qf | sf | f
 scheduled_date  DateField (nullable)
 played_date     DateField (nullable)
 status          CharField    scheduled | pending_confirmation | completed | walkover | bye | postponed | cancelled
-winner          FK → User (nullable)
+winner          FK → User (nullable)   null when the external side won (see winner_is_external)
+winner_is_external  BooleanField    default False; set instead of winner when the external player won the match
 entered_by      FK → User (nullable)   who entered the result
 confirmed_by    FK → User (nullable)   who confirmed the result
 walkover_reason TextField

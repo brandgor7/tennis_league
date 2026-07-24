@@ -43,7 +43,7 @@ def _redirect_if_incomplete(request, match, slug, pk):
     has no meaning and would dereference a missing player. Send the user back to
     the match with a clear message instead of erroring.
     """
-    if match.player1_id is None or match.player2_id is None:
+    if not match.both_sides_decided:
         messages.info(request, 'This match is not ready yet — both players must be decided first.')
         return redirect('matches:match_detail', slug=slug, pk=pk)
     return None
@@ -76,8 +76,8 @@ def _build_result_form_context(form, match):
         'sets_meta': sets_meta,
         'max_sets': max_sets,
         'games_to_win_set': season.games_to_win_set,
-        'player1_name': match.player1.get_full_name() or match.player1.username,
-        'player2_name': match.player2.get_full_name() or match.player2.username,
+        'player1_name': match.player1_display_name,
+        'player2_name': match.player2_display_name,
     }
 
 
@@ -89,8 +89,8 @@ class MatchupsView(TemplateView):
         season = get_object_or_404(Season.objects.prefetch_related('tiers'), slug=self.kwargs['slug'])
         qs = (
             Match.objects
-            .filter(season=season, status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED, Match.STATUS_PENDING],
-                    player1__isnull=False, player2__isnull=False)
+            .filter(Match.decided_players_q())
+            .filter(season=season, status__in=[Match.STATUS_SCHEDULED, Match.STATUS_POSTPONED, Match.STATUS_PENDING])
             .select_related('player1', 'player2', 'winner')
             .order_by(F('scheduled_date').desc(nulls_last=True), '-created_at')
         )
@@ -134,11 +134,10 @@ class ResultsView(TemplateView):
         season = get_object_or_404(Season.objects.prefetch_related('tiers'), slug=self.kwargs['slug'])
         qs = (
             Match.objects
+            .filter(Match.decided_players_q())
             .filter(
                 season=season,
                 status__in=[Match.STATUS_COMPLETED, Match.STATUS_WALKOVER],
-                player1__isnull=False,
-                player2__isnull=False,
             )
             .select_related('player1', 'player2', 'winner')
             .prefetch_related('sets')
@@ -240,10 +239,11 @@ class EnterResultView(LoginRequiredMixin, View):
                     )
                     sets_data.append((p1, p2))
                 match.entered_by = request.user
-                if request.user.is_staff:
+                auto_confirm = request.user.is_staff or match.has_external_player
+                if auto_confirm:
                     p1_sets_won = sum(1 for p1, p2 in sets_data if p1 > p2)
                     p2_sets_won = sum(1 for p1, p2 in sets_data if p2 > p1)
-                    match.winner = match.player1 if p1_sets_won > p2_sets_won else match.player2
+                    match.set_winner_side(p1_sets_won > p2_sets_won)
                     match.status = Match.STATUS_COMPLETED
                     match.confirmed_by = request.user
                     match.played_date = datetime.date.today()
@@ -253,9 +253,8 @@ class EnterResultView(LoginRequiredMixin, View):
 
             set_scores = [f'{p1}–{p2}' for p1, p2 in sets_data]
             _audit_match(request.user, match, f'Result submitted: {", ".join(set_scores)}.')
-            if request.user.is_staff:
-                winner_name = match.winner.get_full_name() or match.winner.username
-                _audit_match(request.user, match, f'Result auto-confirmed by admin. Winner: {winner_name}.')
+            if auto_confirm:
+                _audit_match(request.user, match, f'Result auto-confirmed. Winner: {match.winner_display_name}.')
                 messages.success(request, 'Result submitted and confirmed.')
             else:
                 messages.success(request, 'Score submitted — awaiting confirmation from your opponent.')
@@ -418,10 +417,10 @@ class EditResultView(LoginRequiredMixin, View):
                     sets_data.append((p1, p2))
                 p1_sets_won = sum(1 for p1, p2 in sets_data if p1 > p2)
                 p2_sets_won = sum(1 for p1, p2 in sets_data if p2 > p1)
-                match.winner = match.player1 if p1_sets_won > p2_sets_won else match.player2
+                match.set_winner_side(p1_sets_won > p2_sets_won)
                 match.confirmed_by = request.user
-                match.save(update_fields=['winner', 'confirmed_by'])
-            winner_name = match.winner.get_full_name() or match.winner.username
+                match.save(update_fields=['winner', 'winner_is_external', 'confirmed_by'])
+            winner_name = match.winner_display_name
             score_str = ', '.join(f'{p1}–{p2}' for p1, p2 in sets_data)
             _audit_match(request.user, match, f'Result edited by admin. Score: {score_str}. Winner: {winner_name}.')
             messages.success(request, 'Match result updated.')
@@ -458,14 +457,14 @@ class WalkoverView(LoginRequiredMixin, View):
         form = WalkoverForm(request.POST, match=match)
         if form.is_valid():
             winner_choice = form.cleaned_data['winner']
-            winner = match.player1 if winner_choice == WalkoverForm.WINNER_P1 else match.player2
-            winner_name = winner.get_full_name() or winner.username
+            match.set_winner_side(winner_choice == WalkoverForm.WINNER_P1)
+            winner_name = match.winner_display_name
             reason = form.cleaned_data['reason'].strip()
-            update_fields = ['status', 'winner', 'walkover_reason', 'entered_by']
-            match.winner = winner
+            update_fields = ['status', 'winner', 'winner_is_external', 'walkover_reason', 'entered_by']
             match.walkover_reason = form.cleaned_data['reason']
             match.entered_by = request.user
-            if request.user.is_staff:
+            auto_confirm = request.user.is_staff or match.has_external_player
+            if auto_confirm:
                 match.status = Match.STATUS_WALKOVER
                 match.confirmed_by = request.user
                 match.played_date = datetime.date.today()
@@ -477,8 +476,8 @@ class WalkoverView(LoginRequiredMixin, View):
             if reason:
                 msg += f' Reason: {reason}'
             _audit_match(request.user, match, msg)
-            if request.user.is_staff:
-                _audit_match(request.user, match, f'Walkover auto-confirmed by admin. Winner: {winner_name}.')
+            if auto_confirm:
+                _audit_match(request.user, match, f'Walkover auto-confirmed. Winner: {winner_name}.')
                 messages.success(request, 'Walkover submitted and confirmed.')
             else:
                 messages.success(request, 'Walkover submitted — awaiting confirmation from the other player.')

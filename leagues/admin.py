@@ -146,7 +146,7 @@ class SeasonAdmin(admin.ModelAdmin):
         ('Match Format', {'fields': ('sets_to_win', 'games_to_win_set', 'win_by_two', 'final_set_format')}),
         ('Playoffs', {'fields': ('playoffs_enabled', 'playoffs_public', 'playoff_bracket_style', 'playoff_qualifiers_count', 'playoff_interval_days', 'playoff_hide_scores')}),
         ('Points', {'fields': ('points_for_win', 'points_for_loss', 'points_for_walkover_loss')}),
-        ('Rules', {'fields': ('walkover_rule', 'enforce_scheduled_dates', 'postponement_deadline', 'grace_period_days')}),
+        ('Rules', {'fields': ('walkover_rule', 'enforce_scheduled_dates', 'postponement_deadline', 'grace_period_days', 'allow_external_players')}),
         ('Rules Page', {'fields': ('show_rules', 'rules_content', 'season_markdown_hints')}),
         ('Branding Override', {
             'description': (
@@ -496,23 +496,38 @@ class SeasonAdmin(admin.ModelAdmin):
         try:
             tier = int(request.POST.get('tier', ''))
             player1_id = int(request.POST.get('player1', ''))
-            player2_id = int(request.POST.get('player2', ''))
         except (ValueError, TypeError):
             return JsonResponse({'error': 'Invalid parameters'}, status=400)
 
-        if player1_id == player2_id:
-            return JsonResponse({'error': 'Cannot schedule a player against themselves'}, status=400)
+        external_name = request.POST.get('external_player2_name', '').strip()
 
-        valid_ids = set(
-            SeasonPlayer.objects.filter(
-                season=season, player_id__in=[player1_id, player2_id],
-                tier=tier, is_active=True,
-            ).values_list('player_id', flat=True)
-        )
-        if player1_id not in valid_ids:
-            return JsonResponse({'error': 'Player 1 not found in tier'}, status=400)
-        if player2_id not in valid_ids:
-            return JsonResponse({'error': 'Player 2 not found in tier'}, status=400)
+        if external_name:
+            if not season.allow_external_players:
+                return JsonResponse({'error': 'This season does not allow external players'}, status=400)
+            if not SeasonPlayer.objects.filter(
+                season=season, player_id=player1_id, tier=tier, is_active=True,
+            ).exists():
+                return JsonResponse({'error': 'Player 1 not found in tier'}, status=400)
+            player2_id = None
+        else:
+            try:
+                player2_id = int(request.POST.get('player2', ''))
+            except (ValueError, TypeError):
+                return JsonResponse({'error': 'Invalid parameters'}, status=400)
+
+            if player1_id == player2_id:
+                return JsonResponse({'error': 'Cannot schedule a player against themselves'}, status=400)
+
+            valid_ids = set(
+                SeasonPlayer.objects.filter(
+                    season=season, player_id__in=[player1_id, player2_id],
+                    tier=tier, is_active=True,
+                ).values_list('player_id', flat=True)
+            )
+            if player1_id not in valid_ids:
+                return JsonResponse({'error': 'Player 1 not found in tier'}, status=400)
+            if player2_id not in valid_ids:
+                return JsonResponse({'error': 'Player 2 not found in tier'}, status=400)
 
         scheduled_date = None
         scheduled_date_str = request.POST.get('scheduled_date', '').strip()
@@ -526,6 +541,7 @@ class SeasonAdmin(admin.ModelAdmin):
             season=season,
             player1_id=player1_id,
             player2_id=player2_id,
+            external_player2_name=external_name,
             tier=tier,
             round=Match.ROUND_REGULAR,
             scheduled_date=scheduled_date,
