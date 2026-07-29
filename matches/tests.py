@@ -2903,3 +2903,233 @@ class PlayoffWinnerViewTest(TestCase):
         )
         resp = self.client.get(reverse('leagues:results', args=[self.season.slug]))
         self.assertContains(resp, 'W/O')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# External players
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ExternalPlayerModelTest(TestCase):
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025, allow_external_players=True)
+        self.p1 = User.objects.create_user(username='p1', first_name='Real', last_name='Player')
+
+    def _match(self, **kwargs):
+        return Match(season=self.season, player1=self.p1, **kwargs)
+
+    def test_external_opponent_passes_clean(self):
+        self._match(player2_is_external=True).clean()
+
+    def test_external_flag_and_real_player_conflict(self):
+        p2 = User.objects.create_user(username='p2')
+        match = self._match(player2=p2, player2_is_external=True)
+        with self.assertRaises(ValidationError) as ctx:
+            match.clean()
+        self.assertIn('player2_is_external', ctx.exception.message_dict)
+
+    def test_both_sides_external_rejected(self):
+        match = Match(
+            season=self.season,
+            player1_is_external=True,
+            player2_is_external=True,
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            match.clean()
+        self.assertIn('player2_is_external', ctx.exception.message_dict)
+
+    def test_external_player_requires_season_setting(self):
+        self.season.allow_external_players = False
+        self.season.save(update_fields=['allow_external_players'])
+        match = self._match(player2_is_external=True)
+        with self.assertRaises(ValidationError) as ctx:
+            match.clean()
+        self.assertIn('__all__', ctx.exception.message_dict)
+
+    def test_external_player_rejected_outside_regular_round(self):
+        match = self._match(player2_is_external=True, round=Match.ROUND_R16)
+        with self.assertRaises(ValidationError) as ctx:
+            match.clean()
+        self.assertIn('round', ctx.exception.message_dict)
+
+    def test_winner_is_external_requires_external_player(self):
+        p2 = User.objects.create_user(username='p2')
+        match = self._match(player2=p2, winner_is_external=True)
+        with self.assertRaises(ValidationError) as ctx:
+            match.clean()
+        self.assertIn('winner_is_external', ctx.exception.message_dict)
+
+    def test_winner_and_winner_is_external_conflict(self):
+        match = self._match(player2_is_external=True, winner=self.p1, winner_is_external=True)
+        with self.assertRaises(ValidationError) as ctx:
+            match.clean()
+        self.assertIn('winner', ctx.exception.message_dict)
+
+    def test_player1_display_name_real(self):
+        match = self._match(player2_is_external=True)
+        self.assertEqual(match.player1_display_name, 'Real Player')
+
+    def test_player2_display_name_external(self):
+        match = self._match(player2_is_external=True)
+        self.assertEqual(match.player2_display_name, 'External Player')
+
+    def test_has_external_player(self):
+        self.assertTrue(self._match(player2_is_external=True).has_external_player)
+        p2 = User.objects.create_user(username='p2')
+        self.assertFalse(self._match(player2=p2).has_external_player)
+
+    def test_set_winner_side_real_player(self):
+        p2 = User.objects.create_user(username='p2')
+        match = self._match(player2=p2)
+        match.set_winner_side(True)
+        self.assertEqual(match.winner, self.p1)
+        self.assertFalse(match.winner_is_external)
+
+    def test_set_winner_side_external_player(self):
+        match = self._match(player2_is_external=True)
+        match.set_winner_side(False)
+        self.assertIsNone(match.winner)
+        self.assertTrue(match.winner_is_external)
+
+    def test_winner_display_name_external(self):
+        match = self._match(player2_is_external=True)
+        match.set_winner_side(False)
+        self.assertEqual(match.winner_display_name, 'External Player')
+
+    def test_player_is_winner_properties(self):
+        match = self._match(player2_is_external=True)
+        match.set_winner_side(False)
+        self.assertFalse(match.player1_is_winner)
+        self.assertTrue(match.player2_is_winner)
+
+    def test_undecided_external_match_has_no_winner_side(self):
+        # Regression: before a winner is set, an external side's player_id is
+        # None just like winner_id — the two must not be conflated as a match.
+        match = self._match(player2_is_external=True)
+        self.assertFalse(match.player1_is_winner)
+        self.assertFalse(match.player2_is_winner)
+
+
+class ExternalPlayerEnterResultViewTest(TestCase):
+    def setUp(self):
+        self.season = Season.objects.create(
+            name='Spring', year=2025, sets_to_win=2,
+            final_set_format=Season.FINAL_SET_FULL,
+            allow_external_players=True,
+        )
+        self.p1 = User.objects.create_user(username='p1', password='pass')
+        self.match = Match.objects.create(
+            season=self.season, player1=self.p1, player2_is_external=True,
+            status=Match.STATUS_SCHEDULED,
+        )
+        self.url = reverse('matches:enter_result', kwargs={'slug': self.season.slug, 'pk': self.match.pk})
+        self.client.login(username='p1', password='pass')
+
+    def test_real_player_win_auto_completes(self):
+        self.client.post(self.url, {'set1_p1': 6, 'set1_p2': 3, 'set2_p1': 6, 'set2_p2': 4})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_COMPLETED)
+        self.assertEqual(self.match.winner, self.p1)
+        self.assertFalse(self.match.winner_is_external)
+
+    def test_external_player_win_auto_completes(self):
+        self.client.post(self.url, {'set1_p1': 3, 'set1_p2': 6, 'set2_p1': 4, 'set2_p2': 6})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_COMPLETED)
+        self.assertIsNone(self.match.winner)
+        self.assertTrue(self.match.winner_is_external)
+
+    def test_match_detail_shows_external_label(self):
+        resp = self.client.get(
+            reverse('matches:match_detail', kwargs={'slug': self.season.slug, 'pk': self.match.pk})
+        )
+        self.assertContains(resp, 'External Player')
+
+
+class ExternalPlayerWalkoverViewTest(TestCase):
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025, allow_external_players=True)
+        self.p1 = User.objects.create_user(username='p1', password='pass')
+        self.match = Match.objects.create(
+            season=self.season, player1=self.p1, player2_is_external=True,
+            status=Match.STATUS_SCHEDULED,
+        )
+        self.url = reverse('matches:walkover', kwargs={'slug': self.season.slug, 'pk': self.match.pk})
+        self.client.login(username='p1', password='pass')
+
+    def test_walkover_against_external_auto_completes(self):
+        self.client.post(self.url, {'winner': WalkoverForm.WINNER_P1, 'reason': ''})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_WALKOVER)
+        self.assertEqual(self.match.winner, self.p1)
+        self.assertIsNotNone(self.match.confirmed_by)
+
+    def test_external_player_walkover_win(self):
+        self.client.post(self.url, {'winner': WalkoverForm.WINNER_P2, 'reason': ''})
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, Match.STATUS_WALKOVER)
+        self.assertIsNone(self.match.winner)
+        self.assertTrue(self.match.winner_is_external)
+
+
+class ExternalPlayerStandingsTest(TestCase):
+    """External opponents never appear in standings; the real player's record is unaffected."""
+
+    def setUp(self):
+        from standings.calculator import calculate_standings
+        self.calculate_standings = calculate_standings
+        self.season = Season.objects.create(name='Spring', year=2025, allow_external_players=True)
+        self.p1 = User.objects.create_user(username='p1', first_name='Real', last_name='Player')
+        SeasonPlayer.objects.create(season=self.season, player=self.p1, tier=1)
+
+    def test_win_against_external_counts_as_win(self):
+        match = Match.objects.create(
+            season=self.season, player1=self.p1, player2_is_external=True,
+            tier=1, status=Match.STATUS_COMPLETED,
+        )
+        match.set_winner_side(True)
+        match.save()
+        MatchSet.objects.create(match=match, set_number=1, player1_games=6, player2_games=2)
+        rows = self.calculate_standings(self.season, 1)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['wins'], 1)
+        self.assertEqual(rows[0]['losses'], 0)
+
+    def test_loss_against_external_counts_as_loss(self):
+        match = Match.objects.create(
+            season=self.season, player1=self.p1, player2_is_external=True,
+            tier=1, status=Match.STATUS_COMPLETED,
+        )
+        match.set_winner_side(False)
+        match.save()
+        MatchSet.objects.create(match=match, set_number=1, player1_games=2, player2_games=6)
+        rows = self.calculate_standings(self.season, 1)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['wins'], 0)
+        self.assertEqual(rows[0]['losses'], 1)
+
+
+class ExternalPlayerListViewsTest(TestCase):
+    """Matches with an external opponent must still show up on Matchups/Results."""
+
+    def setUp(self):
+        self.season = Season.objects.create(name='Spring', year=2025, allow_external_players=True)
+        self.p1 = User.objects.create_user(username='p1')
+
+    def test_scheduled_external_match_appears_in_matchups(self):
+        Match.objects.create(
+            season=self.season, player1=self.p1, player2_is_external=True,
+            status=Match.STATUS_SCHEDULED, scheduled_date=datetime.date.today(),
+        )
+        resp = self.client.get(reverse('leagues:matchups', args=[self.season.slug]))
+        self.assertContains(resp, 'External Player')
+
+    def test_completed_external_match_appears_in_results(self):
+        match = Match.objects.create(
+            season=self.season, player1=self.p1, player2_is_external=True,
+            status=Match.STATUS_COMPLETED,
+        )
+        match.set_winner_side(True)
+        match.save()
+        MatchSet.objects.create(match=match, set_number=1, player1_games=6, player2_games=2)
+        resp = self.client.get(reverse('leagues:results', args=[self.season.slug]))
+        self.assertContains(resp, 'External Player')

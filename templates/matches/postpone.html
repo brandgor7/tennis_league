@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
 
 {% block title %}
-  Postpone Match — {{ match.player1.get_full_name|default:match.player1.username }} vs
-  {{ match.player2.get_full_name|default:match.player2.username }} — TennisLeague
+  Postpone Match — {{ match.player1_display_name }} vs
+  {{ match.player2_display_name }} — TennisLeague
 {% endblock %}
 
 {% block content %}
@@ -10,9 +10,9 @@
 <div class="page-header">
   <h1>Postpone Match</h1>
   <p class="page-meta">
-    {{ match.player1.get_full_name|default:match.player1.username }}
+    {{ match.player1_display_name }}
     <span class="text-muted" style="font-size:0.85em;">vs</span>
-    {{ match.player2.get_full_name|default:match.player2.username }}
+    {{ match.player2_display_name }}
     &nbsp;·&nbsp; {{ season }}
     {% if multi_tier and match.tier %}
     &nbsp;·&nbsp; Tier {{ match.tier }}

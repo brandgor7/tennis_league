@@ -91,11 +91,9 @@ class WalkoverForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.match = match
         if match is not None:
-            p1_name = match.player1.get_full_name() or match.player1.username
-            p2_name = match.player2.get_full_name() or match.player2.username
             self.fields['winner'].choices = [
-                (self.WINNER_P1, p1_name),
-                (self.WINNER_P2, p2_name),
+                (self.WINNER_P1, match.player1_display_name),
+                (self.WINNER_P2, match.player2_display_name),
             ]
 
 

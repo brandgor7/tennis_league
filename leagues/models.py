@@ -147,6 +147,13 @@ class Season(models.Model):
         default=False,
         help_text='When enabled, playoff matches record only the winner — no set scores are captured or displayed.',
     )
+    allow_external_players = models.BooleanField(
+        default=False,
+        help_text=(
+            'Allow regular-season matches to be created against a player who is not in the system '
+            '(name recorded only). External players appear in match results but never in standings.'
+        ),
+    )
     preseason = models.ForeignKey(
         'self',
         null=True,
