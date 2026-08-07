@@ -1,0 +1,53 @@
+name: Visual Tests
+
+# Runs only when the 'visual-review' label is present on a PR.
+# The label must exist in the repo — create it once at:
+#   GitHub → repo → Issues → Labels → New label → name: "visual-review"
+#
+# When tests fail, screenshots are uploaded as a CI artifact so you can inspect the diff.
+# To regenerate baselines: pytest visual_tests/ --update-snapshots
+# then commit the updated files in visual_tests/test_pages.py-snapshots/.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, labeled]
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+
+    if: contains(github.event.pull_request.labels.*.name, 'visual-review')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Install Playwright browsers
+        run: python -m playwright install chromium --with-deps
+
+      - name: Create .env
+        run: |
+          echo "SECRET_KEY=ci-visual-test-key" >> .env
+          echo "DEBUG=True" >> .env
+          echo "ALLOWED_HOSTS=localhost,127.0.0.1" >> .env
+
+      - name: Run visual tests
+        run: pytest visual_tests/ -v
+
+      - name: Upload screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-test-screenshots
+          path: visual_tests/test_pages.py-snapshots/
+          if-no-files-found: ignore
